@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { Sidebar } from '@/components/sidebar'
 import { Menu } from 'lucide-react'
 
@@ -13,10 +13,12 @@ export default function DashboardLayout({
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden">
-            <Sidebar
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
-            />
+            <Suspense fallback={<div className="w-64 bg-white border-r border-slate-100 h-screen animate-pulse" />}>
+                <Sidebar
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                />
+            </Suspense>
 
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header Mobile */}
