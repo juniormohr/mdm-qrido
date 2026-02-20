@@ -1,0 +1,626 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import {
+    Plus, Users, MessageSquareMore, TrendingUp, Store,
+    Filter, BarChart3, Search, Trash2, Edit2,
+    ArrowUpRight, DollarSign, Wallet, Calendar,
+    UserPlus, Link2
+} from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from '@/lib/utils'
+
+interface Company {
+    id: string
+    full_name: string
+    subscription_tier: string
+    phone?: string
+    email?: string
+    created_at: string
+}
+
+interface Customer {
+    id: string
+    user_id: string // reference to company
+    name: string
+    phone: string
+    points_balance: number
+    created_at: string
+    company_name?: string
+}
+
+interface AdminStats {
+    totalCompanies: number
+    newCompaniesThisMonth: number
+    totalCustomers: number
+    newCustomersThisMonth: number
+    totalPoints: number
+    totalRedemptions: number
+    estimatedRevenue: number
+}
+
+const TIER_PRICES = {
+    basic: 29.90,
+    pro: 59.90,
+    master: 199.90
+}
+
+export default function AdminDashboard() {
+    const [activeTab, setActiveTab] = useState<'overview' | 'companies' | 'customers'>('overview')
+    const [stats, setStats] = useState<AdminStats>({
+        totalCompanies: 0,
+        newCompaniesThisMonth: 0,
+        totalCustomers: 0,
+        newCustomersThisMonth: 0,
+        totalPoints: 0,
+        totalRedemptions: 0,
+        estimatedRevenue: 0
+    })
+    const [companies, setCompanies] = useState<Company[]>([])
+    const [allCustomers, setAllCustomers] = useState<Customer[]>([])
+    const [allTransactions, setAllTransactions] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [searchTerm, setSearchTerm] = useState('')
+
+    // Modal states
+    const [showCompanyModal, setShowCompanyModal] = useState(false)
+    const [showCustomerModal, setShowCustomerModal] = useState(false)
+    const [currentEntity, setCurrentEntity] = useState<any>(null)
+
+    useEffect(() => {
+        fetchAllData()
+    }, [])
+
+    async function fetchAllData() {
+        setLoading(true)
+        const supabase = createClient()
+
+        // 1. Fetch Companies (Profiles with role company)
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('role', 'company')
+            .order('created_at', { ascending: false })
+
+        if (profiles) setCompanies(profiles)
+
+        // 2. Fetch All Customers
+        const { data: customers } = await supabase
+            .from('customers')
+            .select('*, profiles(full_name)')
+            .order('created_at', { ascending: false })
+
+        if (customers) {
+            const formatted = customers.map(c => ({
+                ...c,
+                company_name: c.profiles?.full_name || 'Loja Desconhecida'
+            }))
+            setAllCustomers(formatted)
+        }
+
+        // 3. Fetch All Transactions
+        const { data: transactions } = await supabase
+            .from('loyalty_transactions')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100)
+
+        if (transactions) setAllTransactions(transactions)
+
+        // 4. Calculate Stats
+        const now = new Date()
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+        const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
+        const newCusts = customers?.filter(c => c.created_at >= firstDayOfMonth).length || 0
+
+        const revenue = profiles?.reduce((acc, p) => {
+            const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
+            return acc + (TIER_PRICES[tier] || 0)
+        }, 0) || 0
+
+        const totalPoints = transactions?.filter(t => t.type === 'earn').reduce((acc, t) => acc + (t.points || 0), 0) || 0
+        const totalRedemptions = transactions?.filter(t => t.type === 'redeem').length || 0
+
+        setStats({
+            totalCompanies: profiles?.length || 0,
+            newCompaniesThisMonth: newComps,
+            totalCustomers: customers?.length || 0,
+            newCustomersThisMonth: newCusts,
+            totalPoints,
+            totalRedemptions,
+            estimatedRevenue: revenue
+        })
+
+        setLoading(false)
+    }
+
+    const handleDeleteCompany = async (id: string) => {
+        if (!confirm('Tem certeza? Isso removerá a empresa e todos os seus dados vinculados.')) return
+        const supabase = createClient()
+        // Note: In a real app, you'd probably handle auth deletion too, 
+        // but here we focus on the profile as it drives the dashboard.
+        await supabase.from('profiles').delete().eq('id', id)
+        fetchAllData()
+    }
+
+    const handleDeleteCustomer = async (id: string) => {
+        if (!confirm('Remover este cliente desta loja?')) return
+        const supabase = createClient()
+        await supabase.from('customers').delete().eq('id', id)
+        fetchAllData()
+    }
+
+    const filteredCompanies = companies.filter(c =>
+        c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.id.includes(searchTerm)
+    )
+
+    const filteredCustomers = allCustomers.filter(c =>
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.phone.includes(searchTerm) ||
+        c.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+
+    if (loading) return (
+        <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
+            <div className="h-12 w-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+            <p className="font-black text-slate-400 italic uppercase">Carregando Ecossistema QRido...</p>
+        </div>
+    )
+
+    return (
+        <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2 bg-brand-blue rounded-xl text-white">
+                            <BarChart3 className="h-6 w-6" />
+                        </div>
+                        <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO ADMIN</h1>
+                    </div>
+                    <p className="text-slate-500 font-medium">Controle total da rede de fidelidade e faturamento.</p>
+                </div>
+
+                <div className="flex gap-4">
+                    <Button className="btn-blue h-12 px-6 rounded-2xl shadow-lg shadow-brand-blue/20" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                        <Plus className="h-5 w-5 mr-2" /> NOVA EMPRESA
+                    </Button>
+                </div>
+            </div>
+
+            {/* Tabs Navigation */}
+            <div className="flex gap-2 bg-slate-100/50 p-1.5 rounded-2xl w-fit">
+                <button
+                    onClick={() => setActiveTab('overview')}
+                    className={cn(
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        activeTab === 'overview' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                >
+                    Visão Geral
+                </button>
+                <button
+                    onClick={() => setActiveTab('companies')}
+                    className={cn(
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        activeTab === 'companies' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                >
+                    Empresas
+                </button>
+                <button
+                    onClick={() => setActiveTab('customers')}
+                    className={cn(
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        activeTab === 'customers' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                >
+                    Clientes Globais
+                </button>
+            </div>
+
+            {activeTab === 'overview' && (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                    {/* Metrics Grid */}
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Faturamento</CardTitle>
+                                <DollarSign className="h-5 w-5 text-brand-blue" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-slate-900">R$ {stats.estimatedRevenue.toLocaleString('pt-br', { minimumFractionDigits: 2 })}</div>
+                                <div className="flex items-center gap-1 mt-2 text-emerald-500 text-xs font-bold">
+                                    <ArrowUpRight className="h-3 w-3" />
+                                    <span>Baseado em assinaturas ativas</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Empresas Parceiras</CardTitle>
+                                <Store className="h-5 w-5 text-brand-orange" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-slate-900">{stats.totalCompanies}</div>
+                                <div className="flex items-center gap-1 mt-2 text-brand-orange text-xs font-bold">
+                                    <Plus className="h-3 w-3" />
+                                    <span>{stats.newCompaniesThisMonth} novas este mês</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Usuários Finais</CardTitle>
+                                <Users className="h-5 w-5 text-emerald-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-slate-900">{stats.totalCustomers}</div>
+                                <div className="flex items-center gap-1 mt-2 text-emerald-500 text-xs font-bold">
+                                    <Plus className="h-3 w-3" />
+                                    <span>{stats.newCustomersThisMonth} novos este mês</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Resgates Totais</CardTitle>
+                                <Wallet className="h-5 w-5 text-brand-yellow" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-slate-900">{stats.totalRedemptions}</div>
+                                <p className="text-xs text-slate-400 mt-2 font-medium italic">Prêmios resgatados na rede</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Recent Transactions Audit */}
+                        <Card className="lg:col-span-2 border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-xl font-black italic uppercase text-slate-800">Auditoria de Transações</CardTitle>
+                                    <p className="text-xs text-slate-400 font-medium">Últimas movimentações em toda a plataforma.</p>
+                                </div>
+                                <div className="p-3 bg-slate-50 rounded-2xl text-slate-400">
+                                    <Calendar className="h-5 w-5" />
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="divide-y divide-slate-50">
+                                    {allTransactions.slice(0, 8).map(tx => (
+                                        <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className={cn("p-2.5 rounded-xl font-black text-xs", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
+                                                    {tx.type === 'earn' ? 'EARN' : 'REDEEM'}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-800">
+                                                        {tx.type === 'earn' ? 'Crédito de pontos' : 'Resgate de prêmio'}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">
+                                                        Transação: {tx.id.substring(0, 8)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={cn("text-lg font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
+                                                    {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase italic">
+                                                    {new Date(tx.created_at).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Top Rewards Ranking */}
+                        <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                            <CardHeader className="p-8 border-b border-slate-50">
+                                <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
+                                <p className="text-xs text-slate-400 font-medium">Os prêmios mais desejados da rede.</p>
+                            </CardHeader>
+                            <CardContent className="p-8">
+                                <div className="space-y-6">
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} className="flex items-center gap-4 group">
+                                            <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-400 text-lg group-hover:bg-brand-blue group-hover:text-white transition-all">
+                                                {i}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-800 italic uppercase leading-none">Prêmio Exemplo #{i}</p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-brand-blue" style={{ width: `${80 - i * 15}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-brand-blue italic">{40 - i * 7} Resgates</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="pt-4 border-t border-slate-50">
+                                        <Button variant="ghost" className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5">VER TODOS OS PRÊMIOS</Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'companies' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+                        <Search className="h-5 w-5 text-slate-300 ml-2" />
+                        <Input
+                            placeholder="Buscar por nome, e-mail ou UUID da empresa..."
+                            className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/50">
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Empresa</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Atendimento</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Plano</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {filteredCompanies.map(comp => (
+                                        <tr key={comp.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-6 px-8">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue font-black uppercase italic text-xl">
+                                                        {comp.full_name?.charAt(0) || 'E'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-900 uppercase italic leading-tight">{comp.full_name || 'Sem nome'}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">ID: {comp.id}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-8">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+                                                        <BarChart3 className="h-3.5 w-3.5 text-slate-300" />
+                                                        {comp.phone || 'Sem telefone'}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                                        <Calendar className="h-3 w-3" />
+                                                        Desde: {new Date(comp.created_at).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-8 text-center">
+                                                <span className={cn(
+                                                    "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm",
+                                                    comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/20' :
+                                                        comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' :
+                                                            'bg-slate-100 text-slate-500 border border-slate-200'
+                                                )}>
+                                                    {comp.subscription_tier || 'basic'}
+                                                </span>
+                                            </td>
+                                            <td className="py-6 px-8 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" onClick={() => handleDeleteCompany(comp.id)}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {activeTab === 'customers' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
+                        <Search className="h-5 w-5 text-slate-300 ml-2" />
+                        <Input
+                            placeholder="Buscar por nome, telefone ou loja desse cliente..."
+                            className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50/50">
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Cliente</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Loja Vinculada</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Saldo</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {filteredCustomers.map(cust => (
+                                        <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-6 px-8">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 font-black uppercase italic text-xl">
+                                                        {cust.name?.charAt(0) || 'C'}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-900 uppercase italic leading-tight">{cust.name || 'Cliente Sem Nome'}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{cust.phone}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-8">
+                                                <div className="flex items-center gap-2 text-xs text-slate-800 font-bold">
+                                                    <Store className="h-3.5 w-3.5 text-brand-blue" />
+                                                    {cust.company_name}
+                                                </div>
+                                            </td>
+                                            <td className="py-6 px-8 text-center text-lg font-black text-brand-blue italic">
+                                                {cust.points_balance} pts
+                                            </td>
+                                            <td className="py-6 px-8 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" onClick={() => { setCurrentEntity(cust); setShowCustomerModal(true); }}>
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" onClick={() => handleDeleteCustomer(cust.id)}>
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Company Modal */}
+            {showCompanyModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95">
+                        <CardHeader className="p-8 border-b border-slate-50">
+                            <CardTitle className="text-2xl font-black italic uppercase text-brand-blue">
+                                {currentEntity ? 'Editar Empresa' : 'Cadastrar Empresa'}
+                            </CardTitle>
+                        </CardHeader>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault()
+                            const formData = new FormData(e.currentTarget)
+                            const supabase = createClient()
+                            const id = currentEntity?.id || crypto.randomUUID() // fallback for new
+
+                            const { error } = await supabase.from('profiles').upsert({
+                                id: id,
+                                full_name: formData.get('full_name'),
+                                phone: formData.get('phone'),
+                                subscription_tier: formData.get('tier'),
+                                role: 'company'
+                            })
+
+                            if (error) alert('Erro ao salvar empresa: ' + error.message)
+                            else {
+                                setShowCompanyModal(false)
+                                fetchAllData()
+                            }
+                        }}>
+                            <CardContent className="p-8 space-y-4">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome da Empresa</Label>
+                                    <Input name="full_name" defaultValue={currentEntity?.full_name} placeholder="Ex: Pizzaria do Zé" required className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone / WhatsApp</Label>
+                                    <Input name="phone" defaultValue={currentEntity?.phone} placeholder="(00) 0 0000-0000" className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Plano de Assinatura</Label>
+                                    <select name="tier" defaultValue={currentEntity?.subscription_tier || 'basic'} className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue">
+                                        <option value="basic">BASIC (R$ 29,90)</option>
+                                        <option value="pro">PRO (R$ 59,90)</option>
+                                        <option value="master">MASTER (R$ 199,90)</option>
+                                    </select>
+                                </div>
+                                <div className="flex justify-end gap-3 pt-6">
+                                    <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowCompanyModal(false)}>Cancelar</Button>
+                                    <Button type="submit" className="btn-blue h-12 px-8 rounded-xl font-black italic uppercase">Salvar Alterações</Button>
+                                </div>
+                            </CardContent>
+                        </form>
+                    </Card>
+                </div>
+            )}
+
+            {/* Customer Modal */}
+            {showCustomerModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95">
+                        <CardHeader className="p-8 border-b border-slate-50">
+                            <CardTitle className="text-2xl font-black italic uppercase text-emerald-500">
+                                {currentEntity ? 'Ajustar Cliente' : 'Vincular Novo Cliente'}
+                            </CardTitle>
+                        </CardHeader>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault()
+                            const formData = new FormData(e.currentTarget)
+                            const supabase = createClient()
+
+                            const data = {
+                                name: formData.get('name'),
+                                phone: formData.get('phone'),
+                                points_balance: parseInt(formData.get('points') as string),
+                                user_id: formData.get('company_id')
+                            }
+
+                            const { error } = currentEntity
+                                ? await supabase.from('customers').update(data).eq('id', currentEntity.id)
+                                : await supabase.from('customers').insert(data)
+
+                            if (error) alert('Erro: ' + error.message)
+                            else {
+                                setShowCustomerModal(false)
+                                fetchAllData()
+                            }
+                        }}>
+                            <CardContent className="p-8 space-y-4">
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome do Cliente</Label>
+                                    <Input name="name" defaultValue={currentEntity?.name} placeholder="Nome completo" required className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone</Label>
+                                    <Input name="phone" defaultValue={currentEntity?.phone} placeholder="DDI + DDD + Número" required className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Saldo de Pontos</Label>
+                                    <Input name="points" type="number" defaultValue={currentEntity?.points_balance || 0} required className="rounded-xl border-slate-100 h-12 font-black text-brand-blue" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vincular à Loja</Label>
+                                    <select name="company_id" defaultValue={currentEntity?.user_id} required className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue">
+                                        <option value="">Selecione uma empresa...</option>
+                                        {companies.map(c => (
+                                            <option key={c.id} value={c.id}>{c.full_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex justify-end gap-3 pt-6">
+                                    <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowCustomerModal(false)}>Cancelar</Button>
+                                    <Button type="submit" className="btn-emerald h-12 px-8 rounded-xl font-black italic uppercase">Confirmar Cadastro</Button>
+                                </div>
+                            </CardContent>
+                        </form>
+                    </Card>
+                </div>
+            )}
+        </div>
+    )
+}
