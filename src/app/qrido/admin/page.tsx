@@ -286,19 +286,19 @@ export default function AdminDashboard() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Recent Transactions Audit */}
                         <Card className="lg:col-span-2 border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between gap-4">
+                            <CardHeader className="p-6 md:p-8 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                 <div>
                                     <CardTitle className="text-xl font-black italic uppercase text-slate-800">Auditoria de Transações</CardTitle>
                                     <p className="text-xs text-slate-400 font-medium">Últimas movimentações em toda a plataforma.</p>
                                 </div>
-                                <div className="p-3 bg-slate-50 rounded-2xl text-slate-400">
+                                <div className="p-3 bg-slate-50 rounded-2xl text-slate-400 hidden sm:block">
                                     <Calendar className="h-5 w-5" />
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="divide-y divide-slate-50">
                                     {allTransactions.slice(0, 8).map(tx => (
-                                        <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                                        <div key={tx.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
                                             <div className="flex items-center gap-4">
                                                 <div className={cn("p-2.5 rounded-xl font-black text-xs", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
                                                     {tx.type === 'earn' ? 'EARN' : 'REDEEM'}
@@ -312,7 +312,7 @@ export default function AdminDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
+                                            <div className="w-full sm:w-auto text-right">
                                                 <p className={cn("text-lg font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
                                                     {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
                                                 </p>

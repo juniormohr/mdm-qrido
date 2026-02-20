@@ -101,26 +101,26 @@ export default function CompanyDashboard() {
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tight text-slate-900 italic">QRIDO PAINEL</h1>
+                    <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO PAINEL</h1>
                     <p className="text-slate-500 mt-1">Sua plataforma de fidelidade e recorrência.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                     {verificationCode ? (
-                        <div className="bg-brand-orange/10 border border-brand-orange/20 px-6 py-2 rounded-2xl flex items-center gap-4 animate-in slide-in-from-right">
+                        <div className="bg-brand-orange/10 border border-brand-orange/20 px-6 py-2 rounded-2xl flex items-center justify-between gap-4 animate-in slide-in-from-right w-full sm:w-auto">
                             <div>
                                 <p className="text-[10px] font-black text-brand-orange uppercase leading-none">CÓDIGO ATIVO</p>
                                 <p className="text-2xl font-black text-slate-700 tracking-widest">{verificationCode}</p>
                             </div>
-                            <div className="h-8 w-8 rounded-full border-2 border-brand-orange flex items-center justify-center text-brand-orange font-bold text-xs">
+                            <div className="h-8 w-8 rounded-full border-2 border-brand-orange flex items-center justify-center text-brand-orange font-bold text-xs shrink-0">
                                 {codeExpiry}s
                             </div>
                         </div>
                     ) : (
                         <Button
                             onClick={handleGenerateCode}
-                            className="btn-orange h-auto py-3 px-6 flex-col items-start gap-0"
+                            className="btn-orange h-auto py-3 px-6 flex-col items-start gap-0 w-full sm:w-auto"
                         >
                             <span className="text-[10px] font-black uppercase opacity-80">Gerar Código</span>
                             <span className="text-base font-black italic">VERIFICAR COMPRA</span>
@@ -128,14 +128,14 @@ export default function CompanyDashboard() {
                     )}
                     <Link
                         href="/qrido/products"
-                        className="btn-orange inline-flex items-center gap-2 text-sm"
+                        className="btn-orange inline-flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
                     >
                         <Package className="h-5 w-5" />
                         Gerenciar Produtos
                     </Link>
                     <Link
                         href="/qrido/transactions/new"
-                        className="btn-blue inline-flex items-center gap-2"
+                        className="btn-blue inline-flex items-center justify-center gap-2 w-full sm:w-auto"
                     >
                         <Plus className="h-5 w-5 text-[#F7AA1C]" />
                         Registrar Venda
@@ -186,14 +186,14 @@ export default function CompanyDashboard() {
 
             {/* Upsell Trigger */}
             <Card className="border-none bg-gradient-to-br from-brand-blue to-blue-700 p-1">
-                <div className="bg-white/10 backdrop-blur-md rounded-[inherit] p-8 flex items-center justify-between">
+                <div className="bg-white/10 backdrop-blur-md rounded-[inherit] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                     <div className="space-y-2">
                         <h3 className="text-2xl font-black text-white italic">IMPULSIONE SEUS RESULTADOS</h3>
-                        <p className="text-blue-50 font-medium font-bold">Acesse análises avançadas com o MDM Insight e automatize suas recompensas.</p>
+                        <p className="text-blue-50 font-bold">Acesse análises avançadas com o MDM Insight e automatize suas recompensas.</p>
                     </div>
                     <Link
                         href="/insight"
-                        className="btn-white"
+                        className="btn-white w-full md:w-auto"
                     >
                         CONHECER INSIGHT &rarr;
                     </Link>

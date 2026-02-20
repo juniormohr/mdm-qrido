@@ -312,11 +312,11 @@ export default function CustomerDashboard() {
 
                     {selectedCompany ? (
                         <div className="space-y-6">
-                            <div className="flex items-center justify-between bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm gap-4">
                                 <div className="flex items-center gap-4">
                                     <h2 className="text-xl font-black text-slate-900 uppercase italic">Ofertas em {selectedCompany.full_name}</h2>
                                 </div>
-                                <div className="text-right">
+                                <div className="w-full sm:w-auto text-left sm:text-right bg-brand-orange/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl sm:rounded-none border border-brand-orange/10 sm:border-none">
                                     <p className="text-xs font-black text-brand-orange uppercase italic">Seu Saldo: {customerBalance} pts</p>
                                 </div>
                             </div>
@@ -507,13 +507,13 @@ export default function CustomerDashboard() {
                     </div>
 
                     <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
-                        <div className="p-8 border-b border-slate-50 flex items-center justify-between">
+                        <div className="p-6 md:p-8 border-b border-slate-50 flex items-center justify-between">
                             <h3 className="text-xl font-black italic uppercase text-slate-800">Crescimento na Rede</h3>
                             <BarChart3 className="h-5 w-5 text-slate-300" />
                         </div>
                         <div className="divide-y divide-slate-50">
                             {transactions.length > 0 ? transactions.map(tx => (
-                                <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-all">
+                                <div key={tx.id} className="p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50 transition-all gap-4">
                                     <div className="flex items-center gap-4">
                                         <div className={`p-3 rounded-2xl ${tx.type === 'earn' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
                                             <TrendingUp className="h-6 w-6" />
@@ -523,7 +523,7 @@ export default function CustomerDashboard() {
                                             <p className="text-[10px] text-slate-400 font-black italic uppercase">{new Date(tx.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
+                                    <div className="w-full sm:w-auto text-right">
                                         <p className={`font-black text-lg italic ${tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500'}`}>
                                             {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
                                         </p>
