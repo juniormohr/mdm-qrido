@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -8,7 +9,7 @@ import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -49,8 +50,23 @@ const TIER_PRICES = {
     master: 199.90
 }
 
-export default function AdminDashboard() {
+function AdminContent() {
+    const searchParams = useSearchParams()
+    const router = useRouter()
+    const tabParam = searchParams.get('tab') as 'overview' | 'companies' | 'customers' | null
     const [activeTab, setActiveTab] = useState<'overview' | 'companies' | 'customers'>('overview')
+
+    useEffect(() => {
+        if (tabParam && ['overview', 'companies', 'customers'].includes(tabParam)) {
+            setActiveTab(tabParam)
+        }
+    }, [tabParam])
+
+    const handleTabChange = (tab: 'overview' | 'companies' | 'customers') => {
+        setActiveTab(tab)
+        router.push(`/qrido/admin?tab=${tab}`)
+    }
+
     const [stats, setStats] = useState<AdminStats>({
         totalCompanies: 0,
         newCompaniesThisMonth: 0,
@@ -60,11 +76,12 @@ export default function AdminDashboard() {
         totalRedemptions: 0,
         estimatedRevenue: 0
     })
-    const [companies, setCompanies] = useState<Company[]>([])
+    const [companies, setCompanies] = useState<any[]>([])
     const [allCustomers, setAllCustomers] = useState<Customer[]>([])
     const [allTransactions, setAllTransactions] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
+    const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
 
     // Modal states
     const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -79,14 +96,34 @@ export default function AdminDashboard() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Fetch Companies (Profiles with role company)
+        // 1. Fetch Companies with some basic metrics
         const { data: profiles } = await supabase
             .from('profiles')
             .select('*')
             .eq('role', 'company')
             .order('created_at', { ascending: false })
 
-        if (profiles) setCompanies(profiles)
+        // To calculate "engagement" (chama icon), we'd usually fetch transaction counts
+        // for each company. For now, let's fetch transaction summary.
+        const { data: txSummary } = await supabase
+            .from('loyalty_transactions')
+            .select('user_id, type')
+
+        const companyMetrics = profiles?.map(p => {
+            const companyTransactions = txSummary?.filter(t => t.user_id === p.id) || []
+            const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
+            const volume = companyTransactions.length
+            const isEngaged = volume > 10 // Arbitrary threshold for "chama"
+
+            return {
+                ...p,
+                redemptions,
+                volume,
+                isEngaged
+            }
+        })
+
+        if (companyMetrics) setCompanies(companyMetrics)
 
         // 2. Fetch All Customers
         const { data: customers } = await supabase
@@ -160,11 +197,15 @@ export default function AdminDashboard() {
         c.id.includes(searchTerm)
     )
 
-    const filteredCustomers = allCustomers.filter(c =>
-        c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.phone.includes(searchTerm) ||
-        c.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    const filteredCustomers = allCustomers.filter(c => {
+        const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.phone.includes(searchTerm) ||
+            c.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+
+        const matchesCompany = customerCompanyFilter === 'all' || c.user_id === customerCompanyFilter
+
+        return matchesSearch && matchesCompany
+    })
 
     if (loading) return (
         <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
@@ -182,7 +223,7 @@ export default function AdminDashboard() {
                         <div className="p-2 bg-brand-blue rounded-xl text-white">
                             <BarChart3 className="h-6 w-6" />
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO ADMIN</h1>
+                        <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO ADMIN MASTER</h1>
                     </div>
                     <p className="text-slate-500 font-medium">Controle total da rede de fidelidade e faturamento.</p>
                 </div>
@@ -195,18 +236,18 @@ export default function AdminDashboard() {
             </div>
 
             {/* Tabs Navigation */}
-            <div className="flex gap-2 bg-slate-100/50 p-1.5 rounded-2xl w-fit">
+            <div className="flex flex-wrap gap-2 bg-slate-100/50 p-1.5 rounded-2xl w-fit">
                 <button
-                    onClick={() => setActiveTab('overview')}
+                    onClick={() => handleTabChange('overview')}
                     className={cn(
                         "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
                         activeTab === 'overview' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    Visão Geral
+                    Dashboard
                 </button>
                 <button
-                    onClick={() => setActiveTab('companies')}
+                    onClick={() => handleTabChange('companies')}
                     className={cn(
                         "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
                         activeTab === 'companies' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
@@ -215,7 +256,7 @@ export default function AdminDashboard() {
                     Empresas
                 </button>
                 <button
-                    onClick={() => setActiveTab('customers')}
+                    onClick={() => handleTabChange('customers')}
                     className={cn(
                         "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
                         activeTab === 'customers' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
@@ -362,92 +403,105 @@ export default function AdminDashboard() {
 
             {activeTab === 'companies' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                        <Search className="h-5 w-5 text-slate-300 ml-2" />
-                        <Input
-                            placeholder="Buscar por nome, e-mail ou UUID da empresa..."
-                            className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
+                            <Search className="h-5 w-5 text-slate-300 ml-2" />
+                            <Input
+                                placeholder="Buscar empresa por nome ou ID..."
+                                className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
 
-                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50/50">
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Empresa</th>
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Atendimento</th>
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Plano</th>
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {filteredCompanies.map(comp => (
-                                        <tr key={comp.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-6 px-8">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue font-black uppercase italic text-xl">
-                                                        {comp.full_name?.charAt(0) || 'E'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-slate-900 uppercase italic leading-tight">{comp.full_name || 'Sem nome'}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">ID: {comp.id}</p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-6 px-8">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
-                                                        <BarChart3 className="h-3.5 w-3.5 text-slate-300" />
-                                                        {comp.phone || 'Sem telefone'}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                                                        <Calendar className="h-3 w-3" />
-                                                        Desde: {new Date(comp.created_at).toLocaleDateString()}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-6 px-8 text-center">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredCompanies.map(comp => (
+                            <Card key={comp.id} className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all">
+                                <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue font-black uppercase italic">
+                                            {comp.full_name?.charAt(0) || 'E'}
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-slate-900 uppercase italic leading-tight text-sm">{comp.full_name || 'Sem nome'}</p>
+                                            <div className="flex items-center gap-1 mt-0.5">
                                                 <span className={cn(
-                                                    "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm",
-                                                    comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow border border-brand-yellow/20' :
-                                                        comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue border border-brand-blue/20' :
-                                                            'bg-slate-100 text-slate-500 border border-slate-200'
+                                                    "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                                                    comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
+                                                        comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
                                                 )}>
                                                     {comp.subscription_tier || 'basic'}
                                                 </span>
-                                            </td>
-                                            <td className="py-6 px-8 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" onClick={() => handleDeleteCompany(comp.id)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
+                                                {comp.isEngaged && (
+                                                    <div className="flex items-center gap-0.5 text-brand-orange text-[8px] font-black uppercase px-2 py-0.5 bg-brand-orange/10 rounded-full">
+                                                        <Flame className="h-2 w-2" />
+                                                        ENGAGED
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
+                                            <Edit2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500 rounded-lg" onClick={() => handleDeleteCompany(comp.id)}>
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-6 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-50/50 p-3 rounded-2xl">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">RESGATES</p>
+                                            <p className="text-xl font-black text-slate-700 italic">{comp.redemptions || 0}</p>
+                                        </div>
+                                        <div className="bg-slate-50/50 p-3 rounded-2xl">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">VENDAS</p>
+                                            <p className="text-xl font-black text-brand-blue italic">{comp.volume || 0}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 pt-2">
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
+                                            <Mail className="h-3 w-3" /> {comp.email || 'N/A'}
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
+                                            <Phone className="h-3 w-3" /> {comp.phone || 'N/A'}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
                 </div>
             )}
 
             {activeTab === 'customers' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-                        <Search className="h-5 w-5 text-slate-300 ml-2" />
-                        <Input
-                            placeholder="Buscar por nome, telefone ou loja desse cliente..."
-                            className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
+                            <Search className="h-5 w-5 text-slate-300 ml-2" />
+                            <Input
+                                placeholder="Buscar por cliente ou telefone..."
+                                className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <div className="w-full md:w-64">
+                            <select
+                                className="w-full h-[54px] bg-white border border-slate-100 rounded-3xl px-6 text-sm font-bold text-slate-600 appearance-none shadow-sm"
+                                value={customerCompanyFilter}
+                                onChange={(e) => setCustomerCompanyFilter(e.target.value)}
+                            >
+                                <option value="all">TODAS AS LOJAS</option>
+                                {companies.map(c => (
+                                    <option key={c.id} value={c.id}>{c.full_name}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
@@ -622,5 +676,13 @@ export default function AdminDashboard() {
                 </div>
             )}
         </div>
+    )
+}
+
+export default function AdminDashboard() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold animate-pulse uppercase italic">Sincronizando Ecossistema...</div>}>
+            <AdminContent />
+        </Suspense>
     )
 }

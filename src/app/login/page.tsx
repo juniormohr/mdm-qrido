@@ -76,7 +76,17 @@ export default function LoginPage() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Senha de Acesso</label>
+                            <div className="flex items-center justify-between ml-1">
+                                <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Senha de Acesso</label>
+                                {isLogin && (
+                                    <a
+                                        href="/forgot-password"
+                                        className="text-[10px] font-black uppercase tracking-widest text-brand-blue hover:text-brand-blue/80 transition-colors"
+                                    >
+                                        Esqueci minha senha
+                                    </a>
+                                )}
+                            </div>
                             <input
                                 id="password"
                                 name="password"

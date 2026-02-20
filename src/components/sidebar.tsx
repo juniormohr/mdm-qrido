@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -14,6 +14,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
+    const searchParams = useSearchParams()
     const [role, setRole] = useState<string | null>(null)
 
     useEffect(() => {
@@ -35,8 +36,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Fechar sidebar ao navegar no mobile
     useEffect(() => {
-        if (onClose) onClose()
-    }, [pathname, onClose])
+        if (isOpen && onClose) onClose()
+    }, [pathname, searchParams])
 
     const companyNav = [
         { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
@@ -52,13 +53,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const globalNav = [
-        { name: 'MDM Insight', href: '/insight', icon: BarChart3 },
+        { name: 'MDM Insight', href: '/qrido/insight', icon: BarChart3 },
         { name: 'Ajustes Conta', href: '/qrido/settings', icon: Settings },
     ]
 
     const adminNav = [
-        { name: 'Dashboard Admin', href: '/qrido/admin', icon: LayoutDashboard },
-        { name: 'Todas Empresas', href: '/qrido/admin', icon: Store },
+        { name: 'Dashboard', href: '/qrido/admin', icon: LayoutDashboard },
+        { name: 'Empresas', href: '/qrido/admin?tab=companies', icon: Store },
+        { name: 'Clientes', href: '/qrido/admin?tab=customers', icon: Users },
     ]
 
     const navItems = role === 'admin'
@@ -90,7 +92,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                 <div className="flex-1 flex flex-col gap-1.5 p-4 overflow-y-auto">
                     {navItems.map((item) => {
-                        const isActive = pathname === item.href || (item.href !== '/qrido/company' && item.href !== '/qrido/customer' && pathname.startsWith(`${item.href}/`))
+                        const [hrefPath, hrefQuery] = item.href.split('?')
+                        const tabValue = hrefQuery?.split('=')[1]
+
+                        const isActive = tabValue
+                            ? (pathname === hrefPath && searchParams.get('tab') === tabValue)
+                            : (pathname === item.href && !searchParams.get('tab'))
 
                         return (
                             <Link

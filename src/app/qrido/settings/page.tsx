@@ -132,9 +132,11 @@ export default function QRidoSettings() {
                     </CardTitle>
                     <div className={cn(
                         "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest",
-                        profile.role === 'company' ? "bg-brand-blue/10 text-brand-blue" : "bg-brand-orange/10 text-brand-orange"
+                        profile.role === 'admin' ? "bg-slate-900 text-white" :
+                            profile.role === 'company' ? "bg-brand-blue/10 text-brand-blue" : "bg-brand-orange/10 text-brand-orange"
                     )}>
-                        {profile.role === 'company' ? 'Conta Empresa' : 'Conta Cliente'}
+                        {profile.role === 'admin' ? 'Admin Master' :
+                            profile.role === 'company' ? 'Conta Empresa' : 'Conta Cliente'}
                     </div>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
