@@ -119,9 +119,9 @@ export default function QRidoSettings() {
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
-            <div>
-                <h1 className="text-4xl font-black tracking-tight text-slate-900 italic">MINHA CONTA</h1>
-                <p className="text-slate-500 mt-1">Gerencie suas informações de acesso e perfil.</p>
+            <div className="flex flex-col gap-1">
+                <h1 className="heading-mobile text-slate-900">MINHA CONTA</h1>
+                <p className="subheading-mobile">Gerencie suas informações de acesso e perfil.</p>
             </div>
 
             <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
@@ -242,12 +242,12 @@ export default function QRidoSettings() {
                                 </div>
                             </div>
 
-                            <div className="bg-brand-blue/5 rounded-[32px] p-6 flex items-center justify-between border border-brand-blue/10">
-                                <div>
+                            <div className="bg-brand-blue/5 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-brand-blue/10">
+                                <div className="text-center sm:text-left">
                                     <h4 className="font-black text-brand-blue uppercase italic">Precisa de mais espaço?</h4>
                                     <p className="text-sm text-slate-500 font-medium">Faça o upgrade agora e desbloqueie novos limites.</p>
                                 </div>
-                                <Button className="btn-blue gap-2 h-11 px-6 text-xs">
+                                <Button className="btn-blue gap-2 h-14 sm:h-11 px-8 sm:px-6 text-xs w-full sm:w-auto">
                                     UPGRADE PLANO
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>

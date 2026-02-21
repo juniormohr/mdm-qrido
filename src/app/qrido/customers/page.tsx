@@ -101,110 +101,112 @@ export default function CustomersPage() {
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Meus Qridos</h1>
-                    <p className="text-slate-500 font-medium">Gestão de pontos e fidelização ativa.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                    <h1 className="heading-mobile text-slate-900">Meus Qridos</h1>
+                    <p className="subheading-mobile">Gestão de pontos e fidelização ativa.</p>
                 </div>
-                <div className="flex gap-3">
-                    <Button variant="outline" onClick={handleExportCSV} className="gap-2 rounded-2xl border-slate-200">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <Button variant="outline" onClick={handleExportCSV} className="gap-2 rounded-2xl border-slate-200 h-12 w-full sm:w-auto order-2 sm:order-1 font-bold">
                         <Download className="h-4 w-4" />
                         Exportar CSV
                     </Button>
                     <Link
                         href="/qrido/customers/new"
-                        className="btn-orange inline-flex items-center justify-center"
+                        className="btn-orange inline-flex items-center justify-center w-full sm:w-auto h-12 order-1 sm:order-2"
                     >
                         Novo Cliente
                     </Link>
                 </div>
             </div>
 
-            <div className="flex items-center gap-4 bg-white/50 backdrop-blur-sm p-4 rounded-3xl border border-white shadow-sm">
-                <div className="relative flex-1">
+            <div className="flex flex-col sm:flex-row items-center gap-4 bg-white/50 backdrop-blur-sm p-4 rounded-3xl border border-white shadow-sm">
+                <div className="relative w-full">
                     <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="Buscar cliente por nome..."
-                        className="pl-10 h-11 rounded-2xl bg-white border-slate-100 focus:ring-brand-blue"
+                        className="pl-10 h-11 rounded-2xl bg-white border-slate-100 focus:ring-brand-blue font-medium"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <Button className="btn-blue gap-2 rounded-2xl h-11 px-8">
+                <Button className="btn-blue gap-2 rounded-2xl h-11 px-8 w-full sm:w-auto">
                     <Search className="h-4 w-4" />
                     Buscar
                 </Button>
             </div>
 
             <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-                <Table>
-                    <TableHeader className="bg-slate-50/50">
-                        <TableRow className="hover:bg-transparent border-slate-100">
-                            <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Cliente</TableHead>
-                            <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Contato</TableHead>
-                            <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider text-center">Saldo de Pontos</TableHead>
-                            <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Cadastro</TableHead>
-                            <TableHead className="text-right font-bold text-slate-700 py-4 uppercase text-xs tracking-wider px-6">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="text-center py-20">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue" />
-                                        <span className="text-slate-400 font-medium">Carregando clientes...</span>
-                                    </div>
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader className="bg-slate-50/50">
+                            <TableRow className="hover:bg-transparent border-slate-100">
+                                <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Cliente</TableHead>
+                                <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Contato</TableHead>
+                                <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider text-center">Saldo de Pontos</TableHead>
+                                <TableHead className="font-bold text-slate-700 py-4 uppercase text-xs tracking-wider">Cadastro</TableHead>
+                                <TableHead className="text-right font-bold text-slate-700 py-4 uppercase text-xs tracking-wider px-6">Ações</TableHead>
                             </TableRow>
-                        ) : customers.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="text-center py-20 text-slate-400 font-medium">
-                                    Nenhum cliente fidelizado encontrado.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            customers.map((customer) => (
-                                <TableRow key={customer.id} className="border-slate-50 hover:bg-slate-50/30 transition-colors">
-                                    <TableCell className="font-bold text-slate-700 py-4 flex items-center gap-2">
-                                        {customer.name}
-                                        {customer.points_balance > 0 && customer.points_balance === maxPoints && (
-                                            <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col text-sm">
-                                            <span className="text-slate-600 font-bold">{customer.phone || '-'}</span>
-                                            <span className="text-slate-400 text-xs">{customer.email}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <span className="inline-flex items-center rounded-lg bg-brand-orange/10 px-4 py-1.5 text-sm font-black text-brand-orange border border-brand-orange/20">
-                                            {customer.points_balance} pts
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-slate-400 text-sm font-medium">
-                                        {new Date(customer.created_at).toLocaleDateString('pt-BR')}
-                                    </TableCell>
-                                    <TableCell className="text-right px-6">
-                                        <div className="flex justify-end gap-2">
-                                            {customer.phone && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="gap-2 rounded-xl text-brand-green border-brand-green/20 hover:bg-brand-green/10 hover:text-brand-green transition-all font-bold"
-                                                    onClick={() => handleWhatsAppClick(customer)}
-                                                >
-                                                    <MessageCircle className="h-4 w-4" />
-                                                </Button>
-                                            )}
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-20">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue" />
+                                            <span className="text-slate-400 font-medium">Carregando clientes...</span>
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                            ) : customers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-20 text-slate-400 font-medium">
+                                        Nenhum cliente fidelizado encontrado.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                customers.map((customer) => (
+                                    <TableRow key={customer.id} className="border-slate-50 hover:bg-slate-50/30 transition-colors">
+                                        <TableCell className="font-bold text-slate-700 py-4 flex items-center gap-2">
+                                            {customer.name}
+                                            {customer.points_balance > 0 && customer.points_balance === maxPoints && (
+                                                <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col text-sm">
+                                                <span className="text-slate-600 font-bold">{customer.phone || '-'}</span>
+                                                <span className="text-slate-400 text-xs">{customer.email}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <span className="inline-flex items-center rounded-lg bg-brand-orange/10 px-4 py-1.5 text-sm font-black text-brand-orange border border-brand-orange/20">
+                                                {customer.points_balance} pts
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-slate-400 text-sm font-medium">
+                                            {new Date(customer.created_at).toLocaleDateString('pt-BR')}
+                                        </TableCell>
+                                        <TableCell className="text-right px-6">
+                                            <div className="flex justify-end gap-2">
+                                                {customer.phone && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="gap-2 rounded-xl text-brand-green border-brand-green/20 hover:bg-brand-green/10 hover:text-brand-green transition-all font-bold"
+                                                        onClick={() => handleWhatsAppClick(customer)}
+                                                    >
+                                                        <MessageCircle className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </Card>
         </div>
     )

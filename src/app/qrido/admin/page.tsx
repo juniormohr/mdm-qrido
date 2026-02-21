@@ -9,7 +9,7 @@ import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +21,8 @@ interface Company {
     subscription_tier: string
     phone?: string
     email?: string
+    partnership_months?: number
+    partnership_end_date?: string
     created_at: string
 }
 
@@ -87,6 +89,15 @@ function AdminContent() {
     const [showCompanyModal, setShowCompanyModal] = useState(false)
     const [showCustomerModal, setShowCustomerModal] = useState(false)
     const [currentEntity, setCurrentEntity] = useState<any>(null)
+    const [selectedTier, setSelectedTier] = useState<string>('basic')
+
+    useEffect(() => {
+        if (currentEntity?.subscription_tier) {
+            setSelectedTier(currentEntity.subscription_tier)
+        } else {
+            setSelectedTier('basic')
+        }
+    }, [currentEntity, showCompanyModal])
 
     useEffect(() => {
         fetchAllData()
@@ -99,7 +110,7 @@ function AdminContent() {
         // 1. Fetch Companies with some basic metrics
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('*')
+            .select('*, partnership_months, partnership_end_date')
             .eq('role', 'company')
             .order('created_at', { ascending: false })
 
@@ -192,6 +203,32 @@ function AdminContent() {
         fetchAllData()
     }
 
+    const handleUpdatePlan = async (companyId: string, newTier: string) => {
+        if (newTier === 'partnership') {
+            const comp = companies.find(c => c.id === companyId)
+            setCurrentEntity(comp)
+            setShowCompanyModal(true)
+            setSelectedTier('partnership')
+            return
+        }
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                subscription_tier: newTier,
+                partnership_months: null,
+                partnership_end_date: null
+            })
+            .eq('id', companyId)
+
+        if (error) {
+            alert('Erro ao atualizar plano: ' + error.message)
+        } else {
+            fetchAllData()
+        }
+    }
+
     const filteredCompanies = companies.filter(c =>
         c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.id.includes(searchTerm)
@@ -218,14 +255,14 @@ function AdminContent() {
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <div className="p-2 bg-brand-blue rounded-xl text-white">
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 bg-brand-blue rounded-xl text-white shrink-0">
                             <BarChart3 className="h-6 w-6" />
                         </div>
-                        <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO ADMIN MASTER</h1>
+                        <h1 className="heading-mobile text-slate-900">QRIDO ADMIN MASTER</h1>
                     </div>
-                    <p className="text-slate-500 font-medium">Controle total da rede de fidelidade e faturamento.</p>
+                    <p className="subheading-mobile">Controle total da rede de fidelidade e faturamento.</p>
                 </div>
 
                 <div className="flex gap-4">
@@ -426,13 +463,26 @@ function AdminContent() {
                                         <div>
                                             <p className="font-black text-slate-900 uppercase italic leading-tight text-sm">{comp.full_name || 'Sem nome'}</p>
                                             <div className="flex items-center gap-1 mt-0.5">
-                                                <span className={cn(
-                                                    "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                                                    comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
-                                                        comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
-                                                )}>
-                                                    {comp.subscription_tier || 'basic'}
-                                                </span>
+                                                <select
+                                                    className={cn(
+                                                        "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border-none cursor-pointer outline-none",
+                                                        comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
+                                                            comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
+                                                    )}
+                                                    value={comp.subscription_tier || 'basic'}
+                                                    onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
+                                                >
+                                                    <option value="basic">START</option>
+                                                    <option value="pro">PRO</option>
+                                                    <option value="master">MASTER</option>
+                                                    <option value="partnership">PARCERIA</option>
+                                                </select>
+                                                {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
+                                                    <div className="flex items-center gap-0.5 text-emerald-500 text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">
+                                                        <Zap className="h-2 w-2 fill-emerald-500" />
+                                                        EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
+                                                    </div>
+                                                )}
                                                 {comp.isEngaged && (
                                                     <div className="flex items-center gap-0.5 text-brand-orange text-[8px] font-black uppercase px-2 py-0.5 bg-brand-orange/10 rounded-full">
                                                         <Flame className="h-2 w-2" />
@@ -452,6 +502,20 @@ function AdminContent() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-4">
+                                    <div className="space-y-2 border-b border-slate-50 pb-4">
+                                        {comp.email && (
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold lowercase">
+                                                <Mail className="h-3 w-3 text-slate-300" />
+                                                {comp.email}
+                                            </div>
+                                        )}
+                                        {comp.phone && (
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
+                                                <Phone className="h-3 w-3 text-slate-300" />
+                                                {comp.phone}
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-slate-50/50 p-3 rounded-2xl">
                                             <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">RESGATES</p>
@@ -572,11 +636,24 @@ function AdminContent() {
                             const supabase = createClient()
                             const id = currentEntity?.id || crypto.randomUUID() // fallback for new
 
+                            const tier = formData.get('tier') as string
+                            const months = parseInt(formData.get('partnership_months') as string || '0')
+
+                            let partnership_end_date = null
+                            if (tier === 'partnership' && months > 0) {
+                                const end = new Date()
+                                end.setMonth(end.getMonth() + months)
+                                partnership_end_date = end.toISOString()
+                            }
+
                             const { error } = await supabase.from('profiles').upsert({
                                 id: id,
                                 full_name: formData.get('full_name'),
                                 phone: formData.get('phone'),
-                                subscription_tier: formData.get('tier'),
+                                email: formData.get('email'),
+                                subscription_tier: tier,
+                                partnership_months: tier === 'partnership' ? months : null,
+                                partnership_end_date: partnership_end_date,
                                 role: 'company'
                             })
 
@@ -592,17 +669,44 @@ function AdminContent() {
                                     <Input name="full_name" defaultValue={currentEntity?.full_name} placeholder="Ex: Pizzaria do Zé" required className="rounded-xl border-slate-100 h-12" />
                                 </div>
                                 <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail da Empresa</Label>
+                                    <Input name="email" type="email" defaultValue={currentEntity?.email} placeholder="email@empresa.com" required className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone / WhatsApp</Label>
                                     <Input name="phone" defaultValue={currentEntity?.phone} placeholder="(00) 0 0000-0000" className="rounded-xl border-slate-100 h-12" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Plano de Assinatura</Label>
-                                    <select name="tier" defaultValue={currentEntity?.subscription_tier || 'basic'} className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue">
+                                    <select
+                                        name="tier"
+                                        value={selectedTier}
+                                        onChange={(e) => setSelectedTier(e.target.value)}
+                                        className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
+                                    >
                                         <option value="basic">BASIC (R$ 29,90)</option>
                                         <option value="pro">PRO (R$ 59,90)</option>
                                         <option value="master">MASTER (R$ 199,90)</option>
+                                        <option value="partnership">PARCERIA (GRATUITO)</option>
                                     </select>
                                 </div>
+
+                                {selectedTier === 'partnership' && (
+                                    <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-brand-orange">Duração da Parceria (Meses)</Label>
+                                        <Input
+                                            name="partnership_months"
+                                            type="number"
+                                            min="1"
+                                            max="36"
+                                            defaultValue={currentEntity?.partnership_months || 3}
+                                            placeholder="Ex: 3"
+                                            required
+                                            className="rounded-xl border-brand-orange/20 h-12 font-black text-brand-orange"
+                                        />
+                                        <p className="text-[10px] text-slate-400 font-medium italic">* O plano será MASTER durante este período.</p>
+                                    </div>
+                                )}
                                 <div className="flex justify-end gap-3 pt-6">
                                     <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowCompanyModal(false)}>Cancelar</Button>
                                     <Button type="submit" className="btn-blue h-12 px-8 rounded-xl font-black italic uppercase">Salvar Alterações</Button>

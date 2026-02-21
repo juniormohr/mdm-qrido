@@ -63,6 +63,32 @@ export default function LoginPage() {
 
                 <form className="mt-8 space-y-6" action={handleSubmit}>
                     <div className="space-y-4">
+                        {!isLogin && (
+                            <>
+                                <div className="space-y-2">
+                                    <label htmlFor="full-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome da Empresa / Responsável</label>
+                                    <input
+                                        id="full-name"
+                                        name="full_name"
+                                        type="text"
+                                        required
+                                        className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
+                                        placeholder="Nome completo"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">WhatsApp de Contato</label>
+                                    <input
+                                        id="phone"
+                                        name="phone"
+                                        type="tel"
+                                        required
+                                        className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
+                                        placeholder="(00) 0 0000-0000"
+                                    />
+                                </div>
+                            </>
+                        )}
                         <div className="space-y-2">
                             <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail Corporativo</label>
                             <input

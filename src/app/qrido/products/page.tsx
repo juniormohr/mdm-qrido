@@ -116,12 +116,12 @@ export default function ProductManagementPage() {
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Gestão de Produtos</h1>
-                    <p className="text-slate-500 font-medium">Cadastre os produtos que seus clientes podem comprar para gerar pontos.</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                    <h1 className="heading-mobile text-slate-900">Gestão de Produtos</h1>
+                    <p className="subheading-mobile">Cadastre os produtos que seus clientes podem comprar para gerar pontos.</p>
                 </div>
-                <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2">
+                <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2 w-full sm:w-auto h-14 sm:h-auto">
                     <Plus className="h-4 w-4 text-[#F7AA1C]" />
                     Novo Produto
                 </Button>
