@@ -133,12 +133,34 @@ function AdminContent() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Fetch Companies with some basic metrics
-        const { data: profiles } = await supabase
+        // Debug: Log current user info
+        const { data: { user } } = await supabase.auth.getUser()
+
+        // Fetch current user's profile to check role
+        const { data: adminProfile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user?.id)
+            .single()
+
+        console.log('Admin Dashboard Debug:', {
+            userId: user?.id,
+            userEmail: user?.email,
+            profileRole: adminProfile?.role
+        })
+
+        // 1. Fetch Companies with some basic metrics (Restoring company filter)
+        const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*, partnership_months, partnership_end_date')
             .eq('role', 'company')
             .order('created_at', { ascending: false })
+
+        if (profilesError) {
+            console.error('Admin Dashboard: Error fetching companies', profilesError)
+        } else {
+            console.log('Admin Dashboard: Fetched companies count', profiles?.length)
+        }
 
         // To calculate "engagement" (chama icon), we'd usually fetch transaction counts
         // for each company. For now, let's fetch transaction summary.

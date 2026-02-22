@@ -1,40 +1,25 @@
--- 1. Ensure Realtime is enabled (idempotent)
-DO $$ 
+-- 1. Create a security definer function to avoid RLS recursion
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'profiles') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE profiles;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'customers') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE customers;
-    END IF;
-END $$;
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 2. Allow Admins to view all profiles
+-- 2. Update profiles policies
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles AS p
-            WHERE p.id = auth.uid() AND p.role = 'admin'
-        )
-    );
+    FOR SELECT USING (public.is_admin());
 
--- 3. Allow Admins to view all customers
+-- 3. Update customers policies
 DROP POLICY IF EXISTS "Admins can view all customers" ON public.customers;
 CREATE POLICY "Admins can view all customers" ON public.customers
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles AS p
-            WHERE p.id = auth.uid() AND p.role = 'admin'
-        )
-    );
+    FOR SELECT USING (public.is_admin());
 
--- 4. Allow Admins to view all transactions (for metrics)
+-- 4. Update transactions policies
 DROP POLICY IF EXISTS "Admins can view all transactions" ON public.loyalty_transactions;
 CREATE POLICY "Admins can view all transactions" ON public.loyalty_transactions
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles AS p
-            WHERE p.id = auth.uid() AND p.role = 'admin'
-        )
-    );
+    FOR SELECT USING (public.is_admin());
