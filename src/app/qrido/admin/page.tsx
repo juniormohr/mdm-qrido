@@ -101,6 +101,32 @@ function AdminContent() {
 
     useEffect(() => {
         fetchAllData()
+
+        // Configure Realtime subscription
+        const supabase = createClient()
+        const channel = supabase
+            .channel('admin-dashboard-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'profiles' },
+                () => {
+                    console.log('Realtime update: profiles changed')
+                    fetchAllData()
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'customers' },
+                () => {
+                    console.log('Realtime update: customers changed')
+                    fetchAllData()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }, [])
 
     async function fetchAllData() {
