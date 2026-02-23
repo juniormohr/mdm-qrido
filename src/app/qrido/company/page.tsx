@@ -83,7 +83,10 @@ export default function CompanyDashboard() {
                 .eq('status', 'pending')
                 .order('created_at', { ascending: false })
 
-            if (data) setPendingRequests(data)
+            if (data) {
+                console.log('Solicitações pendentes carregadas:', data.length)
+                setPendingRequests(data)
+            }
         }
 
         function subscribeToRequests(userId: string) {
@@ -96,6 +99,7 @@ export default function CompanyDashboard() {
                     table: 'purchase_requests',
                     filter: `company_id=eq.${userId}`
                 }, () => {
+                    console.log('Realtime: mudança detectada em purchase_requests!')
                     fetchPendingRequests(userId)
                     fetchStats(userId)
                 })

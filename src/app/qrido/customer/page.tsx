@@ -115,6 +115,23 @@ export default function CustomerDashboard() {
 
         // Fetch purchase requests
         fetchPurchaseRequests(user.id)
+
+        // Realtime for requests
+        const channel = supabase
+            .channel('customer_requests')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'purchase_requests',
+                filter: `customer_profile_id=eq.${user.id}`
+            }, () => {
+                fetchPurchaseRequests(user.id)
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
     }
 
     async function fetchPurchaseRequests(userId: string) {
@@ -270,12 +287,13 @@ export default function CustomerDashboard() {
         })
 
         if (!error) {
-            alert('Solicitação enviada! Aguarde a confirmação da empresa para receber seu código.')
+            alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
             setCart([])
             fetchPurchaseRequests(user.id)
             setActiveTab('requests')
         } else {
-            alert('Erro ao enviar solicitação: ' + error.message)
+            console.error('Erro na solicitação:', error)
+            alert('Falha ao enviar solicitação: ' + (error.message || 'Erro desconhecido'))
         }
     }
 
@@ -501,13 +519,31 @@ export default function CustomerDashboard() {
                                                 </span>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Ver Carrinho</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Seu Pedido</p>
                                                 <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
                                             </div>
                                         </div>
-                                        <Button className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px]">
-                                            Fechar Agora
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setIsCartOpen(true)
+                                                }}
+                                                variant="ghost"
+                                                className="h-10 px-4 rounded-full font-black italic uppercase text-[10px] text-white hover:bg-white/10"
+                                            >
+                                                Ver Itens
+                                            </Button>
+                                            <Button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleSendRequest()
+                                                }}
+                                                className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-brand-orange/20"
+                                            >
+                                                Enviar Agora
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -593,7 +629,7 @@ export default function CustomerDashboard() {
                                                 }}
                                                 className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow"
                                             >
-                                                EFETUAR SOLICITAÇÃO
+                                                ENVIAR PEDIDO AGORA
                                             </Button>
                                         </div>
                                     </Card>
