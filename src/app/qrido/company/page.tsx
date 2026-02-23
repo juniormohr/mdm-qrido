@@ -16,6 +16,81 @@ export default function CompanyDashboard() {
         totalPoints: 0
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
+    const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
+
+    async function fetchStats(userId: string) {
+        const supabase = createClient()
+
+        // Get total customers for this company
+        const { count: total } = await supabase
+            .from('customers')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+
+        // Get customers this month
+        const startOfMonth = new Date()
+        startOfMonth.setDate(1)
+        startOfMonth.setHours(0, 0, 0, 0)
+
+        const { count: month } = await supabase
+            .from('customers')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gte('created_at', startOfMonth.toISOString())
+
+        // Get redemptions for this company
+        const { count: redemptionsCount } = await supabase
+            .from('loyalty_transactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('type', 'redeem')
+
+        // Get total points in circulation (sum total points of all customers for this company)
+        const { data: custPoints } = await supabase
+            .from('customers')
+            .select('points_balance')
+            .eq('user_id', userId)
+
+        const totalPoints = custPoints?.reduce((acc, c) => acc + (c.points_balance || 0), 0) || 0
+
+        setStats({
+            totalLeads: total || 0,
+            leadsThisMonth: month || 0,
+            topSource: 'Instagram',
+            redemptions: redemptionsCount || 0,
+            totalPoints: totalPoints
+        })
+    }
+
+    async function fetchPendingRequests(userId: string) {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('purchase_requests')
+            .select('*, customer:customer_profile_id(full_name, phone)')
+            .eq('company_id', userId)
+            .in('status', ['pending', 'confirmed'])
+            .order('created_at', { ascending: false })
+
+        if (error) console.error('Erro ao buscar solicitações:', error)
+        if (data) setPendingRequests(data)
+    }
+
+    function subscribeToRequests(userId: string) {
+        const supabase = createClient()
+        return supabase
+            .channel('purchase_requests_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'purchase_requests',
+                filter: `company_id=eq.${userId}`
+            }, () => {
+                console.log('Realtime: mudança detectada em purchase_requests!')
+                fetchPendingRequests(userId)
+                fetchStats(userId)
+            })
+            .subscribe()
+    }
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -26,80 +101,6 @@ export default function CompanyDashboard() {
             fetchStats(user.id)
             fetchPendingRequests(user.id)
             subscribeToRequests(user.id)
-        }
-
-        async function fetchStats(userId: string) {
-            const supabase = createClient()
-
-            // Get total customers for this company
-            const { count: total } = await supabase
-                .from('customers')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-
-            // Get customers this month
-            const startOfMonth = new Date()
-            startOfMonth.setDate(1)
-            startOfMonth.setHours(0, 0, 0, 0)
-
-            const { count: month } = await supabase
-                .from('customers')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-                .gte('created_at', startOfMonth.toISOString())
-
-            // Get redemptions for this company
-            const { count: redemptionsCount } = await supabase
-                .from('loyalty_transactions')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', userId)
-                .eq('type', 'redeem')
-
-            // Get total points in circulation (sum total points of all customers for this company)
-            const { data: custPoints } = await supabase
-                .from('customers')
-                .select('points_balance')
-                .eq('user_id', userId)
-
-            const totalPoints = custPoints?.reduce((acc, c) => acc + (c.points_balance || 0), 0) || 0
-
-            setStats({
-                totalLeads: total || 0,
-                leadsThisMonth: month || 0,
-                topSource: 'Instagram',
-                redemptions: redemptionsCount || 0,
-                totalPoints: totalPoints
-            })
-        }
-
-        async function fetchPendingRequests(userId: string) {
-            const supabase = createClient()
-            const { data, error } = await supabase
-                .from('purchase_requests')
-                .select('*, customer:customer_profile_id(full_name, phone)')
-                .eq('company_id', userId)
-                .in('status', ['pending', 'confirmed'])
-                .order('created_at', { ascending: false })
-
-            if (error) console.error('Erro ao buscar solicitações:', error)
-            if (data) setPendingRequests(data)
-        }
-
-        function subscribeToRequests(userId: string) {
-            const supabase = createClient()
-            return supabase
-                .channel('purchase_requests_changes')
-                .on('postgres_changes', {
-                    event: '*',
-                    schema: 'public',
-                    table: 'purchase_requests',
-                    filter: `company_id=eq.${userId}`
-                }, () => {
-                    console.log('Realtime: mudança detectada em purchase_requests!')
-                    fetchPendingRequests(userId)
-                    fetchStats(userId)
-                })
-                .subscribe()
         }
 
         fetchInitialData()
@@ -122,6 +123,9 @@ export default function CompanyDashboard() {
 
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
+
+        // Feedback visual imediato
+        setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
 
         // 2. Localizar ou criar o registro do cliente na loja
         let customerId: string
@@ -165,10 +169,22 @@ export default function CompanyDashboard() {
 
         if (updateError) {
             alert('Erro ao finalizar: ' + updateError.message)
+            setTransitioningItems(prev => {
+                const newState = { ...prev }
+                delete newState[requestId]
+                return newState
+            })
         } else {
-            alert('Pedido confirmado e pontos creditados!')
-            fetchPendingRequests(user.id)
-            fetchStats(user.id)
+            // Aguardar 3 segundos para mostrar o "Confirmado"
+            setTimeout(() => {
+                setTransitioningItems(prev => {
+                    const newState = { ...prev }
+                    delete newState[requestId]
+                    return newState
+                })
+                fetchPendingRequests(user.id)
+                fetchStats(user.id)
+            }, 3000)
         }
     }
 
@@ -177,12 +193,36 @@ export default function CompanyDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        await supabase
+        const request = pendingRequests.find(r => r.id === requestId)
+        if (!request) return
+
+        // Adicionar ao estado de transição para feedback visual
+        setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'rejected', transitionStatus: 'rejected' } }))
+
+        const { error } = await supabase
             .from('purchase_requests')
             .update({ status: 'rejected' })
             .eq('id', requestId)
 
-        fetchPendingRequests(user.id)
+        if (error) {
+            alert('Erro ao recusar: ' + error.message)
+            setTransitioningItems(prev => {
+                const newState = { ...prev }
+                delete newState[requestId]
+                return newState
+            })
+            return
+        }
+
+        // Aguardar 3 segundos antes de remover da tela
+        setTimeout(() => {
+            setTransitioningItems(prev => {
+                const newState = { ...prev }
+                delete newState[requestId]
+                return newState
+            })
+            fetchPendingRequests(user.id)
+        }, 3000)
     }
 
 
@@ -262,12 +302,25 @@ export default function CompanyDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {pendingRequests.length === 0 ? (
-                        <div className="col-span-full py-12 text-center bg-white/50 rounded-[40px] border-2 border-dashed border-slate-100 italic font-bold text-slate-300">
-                            Nenhuma solicitação nova por enquanto.
-                        </div>
-                    ) : (
-                        pendingRequests.map(req => (
+                    {(() => {
+                        // Mesclar solicitações pendentes com itens em transição
+                        const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
+                        Object.keys(transitioningItems).forEach(id => {
+                            allRequestsMap[id] = transitioningItems[id]
+                        })
+                        const displayRequests = Object.values(allRequestsMap).sort((a: any, b: any) =>
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                        )
+
+                        if (displayRequests.length === 0) {
+                            return (
+                                <div className="col-span-full py-12 text-center bg-white/50 rounded-[40px] border-2 border-dashed border-slate-100 italic font-bold text-slate-300">
+                                    Nenhuma solicitação nova por enquanto.
+                                </div>
+                            )
+                        }
+
+                        return displayRequests.map((req: any) => (
                             <Card key={req.id} className="border-none shadow-xl bg-white rounded-[40px] overflow-hidden animate-in zoom-in-95 duration-200">
                                 <CardHeader className="bg-slate-50/50 p-6 border-b border-slate-100">
                                     <div className="flex justify-between items-start">
@@ -296,26 +349,36 @@ export default function CompanyDashboard() {
                                             <span className="text-xl font-black">+{req.total_points} PTS</span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <Button
-                                                onClick={() => handleConfirmRequest(req.id)}
-                                                className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
-                                            >
-                                                Confirmar
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleRejectRequest(req.id)}
-                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
-                                            >
-                                                Recusar
-                                            </Button>
-                                        </div>
+                                        {req.transitionStatus === 'rejected' ? (
+                                            <div className="h-12 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300">
+                                                Pedido Recusado
+                                            </div>
+                                        ) : req.transitionStatus === 'confirmed' ? (
+                                            <div className="h-12 flex items-center justify-center bg-emerald-50 text-emerald-500 rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300">
+                                                Pontos Enviados!
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <Button
+                                                    onClick={() => handleConfirmRequest(req.id)}
+                                                    className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                                >
+                                                    Confirmar
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleRejectRequest(req.id)}
+                                                    className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                                                >
+                                                    Recusar
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
                         ))
-                    )}
+                    })()}
                 </div>
             </div>
 
