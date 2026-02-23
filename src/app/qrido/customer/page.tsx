@@ -242,16 +242,17 @@ export default function CustomerDashboard() {
     }
 
     const handleAddToCart = (product: Product) => {
-        setCart(prev => {
-            const existing = prev.find(item => item.product.id === product.id)
-            if (existing) {
-                return prev.map(item =>
-                    item.product.id === product.id
-                        ? { ...item, quantity: item.quantity + 1 }
-                        : item
-                )
+        setCart(currentCart => {
+            const existingIndex = currentCart.findIndex(item => item.product.id === product.id)
+            if (existingIndex > -1) {
+                const newCart = [...currentCart]
+                newCart[existingIndex] = {
+                    ...newCart[existingIndex],
+                    quantity: newCart[existingIndex].quantity + 1
+                }
+                return newCart
             }
-            return [...prev, { product, quantity: 1 }]
+            return [...currentCart, { product, quantity: 1 }]
         })
 
         // Feedback visual
@@ -264,7 +265,7 @@ export default function CustomerDashboard() {
     }
 
     const handleUpdateQuantity = (productId: string, delta: number) => {
-        setCart(prev => prev.map(item => {
+        setCart(currentCart => currentCart.map(item => {
             if (item.product.id === productId) {
                 const newQty = Math.max(1, item.quantity + delta)
                 return { ...item, quantity: newQty }
@@ -524,7 +525,7 @@ export default function CustomerDashboard() {
                                     className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 animate-in slide-in-from-bottom duration-500"
                                     onClick={() => setIsCartOpen(true)}
                                 >
-                                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group">
+                                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-900 transition-colors">
                                         <div className="flex items-center gap-4">
                                             <div className="relative">
                                                 <ShoppingBag className="h-6 w-6 text-brand-orange group-hover:scale-110 transition-transform" />
@@ -533,31 +534,13 @@ export default function CustomerDashboard() {
                                                 </span>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Seu Pedido</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Meu Pedido</p>
                                                 <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    setIsCartOpen(true)
-                                                }}
-                                                variant="ghost"
-                                                className="h-10 px-4 rounded-full font-black italic uppercase text-[10px] text-white hover:bg-white/10"
-                                            >
-                                                Ver Itens
-                                            </Button>
-                                            <Button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleSendRequest()
-                                                }}
-                                                className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-brand-orange/20"
-                                            >
-                                                Enviar Agora
-                                            </Button>
-                                        </div>
+                                        <Button className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-brand-orange/20">
+                                            Revisar Itens
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -599,12 +582,18 @@ export default function CustomerDashboard() {
                                                     <div className="flex items-center gap-4">
                                                         <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
                                                             <button
-                                                                onClick={() => handleUpdateQuantity(item.product.id, -1)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleUpdateQuantity(item.product.id, -1)
+                                                                }}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >-</button>
                                                             <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
                                                             <button
-                                                                onClick={() => handleUpdateQuantity(item.product.id, 1)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleUpdateQuantity(item.product.id, 1)
+                                                                }}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >+</button>
                                                         </div>
