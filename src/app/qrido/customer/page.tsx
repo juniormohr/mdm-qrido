@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -55,6 +55,11 @@ interface Product {
 export default function CustomerDashboard() {
     const [companies, setCompanies] = useState<Company[]>([])
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+    const selectedCompanyRef = useRef<Company | null>(null)
+
+    useEffect(() => {
+        selectedCompanyRef.current = selectedCompany
+    }, [selectedCompany])
     const [products, setProducts] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
     const [showVerifyModal, setShowVerifyModal] = useState(false)
@@ -84,6 +89,9 @@ export default function CustomerDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            // Re-fetch profile to have phone for balance updates
+            const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
+
             channel = supabase
                 .channel('customer_requests')
                 .on('postgres_changes', {
@@ -91,8 +99,18 @@ export default function CustomerDashboard() {
                     schema: 'public',
                     table: 'purchase_requests',
                     filter: `customer_profile_id=eq.${user.id}`
-                }, () => {
+                }, (payload) => {
                     fetchPurchaseRequests(user.id)
+
+                    // Se o status mudou para finalizado ou houve inserção, atualiza saldos
+                    if (payload.new && (payload.new as any).status === 'completed') {
+                        fetchMyStores(profile?.phone)
+                        // Se estivermos na tela dessa empresa específica, atualiza o balance dela
+                        const newReq = payload.new as any
+                        if (selectedCompanyRef.current?.id === newReq.company_id) {
+                            fetchCustomerBalance(newReq.company_id)
+                        }
+                    }
                 })
                 .subscribe()
         }
@@ -114,7 +132,11 @@ export default function CustomerDashboard() {
 
         // Fetch User Profile
         const { data: profile } = await supabase.from('profiles').select('full_name, phone').eq('id', user.id).single()
-        if (profile) setUserProfile(profile)
+        if (profile) {
+            setUserProfile(profile)
+            fetchMyStores(profile.phone)
+            fetchTransactions(user.id, profile.phone)
+        }
 
         // Fetch Loyalty Configs (to know redemption points)
         const { data: configs } = await supabase.from('loyalty_configs').select('*')
@@ -123,28 +145,8 @@ export default function CustomerDashboard() {
             setLoyaltyConfigs(configMap)
         }
 
-        // Fetch Companies I follow/have points in
-        const { data: myCustRecords, error: custError } = await supabase
-            .from('customers')
-            .select('user_id, points_balance, profiles:user_id(full_name)')
-            .eq('phone', profile?.phone)
-
-        if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
-
-        if (myCustRecords) {
-            const formattedStores = myCustRecords.map((r: any) => ({
-                id: r.user_id,
-                full_name: r.profiles?.full_name || 'Loja Parceira',
-                points_balance: r.points_balance
-            }))
-            setMyStores(formattedStores)
-        }
-
         // Fetch all companies for the search list
         fetchCompanies()
-
-        // Fetch recent transactions
-        fetchTransactions(user.id, profile?.phone)
 
         // Fetch purchase requests
         fetchPurchaseRequests(user.id)
@@ -161,6 +163,26 @@ export default function CustomerDashboard() {
 
         if (error) console.error('Erro ao buscar solicitações:', error)
         if (data) setPurchaseRequests(data)
+    }
+
+    async function fetchMyStores(phone: string | undefined) {
+        if (!phone) return
+        const supabase = createClient()
+        const { data: myCustRecords, error: custError } = await supabase
+            .from('customers')
+            .select('user_id, points_balance, profiles:user_id(full_name)')
+            .eq('phone', phone)
+
+        if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
+
+        if (myCustRecords) {
+            const formattedStores = myCustRecords.map((r: any) => ({
+                id: r.user_id,
+                full_name: r.profiles?.full_name || 'Loja Parceira',
+                points_balance: r.points_balance
+            }))
+            setMyStores(formattedStores)
+        }
     }
 
     async function fetchTransactions(userId: string, phone: string | undefined) {
