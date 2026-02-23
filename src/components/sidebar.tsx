@@ -16,12 +16,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname()
     const searchParams = useSearchParams()
     const [role, setRole] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         async function fetchRole() {
+            setLoading(true)
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            if (!user) {
+                setLoading(false)
+                return
+            }
 
             const { data: profile } = await supabase
                 .from('profiles')
@@ -30,6 +35,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 .single()
 
             if (profile) setRole(profile.role)
+            setLoading(false)
         }
         fetchRole()
     }, [])
@@ -91,30 +97,38 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
 
                 <div className="flex-1 flex flex-col gap-1.5 p-4 overflow-y-auto">
-                    {navItems.map((item) => {
-                        const [hrefPath, hrefQuery] = item.href.split('?')
-                        const tabValue = hrefQuery?.split('=')[1]
+                    {loading ? (
+                        <div className="flex flex-col gap-4 p-4">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                                <div key={i} className="h-10 w-full bg-slate-50 animate-pulse rounded-xl" />
+                            ))}
+                        </div>
+                    ) : (
+                        navItems.map((item) => {
+                            const [hrefPath, hrefQuery] = item.href.split('?')
+                            const tabValue = hrefQuery?.split('=')[1]
 
-                        const isActive = tabValue
-                            ? (pathname === hrefPath && searchParams.get('tab') === tabValue)
-                            : (pathname === item.href && !searchParams.get('tab'))
+                            const isActive = tabValue
+                                ? (pathname === hrefPath && searchParams.get('tab') === tabValue)
+                                : (pathname === item.href && !searchParams.get('tab'))
 
-                        return (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                className={cn(
-                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-                                    isActive
-                                        ? "bg-brand-blue/10 text-brand-blue shadow-sm"
-                                        : "text-slate-500 hover:bg-slate-50 hover:text-brand-blue"
-                                )}
-                            >
-                                <item.icon className={cn("h-5 w-5", isActive ? "text-brand-blue" : "text-slate-400")} />
-                                {item.name}
-                            </Link>
-                        )
-                    })}
+                            return (
+                                <Link
+                                    key={item.name}
+                                    href={item.href}
+                                    className={cn(
+                                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                                        isActive
+                                            ? "bg-brand-blue/10 text-brand-blue shadow-sm"
+                                            : "text-slate-500 hover:bg-slate-50 hover:text-brand-blue"
+                                    )}
+                                >
+                                    <item.icon className={cn("h-5 w-5", isActive ? "text-brand-blue" : "text-slate-400")} />
+                                    {item.name}
+                                </Link>
+                            )
+                        })
+                    )}
                 </div>
 
                 <div className="mt-auto border-t border-slate-50 p-4">

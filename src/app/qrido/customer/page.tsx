@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { Search, Store, ShoppingBag, Star, Smartphone, TrendingUp, BarChart3, Gift, Award } from 'lucide-react'
+import { Search, Store, ShoppingBag, Star, Smartphone, TrendingUp, BarChart3, Gift, Award, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react'
 
 interface Company {
     id: string
@@ -35,9 +35,11 @@ export default function CustomerDashboard() {
     const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
     const [transactions, setTransactions] = useState<any[]>([])
     const [myStores, setMyStores] = useState<Company[]>([])
-    const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'qridos'>('offers')
     const [loyaltyConfigs, setLoyaltyConfigs] = useState<Record<string, any>>({})
     const [companyRewards, setCompanyRewards] = useState<any[]>([])
+    const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([])
+    const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
+    const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'qridos' | 'requests'>('offers')
 
     useEffect(() => {
         fetchInitialData()
@@ -79,6 +81,21 @@ export default function CustomerDashboard() {
 
         // Fetch recent transactions
         fetchTransactions(user.id, profile?.phone)
+
+        // Fetch purchase requests
+        fetchPurchaseRequests(user.id)
+    }
+
+    async function fetchPurchaseRequests(userId: string) {
+        const supabase = createClient()
+        const { data } = await supabase
+            .from('purchase_requests')
+            .select('*, profiles:company_id(full_name)')
+            .eq('customer_profile_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(5)
+
+        if (data) setPurchaseRequests(data)
     }
 
     async function fetchTransactions(userId: string, phone: string | undefined) {
@@ -93,7 +110,7 @@ export default function CustomerDashboard() {
             const { data } = await supabase
                 .from('loyalty_transactions')
                 .select('*, profiles(full_name)')
-                .in('customer_id', ids)
+                .eq('user_id', userId)
                 .order('created_at', { ascending: false })
                 .limit(10)
             if (data) setTransactions(data)
@@ -162,66 +179,131 @@ export default function CustomerDashboard() {
         setCustomerBalance(data?.points_balance || 0)
     }
 
-    const handleIndicatePurchase = (product: Product) => {
-        setSelectedProduct(product)
-        setShowVerifyModal(true)
+    const handleAddToCart = (product: Product) => {
+        setCart(prev => {
+            const existing = prev.find(item => item.product.id === product.id)
+            if (existing) {
+                return prev.map(item =>
+                    item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                )
+            }
+            return [...prev, { product, quantity: 1 }]
+        })
     }
 
-    const handleVerify = async () => {
-        if (verificationCode.length !== 4) return
+    const handleRemoveFromCart = (productId: string) => {
+        setCart(prev => prev.filter(item => item.product.id !== productId))
+    }
+
+    const handleUpdateQuantity = (productId: string, delta: number) => {
+        setCart(prev => prev.map(item => {
+            if (item.product.id === productId) {
+                const newQty = Math.max(1, item.quantity + delta)
+                return { ...item, quantity: newQty }
+            }
+            return item
+        }))
+    }
+
+    const handleSendRequest = async () => {
+        if (cart.length === 0 || !selectedCompany) return
+
         const supabase = createClient()
-        const { data: codeData } = await supabase
-            .from('verification_codes')
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+        const totalPoints = cart.reduce((acc, item) => acc + (item.product.points_reward * item.quantity), 0)
+
+        const items = cart.map(item => ({
+            id: item.product.id,
+            name: item.product.name,
+            qty: item.quantity,
+            price: item.product.price,
+            points: item.product.points_reward
+        }))
+
+        const { error } = await supabase.from('purchase_requests').insert({
+            company_id: selectedCompany.id,
+            customer_profile_id: user.id,
+            items,
+            total_amount: totalAmount,
+            total_points: totalPoints,
+            status: 'pending'
+        })
+
+        if (!error) {
+            alert('Solicitação enviada! Aguarde a confirmação da empresa para receber seu código.')
+            setCart([])
+            fetchPurchaseRequests(user.id)
+            setActiveTab('requests')
+        } else {
+            alert('Erro ao enviar solicitação: ' + error.message)
+        }
+    }
+
+    const handleVerifyCode = async (requestId: string, code: string, points: number, amount: number, companyId: string) => {
+        if (code.length !== 4) return
+
+        const supabase = createClient()
+
+        // Check if code matches the request
+        const { data: request } = await supabase
+            .from('purchase_requests')
             .select('*')
-            .eq('company_id', selectedCompany?.id)
-            .eq('code', verificationCode)
-            .gt('expires_at', new Date().toISOString())
+            .eq('id', requestId)
+            .eq('verification_code', code)
+            .eq('status', 'confirmed')
             .single()
 
-        if (codeData) {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-            const { data: profile } = await supabase.from('profiles').select('phone, full_name').eq('id', user.id).single()
-
-            let customerId: string
-            const { data: existingCustomer } = await supabase
-                .from('customers')
-                .select('id, points_balance')
-                .eq('user_id', selectedCompany?.id)
-                .eq('phone', profile?.phone)
-                .maybeSingle()
-
-            if (existingCustomer) {
-                customerId = existingCustomer.id
-                await supabase.from('customers').update({
-                    points_balance: existingCustomer.points_balance + (selectedProduct?.points_reward || 0)
-                }).eq('id', customerId)
-            } else {
-                const { data: newCust } = await supabase.from('customers').insert({
-                    user_id: selectedCompany?.id,
-                    name: profile?.full_name || 'Cliente',
-                    phone: profile?.phone,
-                    points_balance: selectedProduct?.points_reward || 0
-                }).select().single()
-                customerId = newCust!.id
-            }
-
-            await supabase.from('loyalty_transactions').insert({
-                user_id: selectedCompany?.id,
-                customer_id: customerId,
-                type: 'earn',
-                points: selectedProduct?.points_reward,
-                sale_amount: selectedProduct?.price,
-                expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-            })
-
-            alert(`Sucesso! Você ganhou ${selectedProduct?.points_reward} pontos.`)
-            setShowVerifyModal(false)
-            setVerificationCode('')
-            fetchCustomerBalance(selectedCompany?.id!)
-        } else {
-            alert('Código inválido ou expirado.')
+        if (!request) {
+            alert('Código inválido ou solicitação ainda não confirmada.')
+            return
         }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { data: profile } = await supabase.from('profiles').select('phone, full_name').eq('id', user.id).single()
+
+        let customerId: string
+        const { data: existingCustomer } = await supabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', companyId)
+            .eq('phone', profile?.phone)
+            .maybeSingle()
+
+        if (existingCustomer) {
+            customerId = existingCustomer.id
+            await supabase.from('customers').update({
+                points_balance: existingCustomer.points_balance + points
+            }).eq('id', customerId)
+        } else {
+            const { data: newCust } = await supabase.from('customers').insert({
+                user_id: companyId,
+                name: profile?.full_name || 'Cliente',
+                phone: profile?.phone,
+                points_balance: points
+            }).select().single()
+            customerId = newCust!.id
+        }
+
+        await supabase.from('loyalty_transactions').insert({
+            user_id: companyId,
+            customer_id: customerId,
+            type: 'earn',
+            points: points,
+            sale_amount: amount,
+            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        })
+
+        await supabase.from('purchase_requests').update({
+            status: 'completed'
+        }).eq('id', requestId)
+
+        alert(`Sucesso! Você ganhou ${points} pontos.`)
+        fetchPurchaseRequests(user.id)
+        fetchCustomerBalance(companyId)
     }
 
     return (
@@ -282,6 +364,12 @@ export default function CustomerDashboard() {
                 >
                     Qridos do Dia
                 </button>
+                <button
+                    onClick={() => setActiveTab('requests')}
+                    className={`px-6 py-2 rounded-xl text-sm font-black uppercase transition-all ${activeTab === 'requests' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    Minhas Solicitações
+                </button>
             </div>
 
             {activeTab === 'offers' ? (
@@ -323,7 +411,7 @@ export default function CustomerDashboard() {
 
                             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {products.map(product => (
-                                    <Card key={product.id} className="border-none shadow-sm bg-white overflow-hidden rounded-[32px] hover:shadow-xl transition-all h-full flex flex-col">
+                                    <Card key={product.id} className="border-none shadow-sm bg-white overflow-hidden rounded-[32px] hover:shadow-xl transition-all h-full flex flex-col group">
                                         <div className="aspect-square bg-slate-50 flex items-center justify-center relative">
                                             <ShoppingBag className="h-12 w-12 text-slate-200" />
                                             <div className="absolute top-4 right-4 bg-brand-orange text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg italic uppercase">
@@ -332,23 +420,88 @@ export default function CustomerDashboard() {
                                         </div>
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-xl font-black text-slate-900 uppercase italic leading-tight">
-                                                {product.name} <span className="text-brand-blue ml-2">R$ {product.price}</span>
+                                                {product.name}
                                             </CardTitle>
+                                            <div className="text-brand-blue font-black italic">R$ {product.price}</div>
                                         </CardHeader>
                                         <CardContent className="space-y-4 flex-1 flex flex-col pt-0">
                                             <p className="text-xs text-slate-400 font-medium italic line-clamp-2">{product.description}</p>
                                             <div className="mt-auto pt-2">
                                                 <Button
                                                     className="w-full bg-brand-blue hover:bg-brand-blue/90 text-brand-orange h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg"
-                                                    onClick={() => handleIndicatePurchase(product)}
+                                                    onClick={() => handleAddToCart(product)}
                                                 >
-                                                    INDICAR COMPRA
+                                                    ADICIONAR AO CARRINHO
                                                 </Button>
                                             </div>
                                         </CardContent>
                                     </Card>
                                 ))}
                             </div>
+
+                            {/* Carrinho Flutuante / Seção */}
+                            {cart.length > 0 && (
+                                <Card className="fixed bottom-8 right-8 left-8 md:left-auto md:w-96 z-50 border-none shadow-2xl rounded-[32px] bg-slate-900 text-white overflow-hidden animate-in slide-in-from-bottom duration-300">
+                                    <div className="p-6 bg-brand-blue flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white/20 rounded-xl">
+                                                <ShoppingBag className="h-5 w-5" />
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase italic">Meu Carrinho</h3>
+                                        </div>
+                                        <span className="bg-brand-orange text-white text-[10px] font-black px-2 py-1 rounded-full">{cart.reduce((acc, i) => acc + i.quantity, 0)} ITENS</span>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto p-4 space-y-4">
+                                        {cart.map(item => (
+                                            <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/10">
+                                                <div className="flex-1">
+                                                    <p className="text-xs font-black uppercase italic truncate">{item.product.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold">R$ {item.product.price} x {item.quantity}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden border border-white/5">
+                                                        <button
+                                                            onClick={() => handleUpdateQuantity(item.product.id, -1)}
+                                                            className="w-6 h-8 flex items-center justify-center hover:bg-white/10"
+                                                        >-</button>
+                                                        <span className="w-8 text-center text-xs font-black">{item.quantity}</span>
+                                                        <button
+                                                            onClick={() => handleUpdateQuantity(item.product.id, 1)}
+                                                            className="w-6 h-8 flex items-center justify-center hover:bg-white/10"
+                                                        >+</button>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveFromCart(item.product.id)}
+                                                        className="text-white/30 hover:text-red-400 h-8 w-8"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="p-6 bg-slate-800 border-t border-white/5 flex flex-col gap-4">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Estimado</p>
+                                                <p className="text-2xl font-black italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest">Ganhos</p>
+                                                <p className="text-xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            onClick={handleSendRequest}
+                                            className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-14 rounded-2xl font-black italic uppercase text-xs shadow-xl shadow-brand-orange/20"
+                                        >
+                                            SOLICITAR PONTOS
+                                        </Button>
+                                    </div>
+                                </Card>
+                            )}
 
                             {/* Seção de Prêmios da Loja */}
                             {companyRewards.length > 0 && (
@@ -476,7 +629,7 @@ export default function CustomerDashboard() {
                         </div>
                     )}
                 </div>
-            ) : (
+            ) : activeTab === 'qridos' ? (
                 <div className="animate-in fade-in duration-500 space-y-8">
                     <div className="bg-gradient-to-r from-brand-orange to-brand-yellow p-8 rounded-[40px] text-white">
                         <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
@@ -535,37 +688,100 @@ export default function CustomerDashboard() {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Modal de Verificação */}
-            {showVerifyModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <Card className="max-w-md w-full border-none shadow-2xl p-8 space-y-6 animate-in zoom-in-95 duration-200 rounded-[40px]">
-                        <div className="text-center space-y-2">
-                            <div className="h-16 w-16 bg-brand-orange/10 text-brand-orange rounded-[24px] flex items-center justify-center mx-auto mb-4">
-                                <Star className="h-8 w-8" />
-                            </div>
-                            <h3 className="text-2xl font-black text-slate-900 uppercase italic">Confirmar Compra</h3>
-                            <p className="text-sm text-slate-400 font-medium italic">Insira o código de 4 dígitos fornecido pelo estabelecimento.</p>
+            ) : (
+                <div className="animate-in fade-in duration-500 space-y-8">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                            <Star className="h-6 w-6" />
                         </div>
-
-                        <div className="space-y-4">
-                            <Input
-                                type="text"
-                                maxLength={4}
-                                placeholder="0 0 0 0"
-                                className="h-20 text-center text-4xl font-black tracking-[1.5rem] border-2 border-slate-100 focus:border-brand-blue rounded-[24px] bg-slate-50/50 outline-none"
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                            />
-                            <div className="grid grid-cols-2 gap-3 pt-4">
-                                <Button variant="ghost" className="font-black italic uppercase text-[10px] text-slate-400" onClick={() => setShowVerifyModal(false)}>Cancelar</Button>
-                                <Button className="btn-orange h-14 rounded-2xl font-black italic uppercase text-xs" onClick={handleVerify} disabled={verificationCode.length !== 4}>CONFIRMAR</Button>
-                            </div>
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">Minhas Solicitações</h2>
+                            <p className="text-slate-500 font-medium">Acompanhe e valide seus pontos aqui.</p>
                         </div>
-                    </Card>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {purchaseRequests.length === 0 ? (
+                            <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                                <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                                <p className="text-slate-400 font-black italic uppercase tracking-wider">Nenhuma solicitação encontrada.</p>
+                            </div>
+                        ) : (
+                            purchaseRequests.map(req => (
+                                <Card key={req.id} className={cn(
+                                    "p-6 rounded-[32px] border-2 shadow-sm relative overflow-hidden flex flex-col gap-4",
+                                    req.status === 'pending' ? "border-amber-100 bg-amber-50/20" :
+                                        req.status === 'confirmed' ? "border-brand-blue/30 bg-brand-blue/[0.02]" :
+                                            req.status === 'completed' ? "border-brand-green/30 bg-brand-green/[0.02]" : "border-slate-100"
+                                )}>
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.profiles?.full_name}</p>
+                                            <h3 className="text-sm font-black uppercase text-slate-900 truncate">
+                                                {req.items.length === 1 ? req.items[0].name : `${req.items[0].name} +${req.items.length - 1} itens`}
+                                            </h3>
+                                        </div>
+                                        <div className={cn(
+                                            "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                            req.status === 'pending' ? "bg-amber-100 text-amber-600" :
+                                                req.status === 'confirmed' ? "bg-brand-blue text-white" :
+                                                    req.status === 'completed' ? "bg-brand-green text-white" : "bg-slate-100 text-slate-400"
+                                        )}>
+                                            {req.status === 'pending' ? 'Pendente' :
+                                                req.status === 'confirmed' ? 'Confirmado' :
+                                                    req.status === 'completed' ? 'Finalizado' : 'Recusado'}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center py-2 border-y border-slate-100/50">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase">Valor</p>
+                                            <p className="text-base font-black italic">R$ {req.total_amount}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase">Pontos</p>
+                                            <p className="text-base font-black italic text-brand-orange">+{req.total_points} PTS</p>
+                                        </div>
+                                    </div>
+
+                                    {req.status === 'confirmed' && (
+                                        <div className="space-y-3 pt-2">
+                                            <p className="text-[10px] font-black text-brand-blue uppercase italic text-center">Digite o código recebido:</p>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    id={`code-${req.id}`}
+                                                    className="h-12 text-center text-xl font-black tracking-widest rounded-2xl border-brand-blue/30 bg-white"
+                                                    maxLength={4}
+                                                    placeholder="0000"
+                                                />
+                                                <Button
+                                                    className="btn-blue h-12 rounded-2xl px-6"
+                                                    onClick={() => {
+                                                        const val = (document.getElementById(`code-${req.id}`) as HTMLInputElement).value
+                                                        handleVerifyCode(req.id, val, req.total_points, req.total_amount, req.company_id)
+                                                    }}
+                                                >
+                                                    OK
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {req.status === 'completed' && (
+                                        <div className="flex items-center justify-center gap-2 py-4 text-brand-green">
+                                            <Award className="h-5 w-5" />
+                                            <span className="text-xs font-black uppercase italic">Pontos Creditados!</span>
+                                        </div>
+                                    )}
+
+                                    <p className="text-[8px] text-slate-300 font-bold text-center italic">{new Date(req.created_at).toLocaleString()}</p>
+                                </Card>
+                            ))
+                        )}
+                    </div>
                 </div>
             )}
+
         </div>
     )
 }

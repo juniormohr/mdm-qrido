@@ -30,6 +30,7 @@ export async function signup(formData: FormData) {
     const password = formData.get('password') as string
     const full_name = formData.get('full_name') as string
     const phone = formData.get('phone') as string
+    const role = (formData.get('role') as string) || 'customer'
 
     const { error } = await supabase.auth.signUp({
         email,
@@ -38,7 +39,7 @@ export async function signup(formData: FormData) {
             data: {
                 full_name,
                 phone,
-                role: 'company'
+                role
             }
         }
     })
@@ -48,5 +49,11 @@ export async function signup(formData: FormData) {
     }
 
     revalidatePath('/', 'layout')
-    redirect('/qrido')
+
+    // Role-based redirection
+    if (role === 'company') {
+        redirect('/qrido/select-plan')
+    } else {
+        redirect('/qrido/customer')
+    }
 }

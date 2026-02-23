@@ -4,6 +4,7 @@ import { login, signup } from './actions'
 import { useFormStatus } from 'react-dom'
 import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 function SubmitButton({ isLogin }: { isLogin: boolean }) {
     const { pending } = useFormStatus()
@@ -21,6 +22,7 @@ function SubmitButton({ isLogin }: { isLogin: boolean }) {
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true)
+    const [userRole, setUserRole] = useState<'customer' | 'company'>('customer')
     const [error, setError] = useState<string | null>(null)
 
     async function handleSubmit(formData: FormData) {
@@ -64,16 +66,44 @@ export default function LoginPage() {
                 <form className="mt-8 space-y-6" action={handleSubmit}>
                     <div className="space-y-4">
                         {!isLogin && (
+                            <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setUserRole('customer')}
+                                    className={cn(
+                                        "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                                        userRole === 'customer' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                                    )}
+                                >
+                                    Sou Cliente
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setUserRole('company')}
+                                    className={cn(
+                                        "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                                        userRole === 'company' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                                    )}
+                                >
+                                    Sou Empresa
+                                </button>
+                                <input type="hidden" name="role" value={userRole} />
+                            </div>
+                        )}
+
+                        {!isLogin && (
                             <>
                                 <div className="space-y-2">
-                                    <label htmlFor="full-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Nome da Empresa / Responsável</label>
+                                    <label htmlFor="full-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                        {userRole === 'company' ? 'Nome da Empresa / Responsável' : 'Seu Nome Completo'}
+                                    </label>
                                     <input
                                         id="full-name"
                                         name="full_name"
                                         type="text"
                                         required
                                         className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
-                                        placeholder="Nome completo"
+                                        placeholder={userRole === 'company' ? "Nome da Empresa" : "Como quer ser chamado?"}
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -90,7 +120,7 @@ export default function LoginPage() {
                             </>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail Corporativo</label>
+                            <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail de Acesso</label>
                             <input
                                 id="email-address"
                                 name="email"
@@ -98,12 +128,12 @@ export default function LoginPage() {
                                 autoComplete="email"
                                 required
                                 className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
-                                placeholder="exemplo@mdm.com"
+                                placeholder="exemplo@email.com"
                             />
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between ml-1">
-                                <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Senha de Acesso</label>
+                                <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Senha</label>
                                 {isLogin && (
                                     <a
                                         href="/forgot-password"
