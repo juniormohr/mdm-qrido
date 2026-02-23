@@ -17,6 +17,7 @@ export default function CompanyDashboard() {
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
+    const [redemptionCodes, setRedemptionCodes] = useState<Record<string, string>>({})
 
     async function fetchStats(userId: string) {
         const supabase = createClient()
@@ -105,6 +106,92 @@ export default function CompanyDashboard() {
 
         fetchInitialData()
     }, [])
+
+    async function handleConfirmRedemption(requestId: string) {
+        const inputCode = redemptionCodes[requestId]
+        if (!inputCode || inputCode.length !== 4) {
+            alert('Por favor, insira o código de 4 dígitos informado pelo cliente.')
+            return
+        }
+
+        const supabase = createClient()
+
+        // 1. Buscar a solicitação
+        const { data: request, error: fetchError } = await supabase
+            .from('purchase_requests')
+            .select('*, customer:customer_profile_id(full_name, phone)')
+            .eq('id', requestId)
+            .single()
+
+        if (fetchError || !request) {
+            alert('Erro ao buscar solicitação.')
+            return
+        }
+
+        // 2. Validar o código
+        if (request.verification_code !== inputCode) {
+            alert('Código de validação incorreto. Peça ao cliente para verificar na tela dele.')
+            return
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        // Feedback visual
+        setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
+
+        // 3. Debitar pontos e criar transação
+        const { data: customer } = await supabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', user.id)
+            .eq('phone', request.customer?.phone)
+            .maybeSingle()
+
+        if (!customer) {
+            alert('Erro: Cliente não encontrado na base desta loja.')
+            return
+        }
+
+        if (customer.points_balance < request.total_points) {
+            alert('Erro: Cliente não possui pontos suficientes para este resgate.')
+            return
+        }
+
+        // 4. Executar atualizações
+        const { error: updateError } = await supabase.from('customers').update({
+            points_balance: customer.points_balance - request.total_points
+        }).eq('id', customer.id)
+
+        if (updateError) {
+            console.error('Erro ao debitar pontos:', updateError)
+            alert('Erro ao processar débito de pontos.')
+            return
+        }
+
+        await supabase.from('loyalty_transactions').insert({
+            user_id: user.id,
+            customer_id: customer.id,
+            type: 'redeem',
+            points: request.total_points,
+            reward_id: request.reward_id
+        })
+
+        await supabase.from('purchase_requests').update({
+            status: 'completed'
+        }).eq('id', requestId)
+
+        // Limpar feedback visual após 3 segundos
+        setTimeout(() => {
+            setTransitioningItems(prev => {
+                const newItems = { ...prev }
+                delete newItems[requestId]
+                return newItems
+            })
+            fetchPendingRequests(user.id)
+            fetchStats(user.id)
+        }, 3000)
+    }
 
     async function handleConfirmRequest(requestId: string) {
         const supabase = createClient()
@@ -358,21 +445,52 @@ export default function CompanyDashboard() {
                                                 Pontos Enviados!
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <Button
-                                                    onClick={() => handleConfirmRequest(req.id)}
-                                                    className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
-                                                >
-                                                    Confirmar
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleRejectRequest(req.id)}
-                                                    className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
-                                                >
-                                                    Recusar
-                                                </Button>
-                                            </div>
+                                            req.type === 'redeem' ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl">
+                                                        <p className="text-[10px] font-black text-amber-600 uppercase italic mb-2">Digite o código do cliente</p>
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                maxLength={4}
+                                                                placeholder="0000"
+                                                                value={redemptionCodes[req.id] || ''}
+                                                                onChange={(e) => setRedemptionCodes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                                                                className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-center text-xl font-black tracking-widest text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
+                                                            />
+                                                            <Button
+                                                                onClick={() => handleConfirmRedemption(req.id)}
+                                                                className="bg-brand-blue hover:bg-brand-blue/90 text-white h-12 px-6 rounded-xl font-black italic uppercase text-xs"
+                                                            >
+                                                                Validar
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        onClick={() => handleRejectRequest(req.id)}
+                                                        className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                    >
+                                                        Recusar Resgate
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <Button
+                                                        onClick={() => handleConfirmRequest(req.id)}
+                                                        className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                                    >
+                                                        Confirmar
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        onClick={() => handleRejectRequest(req.id)}
+                                                        className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                                                    >
+                                                        Recusar
+                                                    </Button>
+                                                </div>
+                                            )
                                         )}
                                     </div>
                                 </CardContent>

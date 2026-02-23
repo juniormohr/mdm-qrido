@@ -29,7 +29,8 @@ import {
     X,
     Smartphone,
     Store,
-    Gift
+    Gift,
+    History as HistoryIcon
 } from 'lucide-react'
 
 interface CartItem {
@@ -83,6 +84,9 @@ export default function CustomerDashboard() {
     const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
     const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'qridos' | 'requests'>('offers')
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+    const [historyData, setHistoryData] = useState<any[]>([])
+    const [historyLoading, setHistoryLoading] = useState(false)
 
     useEffect(() => {
         fetchInitialData()
@@ -215,6 +219,35 @@ export default function CustomerDashboard() {
                 .limit(20)
             if (data) setTransactions(data)
         }
+    }
+
+    async function fetchHistoryForCompany(companyId: string) {
+        const phone = userPhoneRef.current
+        if (!phone) return
+
+        setHistoryLoading(true)
+        setIsHistoryOpen(true)
+        const supabase = createClient()
+
+        // 1. Encontrar o registro de cliente deste telefone para esta empresa
+        const { data: custRecord } = await supabase
+            .from('customers')
+            .select('id')
+            .eq('user_id', companyId)
+            .eq('phone', phone)
+            .maybeSingle()
+
+        if (custRecord) {
+            const { data } = await supabase
+                .from('loyalty_transactions')
+                .select('*')
+                .eq('customer_id', custRecord.id)
+                .order('created_at', { ascending: false })
+            if (data) setHistoryData(data)
+        } else {
+            setHistoryData([])
+        }
+        setHistoryLoading(false)
     }
 
     async function fetchCompanies() {
@@ -361,6 +394,46 @@ export default function CustomerDashboard() {
         }
     }
 
+    const handleRedeemReward = async (reward: any) => {
+        if (!selectedCompany) return
+        if (customerBalance < reward.points_required) {
+            alert('Saldo insuficiente para resgatar este prêmio.')
+            return
+        }
+
+        const confirmRedeem = confirm(`Deseja resgatar "${reward.title}" por ${reward.points_required} pontos?`)
+        if (!confirmRedeem) return
+
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        // Gerar código de 4 dígitos
+        const code = Math.floor(1000 + Math.random() * 9000).toString()
+
+        const { error } = await supabase.from('purchase_requests').insert({
+            company_id: selectedCompany.id,
+            customer_profile_id: user.id,
+            type: 'redeem',
+            reward_id: reward.id,
+            total_points: reward.points_required,
+            items: [{ id: reward.id, name: reward.title, points: reward.points_required }],
+            verification_code: code,
+            status: 'pending',
+            total_amount: 0
+        })
+
+        if (error) {
+            console.error('Erro ao resgatar:', error)
+            alert('Erro ao processar resgate. Tente novamente.')
+            return
+        }
+
+        alert(`Solicitação de resgate enviada! Mostre o código ${code} ao lojista para retirar seu prêmio.`)
+        fetchPurchaseRequests(user.id)
+        setActiveTab('requests')
+    }
+
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -460,9 +533,16 @@ export default function CustomerDashboard() {
                                 <div className="flex items-center gap-4">
                                     <h2 className="text-xl font-black text-slate-900 uppercase italic">Ofertas em {selectedCompany.full_name}</h2>
                                 </div>
-                                <div className="w-full sm:w-auto text-left sm:text-right bg-brand-orange/5 sm:bg-transparent p-3 sm:p-0 rounded-2xl sm:rounded-none border border-brand-orange/10 sm:border-none">
-                                    <p className="text-xs font-black text-brand-orange uppercase italic">Seu Saldo: {customerBalance} pts</p>
-                                </div>
+                                <button
+                                    onClick={() => fetchHistoryForCompany(selectedCompany.id)}
+                                    className="w-full sm:w-auto text-left sm:text-right bg-brand-orange/5 sm:bg-white/50 p-3 sm:py-2 sm:px-4 rounded-2xl border border-brand-orange/10 sm:border-slate-100 hover:border-brand-orange/30 transition-all group"
+                                >
+                                    <p className="text-[10px] font-black text-slate-400 uppercase italic mb-0.5">Seu Saldo</p>
+                                    <div className="flex items-center sm:justify-end gap-2">
+                                        <p className="text-sm font-black text-brand-orange uppercase italic">{customerBalance} pts</p>
+                                        <HistoryIcon className="h-3 w-3 text-brand-orange group-hover:rotate-12 transition-transform" />
+                                    </div>
+                                </button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -693,7 +773,7 @@ export default function CustomerDashboard() {
                                                     {isAvailable && (
                                                         <Button
                                                             className="w-full bg-brand-green hover:bg-brand-green/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg mt-2"
-                                                            onClick={() => alert(`Para resgatar seu prêmio "${reward.title}", mostre seu código de score total no balcão da loja!`)}
+                                                            onClick={() => handleRedeemReward(reward)}
                                                         >
                                                             SOLICITAR RESGATE
                                                         </Button>
@@ -866,14 +946,26 @@ export default function CustomerDashboard() {
 
                                     <div className="flex justify-between items-center py-2 border-y border-slate-100/50">
                                         <div>
-                                            <p className="text-[8px] font-black text-slate-400 uppercase">Valor</p>
-                                            <p className="text-base font-black italic">R$ {req.total_amount}</p>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase">{req.type === 'redeem' ? 'Resgate' : 'Valor'}</p>
+                                            <p className="text-base font-black italic">{req.type === 'redeem' ? 'Prêmio' : `R$ ${req.total_amount}`}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[8px] font-black text-slate-400 uppercase">Pontos</p>
-                                            <p className="text-base font-black italic text-brand-orange">+{req.total_points} PTS</p>
+                                            <p className={cn(
+                                                "text-base font-black italic",
+                                                req.type === 'redeem' ? "text-red-500" : "text-brand-orange"
+                                            )}>
+                                                {req.type === 'redeem' ? '-' : '+'}{req.total_points} PTS
+                                            </p>
                                         </div>
                                     </div>
+
+                                    {req.status === 'pending' && req.type === 'redeem' && (
+                                        <div className="bg-brand-blue/10 p-4 rounded-2xl text-center border border-brand-blue/20">
+                                            <p className="text-[10px] font-black text-brand-blue uppercase italic mb-1">Seu Código de Resgate</p>
+                                            <p className="text-2xl font-black italic text-brand-blue tracking-[8px]">{req.verification_code}</p>
+                                        </div>
+                                    )}
 
 
                                     {req.status === 'completed' && (
@@ -891,6 +983,102 @@ export default function CustomerDashboard() {
                 </div>
             )}
 
+            {/* Modal de Histórico de Pontos */}
+            {isHistoryOpen && (
+                <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
+                    onClick={() => setIsHistoryOpen(false)}
+                >
+                    <div
+                        className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header do Modal */}
+                        <div className="bg-brand-blue p-8 flex justify-between items-center text-white">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/20 rounded-2xl">
+                                    <HistoryIcon className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic leading-none">Meu Histórico</h3>
+                                    <p className="text-white/60 text-[10px] font-bold uppercase mt-1">Pontos em {selectedCompany?.full_name}</p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-white hover:bg-white/10 rounded-full"
+                                onClick={() => setIsHistoryOpen(false)}
+                            >
+                                <X className="h-6 w-6" />
+                            </Button>
+                        </div>
+
+                        {/* Conteúdo do Modal */}
+                        <div className="max-h-[60vh] overflow-y-auto p-8">
+                            {historyLoading ? (
+                                <div className="py-20 text-center space-y-4">
+                                    <div className="h-10 w-10 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto" />
+                                    <p className="text-slate-400 font-black italic uppercase text-xs">Carregando histórico...</p>
+                                </div>
+                            ) : historyData.length === 0 ? (
+                                <div className="py-20 text-center space-y-4">
+                                    <HistoryIcon className="h-12 w-12 text-slate-100 mx-auto" />
+                                    <p className="text-slate-400 font-black italic uppercase text-xs">Nenhuma transação encontrada.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {historyData.map(item => (
+                                        <div key={item.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-[24px] border border-slate-100 transition-all hover:bg-white hover:shadow-md group">
+                                            <div className="flex items-center gap-4">
+                                                <div className={cn(
+                                                    "h-12 w-12 rounded-2xl flex items-center justify-center",
+                                                    item.type === 'earn' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                                                )}>
+                                                    {item.type === 'earn' ? <Award className="h-6 w-6" /> : <Gift className="h-6 w-6" />}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black uppercase text-slate-900 leading-tight italic">
+                                                        {item.type === 'earn' ? 'Compra Realizada' : 'Resgate de Prêmio'}
+                                                    </p>
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                        {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={cn(
+                                                    "text-lg font-black italic",
+                                                    item.type === 'earn' ? "text-emerald-500" : "text-red-500"
+                                                )}>
+                                                    {item.type === 'earn' ? '+' : '-'}{item.points} pts
+                                                </p>
+                                                {item.sale_amount && (
+                                                    <p className="text-[10px] font-black text-slate-300 uppercase">R$ {item.sale_amount}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer do Modal */}
+                        <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Saldo Atual</p>
+                                <p className="text-2xl font-black italic text-brand-orange">{customerBalance} PTS</p>
+                            </div>
+                            <Button
+                                onClick={() => setIsHistoryOpen(false)}
+                                className="bg-brand-blue hover:bg-brand-blue/90 text-white h-12 px-8 rounded-2xl font-black italic uppercase text-xs"
+                            >
+                                FECHAR
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
