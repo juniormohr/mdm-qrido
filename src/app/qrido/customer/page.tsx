@@ -100,15 +100,22 @@ export default function CustomerDashboard() {
                     table: 'purchase_requests',
                     filter: `customer_profile_id=eq.${user.id}`
                 }, (payload) => {
+                    console.log('Realtime: mudança em purchase_requests!', payload)
                     fetchPurchaseRequests(user.id)
 
+                    const newReq = payload.new as any
+                    const status = newReq?.status
+
+                    console.log('Realtime: Novo status:', status)
+
                     // Se o status mudou para finalizado ou houve inserção, atualiza saldos
-                    if (payload.new && (payload.new as any).status === 'completed') {
+                    if (status === 'completed') {
+                        console.log('Realtime: Pedido finalizado! Atualizando saldos... Telefone:', profile?.phone)
                         fetchMyStores(profile?.phone)
                         fetchTransactions(user.id, profile?.phone)
-                        // Se estivermos na tela dessa empresa específica, atualiza o balance dela
-                        const newReq = payload.new as any
+
                         if (selectedCompanyRef.current?.id === newReq.company_id) {
+                            console.log('Realtime: Atualizando balance da empresa selecionada:', newReq.company_id)
                             fetchCustomerBalance(newReq.company_id)
                         }
                     }
