@@ -151,17 +151,15 @@ export default function CustomerDashboard() {
     }
 
     async function fetchPurchaseRequests(userId: string) {
-        console.log('Buscando solicitações para cliente:', userId)
         const supabase = createClient()
         const { data, error } = await supabase
             .from('purchase_requests')
-            .select('*, profiles:company_id(full_name)')
+            .select('*, company:company_id(full_name)')
             .eq('customer_profile_id', userId)
             .order('created_at', { ascending: false })
-            .limit(5)
+            .limit(10)
 
-        if (error) console.error('Erro na busca de solicitações:', error)
-        console.log('Solicitações recebidas:', data)
+        if (error) console.error('Erro ao buscar solicitações:', error)
         if (data) setPurchaseRequests(data)
     }
 
@@ -313,12 +311,10 @@ export default function CustomerDashboard() {
             total_points: totalPoints,
             status: 'pending'
         }
-        console.log('Finalizando pedido. Payload:', payload)
 
-        const { data: insertRes, error } = await supabase.from('purchase_requests').insert(payload).select()
+        const { error } = await supabase.from('purchase_requests').insert(payload)
 
         if (!error) {
-            console.log('Pedido inserido com sucesso:', insertRes)
             alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
             setCart([])
             fetchPurchaseRequests(user.id)
@@ -879,7 +875,7 @@ export default function CustomerDashboard() {
                                 )}>
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.profiles?.full_name}</p>
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.company?.full_name}</p>
                                             <h3 className="text-sm font-black uppercase text-slate-900 truncate">
                                                 {req.items.length === 1 ? req.items[0].name : `${req.items[0].name} +${req.items.length - 1} itens`}
                                             </h3>

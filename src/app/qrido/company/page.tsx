@@ -75,20 +75,16 @@ export default function CompanyDashboard() {
         }
 
         async function fetchPendingRequests(userId: string) {
-            console.log('Buscando solicitações para empresa:', userId)
             const supabase = createClient()
             const { data, error } = await supabase
                 .from('purchase_requests')
-                .select('*, profiles:customer_profile_id(full_name, phone)')
+                .select('*, customer:customer_profile_id(full_name, phone)')
                 .eq('company_id', userId)
                 .in('status', ['pending', 'confirmed'])
                 .order('created_at', { ascending: false })
 
-            if (error) console.error('Erro na busca de solicitações (Empresa):', error)
-            console.log('Solicitações recebidas pela empresa:', data)
-            if (data) {
-                setPendingRequests(data)
-            }
+            if (error) console.error('Erro ao buscar solicitações:', error)
+            if (data) setPendingRequests(data)
         }
 
         function subscribeToRequests(userId: string) {
@@ -272,8 +268,8 @@ export default function CompanyDashboard() {
                                 <CardHeader className="bg-slate-50/50 p-6 border-b border-slate-100">
                                     <div className="flex justify-between items-start">
                                         <div className="space-y-1">
-                                            <p className="text-[10px] font-black uppercase text-brand-blue tracking-widest italic">{req.profiles?.full_name}</p>
-                                            <p className="text-xs text-slate-500 font-bold">{req.profiles?.phone}</p>
+                                            <p className="text-[10px] font-black uppercase text-brand-blue tracking-widest italic">{req.customer?.full_name}</p>
+                                            <p className="text-xs text-slate-500 font-bold">{req.customer?.phone}</p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black uppercase text-slate-400">Total Compra</p>
