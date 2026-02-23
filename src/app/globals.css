@@ -8,6 +8,8 @@
   --brand-orange: #E9592C;
   --brand-green: #167657;
   --brand-blue: #297CCB;
+  --brand-dark: #020617;
+  --brand-dark-card: #0F172A;
 
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
