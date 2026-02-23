@@ -126,7 +126,7 @@ export default function CustomerDashboard() {
         // Fetch Companies I follow/have points in
         const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
-            .select('user_id, points_balance, profiles(full_name)')
+            .select('user_id, points_balance, profiles:user_id(full_name)')
             .eq('phone', profile?.phone)
 
         if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
@@ -558,97 +558,104 @@ export default function CustomerDashboard() {
 
                             {/* Overlay de Detalhes do Carrinho (Drawer) */}
                             {isCartOpen && (
-                                <div className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                <div
+                                    className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300"
+                                    onClick={(e) => {
+                                        if (e.target === e.currentTarget) setIsCartOpen(false)
+                                    }}
+                                >
                                     <div
-                                        className="absolute inset-0"
-                                        onClick={() => setIsCartOpen(false)}
-                                    />
-                                    <Card
                                         onClick={(e) => e.stopPropagation()}
-                                        className="relative z-10 w-full max-w-2xl mx-auto rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh]"
+                                        className="w-full max-w-2xl mx-auto"
                                     >
-                                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-4 mb-2" />
+                                        <Card className="rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh] overflow-hidden relative">
+                                            <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-4 mb-2" />
 
-                                        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-blue rounded-t-[32px]">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-white/20 rounded-xl">
-                                                    <ShoppingBag className="h-5 w-5 text-white" />
-                                                </div>
-                                                <h3 className="text-lg font-black uppercase italic text-white text-shadow">Resumo da Compra</h3>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-white hover:bg-white/10 rounded-full"
-                                                onClick={() => setIsCartOpen(false)}
-                                            >
-                                                <X className="h-6 w-6" />
-                                            </Button>
-                                        </div>
-
-                                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                                            {cart.map(item => (
-                                                <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-4 rounded-[24px] border border-white/10 animate-in zoom-in-95">
-                                                    <div className="flex-1">
-                                                        <p className="text-sm font-black uppercase italic text-white">{item.product.name}</p>
-                                                        <p className="text-xs font-bold text-slate-400">R$ {item.product.price.toFixed(2)}</p>
+                                            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-blue rounded-t-[32px]">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-white/20 rounded-xl">
+                                                        <ShoppingBag className="h-5 w-5 text-white" />
                                                     </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleUpdateQuantity(item.product.id, -1)
-                                                                }}
-                                                                className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
-                                                            >-</button>
-                                                            <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleUpdateQuantity(item.product.id, 1)
-                                                                }}
-                                                                className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
-                                                            >+</button>
+                                                    <h3 className="text-lg font-black uppercase italic text-white text-shadow">Resumo da Compra</h3>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-white hover:bg-white/10 rounded-full"
+                                                    onClick={() => setIsCartOpen(false)}
+                                                >
+                                                    <X className="h-6 w-6" />
+                                                </Button>
+                                            </div>
+
+                                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                                {cart.map(item => (
+                                                    <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-4 rounded-[24px] border border-white/10 animate-in zoom-in-95">
+                                                        <div className="flex-1">
+                                                            <p className="text-sm font-black uppercase italic text-white">{item.product.name}</p>
+                                                            <p className="text-xs font-bold text-slate-400">R$ {item.product.price.toFixed(2)}</p>
                                                         </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleRemoveFromCart(item.product.id)}
-                                                            className="text-white/20 hover:text-red-400 h-10 w-10 hover:bg-red-500/10"
-                                                        >
-                                                            <Trash2 className="h-5 w-5" />
-                                                        </Button>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleUpdateQuantity(item.product.id, -1)
+                                                                    }}
+                                                                    className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
+                                                                >-</button>
+                                                                <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleUpdateQuantity(item.product.id, 1)
+                                                                    }}
+                                                                    className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
+                                                                >+</button>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleRemoveFromCart(item.product.id)}
+                                                                className="text-white/20 hover:text-red-400 h-10 w-10 hover:bg-red-500/10"
+                                                            >
+                                                                <Trash2 className="h-5 w-5" />
+                                                            </Button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="p-8 bg-slate-800/80 border-t border-white/5 flex flex-col gap-6">
-                                            <div className="bg-slate-900/50 p-6 rounded-[32px] border border-white/5">
-                                                <div className="flex justify-between items-center mb-4">
-                                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Subtotal</p>
-                                                    <p className="text-2xl font-black italic text-white">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <p className="text-xs font-black text-brand-orange uppercase tracking-widest italic">Total de Pontos</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <Award className="h-5 w-5 text-brand-orange" />
-                                                        <p className="text-2xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
-                                                    </div>
-                                                </div>
+                                                ))}
                                             </div>
 
-                                            <Button
-                                                onClick={handleSendRequest}
-                                                className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow font-inter"
-                                            >
-                                                ENVIAR PEDIDO AGORA
-                                            </Button>
-                                        </div>
-                                    </Card>
+                                            <div className="p-8 bg-slate-800/80 border-t border-white/5 flex flex-col gap-6">
+                                                <div className="bg-slate-900/50 p-6 rounded-[32px] border border-white/5">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Subtotal</p>
+                                                        <p className="text-2xl font-black italic text-white">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <p className="text-xs font-black text-brand-orange uppercase tracking-widest italic">Total de Pontos</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <Award className="h-5 w-5 text-brand-orange" />
+                                                            <p className="text-2xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <Button
+                                                    onClick={(e) => {
+                                                        e.preventDefault()
+                                                        e.stopPropagation()
+                                                        handleSendRequest()
+                                                    }}
+                                                    className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow font-inter mb-4"
+                                                >
+                                                    ENVIAR PEDIDO AGORA
+                                                </Button>
+                                            </div>
+                                        </Card>
+                                    </div>
                                 </div>
                             )}
 
