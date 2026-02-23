@@ -76,6 +76,37 @@ export default function CustomerDashboard() {
         fetchInitialData()
     }, [])
 
+    useEffect(() => {
+        let channel: any
+
+        async function setupRealtime() {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            channel = supabase
+                .channel('customer_requests')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'purchase_requests',
+                    filter: `customer_profile_id=eq.${user.id}`
+                }, () => {
+                    fetchPurchaseRequests(user.id)
+                })
+                .subscribe()
+        }
+
+        setupRealtime()
+
+        return () => {
+            if (channel) {
+                const supabase = createClient()
+                supabase.removeChannel(channel)
+            }
+        }
+    }, [])
+
     async function fetchInitialData() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -115,23 +146,6 @@ export default function CustomerDashboard() {
 
         // Fetch purchase requests
         fetchPurchaseRequests(user.id)
-
-        // Realtime for requests
-        const channel = supabase
-            .channel('customer_requests')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'purchase_requests',
-                filter: `customer_profile_id=eq.${user.id}`
-            }, () => {
-                fetchPurchaseRequests(user.id)
-            })
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
     }
 
     async function fetchPurchaseRequests(userId: string) {

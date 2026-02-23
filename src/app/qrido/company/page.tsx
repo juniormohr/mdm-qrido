@@ -80,11 +80,11 @@ export default function CompanyDashboard() {
                 .from('purchase_requests')
                 .select('*, profiles:customer_profile_id(full_name, phone)')
                 .eq('company_id', userId)
-                .eq('status', 'pending')
+                .in('status', ['pending', 'confirmed'])
                 .order('created_at', { ascending: false })
 
             if (data) {
-                console.log('Solicitações pendentes carregadas:', data.length)
+                console.log('Solicitações carregadas:', data.length)
                 setPendingRequests(data)
             }
         }
@@ -293,21 +293,30 @@ export default function CompanyDashboard() {
                                             <span className="text-[10px] font-black uppercase italic">Pontos a receber</span>
                                             <span className="text-xl font-black">+{req.total_points} PTS</span>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleRejectRequest(req.id)}
-                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400"
-                                            >
-                                                RECUSAR
-                                            </Button>
-                                            <Button
-                                                onClick={() => handleConfirmRequest(req.id)}
-                                                className="btn-orange h-12 rounded-2xl font-black italic uppercase text-xs"
-                                            >
-                                                CONFIRMAR
-                                            </Button>
-                                        </div>
+
+                                        {req.status === 'confirmed' ? (
+                                            <div className="bg-brand-blue/5 p-4 rounded-2xl border border-brand-blue/20 flex flex-col items-center gap-2">
+                                                <p className="text-[10px] font-black text-brand-blue uppercase italic">Código de Verificação:</p>
+                                                <p className="text-3xl font-black tracking-widest text-brand-blue">{req.verification_code}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 text-center uppercase">Passe este código para o cliente finalizar</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleRejectRequest(req.id)}
+                                                    className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400"
+                                                >
+                                                    RECUSAR
+                                                </Button>
+                                                <Button
+                                                    onClick={() => handleConfirmRequest(req.id)}
+                                                    className="btn-blue h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg shadow-brand-blue/20"
+                                                >
+                                                    CONFIRMAR
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
