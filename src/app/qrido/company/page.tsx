@@ -16,8 +16,6 @@ export default function CompanyDashboard() {
         totalPoints: 0
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
-    const [verificationCode, setVerificationCode] = useState<string | null>(null)
-    const [codeExpiry, setCodeExpiry] = useState(0)
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -107,61 +105,86 @@ export default function CompanyDashboard() {
         fetchInitialData()
     }, [])
 
-    useEffect(() => {
-        let timer: NodeJS.Timeout
-        if (codeExpiry > 0) {
-            timer = setInterval(() => {
-                setCodeExpiry(prev => prev - 1)
-            }, 1000)
-        } else {
-            setVerificationCode(null)
-        }
-        return () => clearInterval(timer)
-    }, [codeExpiry])
-
     async function handleConfirmRequest(requestId: string) {
-        const code = Math.floor(1000 + Math.random() * 9000).toString()
         const supabase = createClient()
 
-        const { error } = await supabase
+        // 1. Buscar detalhes da solicitação
+        const { data: request, error: fetchError } = await supabase
             .from('purchase_requests')
-            .update({
-                status: 'confirmed',
-                verification_code: code
-            })
+            .select('*, customer:customer_profile_id(full_name, phone)')
+            .eq('id', requestId)
+            .single()
+
+        if (fetchError || !request) {
+            alert('Erro ao buscar detalhes da solicitação.')
+            return
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        // 2. Localizar ou criar o registro do cliente na loja
+        let customerId: string
+        const { data: existingCustomer } = await supabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', user.id)
+            .eq('phone', request.customer?.phone)
+            .maybeSingle()
+
+        if (existingCustomer) {
+            customerId = existingCustomer.id
+            await supabase.from('customers').update({
+                points_balance: existingCustomer.points_balance + request.total_points
+            }).eq('id', customerId)
+        } else {
+            const { data: newCust } = await supabase.from('customers').insert({
+                user_id: user.id,
+                name: request.customer?.full_name || 'Cliente',
+                phone: request.customer?.phone,
+                points_balance: request.total_points
+            }).select().single()
+            customerId = newCust!.id
+        }
+
+        // 3. Registrar Transação
+        await supabase.from('loyalty_transactions').insert({
+            user_id: user.id,
+            customer_id: customerId,
+            type: 'earn',
+            points: request.total_points,
+            sale_amount: request.total_amount,
+            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        })
+
+        // 4. Finalizar Solicitação
+        const { error: updateError } = await supabase
+            .from('purchase_requests')
+            .update({ status: 'completed' })
             .eq('id', requestId)
 
-        if (error) {
-            alert('Erro ao confirmar: ' + error.message)
+        if (updateError) {
+            alert('Erro ao finalizar: ' + updateError.message)
+        } else {
+            alert('Pedido confirmado e pontos creditados!')
+            fetchPendingRequests(user.id)
+            fetchStats(user.id)
         }
     }
 
     async function handleRejectRequest(requestId: string) {
         const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
         await supabase
             .from('purchase_requests')
             .update({ status: 'rejected' })
             .eq('id', requestId)
+
+        fetchPendingRequests(user.id)
     }
 
-    async function handleGenerateCode() {
-        const code = Math.floor(1000 + Math.random() * 9000).toString()
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) return
-
-        const { error } = await supabase.from('verification_codes').insert({
-            company_id: user.id,
-            code: code,
-            expires_at: new Date(Date.now() + 60000).toISOString()
-        })
-
-        if (!error) {
-            setVerificationCode(code)
-            setCodeExpiry(60)
-        }
-    }
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -171,25 +194,6 @@ export default function CompanyDashboard() {
                     <p className="text-slate-500 mt-1">Sua plataforma de fidelidade e recorrência.</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    {verificationCode ? (
-                        <div className="bg-brand-orange/10 border border-brand-orange/20 px-6 py-2 rounded-2xl flex items-center justify-between gap-4 animate-in slide-in-from-right w-full sm:w-auto">
-                            <div>
-                                <p className="text-[10px] font-black text-brand-orange uppercase leading-none">CÓDIGO ATIVO</p>
-                                <p className="text-2xl font-black text-slate-700 tracking-widest">{verificationCode}</p>
-                            </div>
-                            <div className="h-8 w-8 rounded-full border-2 border-brand-orange flex items-center justify-center text-brand-orange font-bold text-xs shrink-0">
-                                {codeExpiry}s
-                            </div>
-                        </div>
-                    ) : (
-                        <Button
-                            onClick={handleGenerateCode}
-                            className="btn-orange h-auto py-3 px-6 flex-col items-start gap-0 w-full sm:w-auto"
-                        >
-                            <span className="text-[10px] font-black uppercase opacity-80">Gerar Código</span>
-                            <span className="text-base font-black italic">VERIFICAR COMPRA</span>
-                        </Button>
-                    )}
                     <Link
                         href="/qrido/products"
                         className="btn-orange inline-flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
@@ -292,29 +296,21 @@ export default function CompanyDashboard() {
                                             <span className="text-xl font-black">+{req.total_points} PTS</span>
                                         </div>
 
-                                        {req.status === 'confirmed' ? (
-                                            <div className="bg-brand-blue/5 p-4 rounded-2xl border border-brand-blue/20 flex flex-col items-center gap-2">
-                                                <p className="text-[10px] font-black text-brand-blue uppercase italic">Código de Verificação:</p>
-                                                <p className="text-3xl font-black tracking-widest text-brand-blue">{req.verification_code}</p>
-                                                <p className="text-[8px] font-bold text-slate-400 text-center uppercase">Passe este código para o cliente finalizar</p>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleRejectRequest(req.id)}
-                                                    className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400"
-                                                >
-                                                    RECUSAR
-                                                </Button>
-                                                <Button
-                                                    onClick={() => handleConfirmRequest(req.id)}
-                                                    className="btn-blue h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg shadow-brand-blue/20"
-                                                >
-                                                    CONFIRMAR
-                                                </Button>
-                                            </div>
-                                        )}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Button
+                                                onClick={() => handleConfirmRequest(req.id)}
+                                                className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                            >
+                                                Confirmar
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => handleRejectRequest(req.id)}
+                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                                            >
+                                                Recusar
+                                            </Button>
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

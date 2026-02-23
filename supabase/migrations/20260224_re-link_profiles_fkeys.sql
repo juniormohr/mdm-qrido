@@ -37,5 +37,5 @@ ALTER TABLE public.products
     ADD CONSTRAINT products_company_id_fkey 
     FOREIGN KEY (company_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
--- Recarregar cache do PostgREST (Opcional, mas recomendado se possível)
+-- Recarregar cache do PostgREST
 NOTIFY pgrst, 'reload schema';

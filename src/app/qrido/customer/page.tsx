@@ -326,69 +326,6 @@ export default function CustomerDashboard() {
         }
     }
 
-    const handleVerifyCode = async (requestId: string, code: string, points: number, amount: number, companyId: string) => {
-        if (code.length !== 4) return
-
-        const supabase = createClient()
-
-        // Check if code matches the request
-        const { data: request } = await supabase
-            .from('purchase_requests')
-            .select('*')
-            .eq('id', requestId)
-            .eq('verification_code', code)
-            .eq('status', 'confirmed')
-            .single()
-
-        if (!request) {
-            alert('Código inválido ou solicitação ainda não confirmada.')
-            return
-        }
-
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        const { data: profile } = await supabase.from('profiles').select('phone, full_name').eq('id', user.id).single()
-
-        let customerId: string
-        const { data: existingCustomer } = await supabase
-            .from('customers')
-            .select('id, points_balance')
-            .eq('user_id', companyId)
-            .eq('phone', profile?.phone)
-            .maybeSingle()
-
-        if (existingCustomer) {
-            customerId = existingCustomer.id
-            await supabase.from('customers').update({
-                points_balance: existingCustomer.points_balance + points
-            }).eq('id', customerId)
-        } else {
-            const { data: newCust } = await supabase.from('customers').insert({
-                user_id: companyId,
-                name: profile?.full_name || 'Cliente',
-                phone: profile?.phone,
-                points_balance: points
-            }).select().single()
-            customerId = newCust!.id
-        }
-
-        await supabase.from('loyalty_transactions').insert({
-            user_id: companyId,
-            customer_id: customerId,
-            type: 'earn',
-            points: points,
-            sale_amount: amount,
-            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-        })
-
-        await supabase.from('purchase_requests').update({
-            status: 'completed'
-        }).eq('id', requestId)
-
-        alert(`Sucesso! Você ganhou ${points} pontos.`)
-        fetchPurchaseRequests(user.id)
-        fetchCustomerBalance(companyId)
-    }
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -903,28 +840,6 @@ export default function CustomerDashboard() {
                                         </div>
                                     </div>
 
-                                    {req.status === 'confirmed' && (
-                                        <div className="space-y-3 pt-2">
-                                            <p className="text-[10px] font-black text-brand-blue uppercase italic text-center">Digite o código recebido:</p>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    id={`code-${req.id}`}
-                                                    className="h-12 text-center text-xl font-black tracking-widest rounded-2xl border-brand-blue/30 bg-white"
-                                                    maxLength={4}
-                                                    placeholder="0000"
-                                                />
-                                                <Button
-                                                    className="btn-blue h-12 rounded-2xl px-6"
-                                                    onClick={() => {
-                                                        const val = (document.getElementById(`code-${req.id}`) as HTMLInputElement).value
-                                                        handleVerifyCode(req.id, val, req.total_points, req.total_amount, req.company_id)
-                                                    }}
-                                                >
-                                                    OK
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {req.status === 'completed' && (
                                         <div className="flex items-center justify-center gap-2 py-4 text-brand-green">
