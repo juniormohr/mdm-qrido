@@ -153,9 +153,11 @@ export default function CustomerDashboard() {
         const { data: profile } = await supabase.from('profiles').select('full_name, phone').eq('id', user.id).single()
         if (profile) {
             setUserProfile(profile)
+            userPhoneRef.current = profile.phone // Imediatamente atualizar o ref
             await Promise.all([
                 fetchMyStores(profile.phone),
-                fetchTransactions(user.id, profile.phone)
+                fetchTransactions(user.id, profile.phone),
+                fetchPurchaseRequests(user.id)
             ])
         }
 
@@ -168,9 +170,6 @@ export default function CustomerDashboard() {
 
         // Fetch all companies for the search list
         await fetchCompanies()
-
-        // Fetch purchase requests
-        await fetchPurchaseRequests(user.id)
         setLoading(false)
     }
 
@@ -190,6 +189,8 @@ export default function CustomerDashboard() {
     async function fetchMyStores(phone: string | undefined) {
         if (!phone) return
         const supabase = createClient()
+
+        // Buscar registros de clientes
         const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
             .select('user_id, points_balance, profiles:user_id(full_name)')
@@ -198,12 +199,28 @@ export default function CustomerDashboard() {
         if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
 
         if (myCustRecords) {
-            const formattedStores = myCustRecords.map((r: any) => ({
-                id: r.user_id,
-                full_name: r.profiles?.full_name || 'Loja Parceira',
-                points_balance: r.points_balance
-            }))
-            setMyStores(formattedStores)
+            // Buscar total gasto em cada loja (através de transações finalizadas)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: totalSpentData } = await supabase
+                    .from('purchase_requests')
+                    .select('company_id, total_amount')
+                    .eq('customer_profile_id', user.id)
+                    .eq('status', 'completed')
+
+                const spentMap = totalSpentData?.reduce((acc: any, curr: any) => {
+                    acc[curr.company_id] = (acc[curr.company_id] || 0) + (curr.total_amount || 0)
+                    return acc
+                }, {}) || {}
+
+                const formattedStores = myCustRecords.map((r: any) => ({
+                    id: r.user_id,
+                    full_name: r.profiles?.full_name || 'Loja Parceira',
+                    points_balance: r.points_balance,
+                    total_spent: spentMap[r.user_id] || 0
+                }))
+                setMyStores(formattedStores)
+            }
         }
     }
 
@@ -524,70 +541,95 @@ export default function CustomerDashboard() {
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Cabeçalho do Cliente */}
-            <div className="bg-white rounded-[40px] p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div className="flex items-center gap-6">
-                    <div className="h-20 w-20 bg-brand-blue rounded-3xl flex items-center justify-center text-white text-3xl font-black italic">
+            {/* Cabeçalho do Cliente Simplificado */}
+            <div className="bg-white rounded-[40px] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
+                    <div className="h-16 w-16 md:h-20 md:w-20 bg-brand-blue rounded-3xl flex items-center justify-center text-white text-2xl md:text-3xl font-black italic shrink-0">
                         {userProfile?.full_name?.charAt(0) || 'U'}
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">Oi, {userProfile?.full_name}</h2>
-                        <p className="text-slate-500 font-medium flex items-center gap-2">
-                            <Smartphone className="h-4 w-4" /> {userProfile?.phone}
+                        <h2 className="text-xl md:text-3xl font-black text-slate-900 uppercase italic leading-tight">Oi, {userProfile?.full_name?.split(' ')[0]}</h2>
+                        <p className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-2 mt-1">
+                            <Smartphone className="h-3 w-3 md:h-4 md:w-4" /> {userProfile?.phone}
                         </p>
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex flex-col-reverse md:flex-row gap-4 items-center w-full md:w-auto">
                     <Button
-                        className="btn-emerald h-14 px-8 rounded-3xl font-black italic uppercase text-xs flex items-center gap-2 shadow-lg"
+                        variant="ghost"
+                        className="text-slate-400 hover:text-brand-orange hover:bg-brand-orange/5 h-10 px-4 rounded-xl font-bold uppercase text-[10px] flex items-center gap-2 transition-all"
                         onClick={() => {
                             const msg = encodeURIComponent("Encontrei esse qrido aqui e quero que você conheça: https://qrido.com.br")
                             window.open(`https://wa.me/?text=${msg}`, '_blank')
                         }}
                     >
-                        <ShoppingBag className="h-4 w-4" />
-                        Indique um Amigo
+                        <ShoppingBag className="h-3 w-3" />
+                        Indicar um Amigo
                     </Button>
 
                     <div
-                        className="text-center px-8 py-4 bg-brand-orange/5 rounded-3xl border border-brand-orange/10 min-w-[180px] cursor-pointer hover:bg-brand-orange/10 transition-all hover:scale-105 active:scale-95 group"
+                        className="text-center px-10 py-5 md:py-6 bg-brand-orange/5 rounded-[32px] border-2 border-brand-orange/20 min-w-full md:min-w-[220px] cursor-pointer hover:bg-brand-orange/10 transition-all hover:scale-[1.02] active:scale-95 group shadow-lg shadow-brand-orange/10"
                         onClick={() => fetchGlobalHistory()}
                     >
-                        <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest group-hover:text-brand-orange/80">Meu Score Total</p>
-                        <p className="text-4xl font-black text-brand-orange">
+                        <p className="text-[10px] md:text-xs font-black text-brand-orange uppercase tracking-[2px] group-hover:text-brand-orange/80 mb-1">Meu Score Total</p>
+                        <p className="text-4xl md:text-5xl font-black text-brand-orange leading-none">
                             {myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)}
-                            <span className="text-sm ml-1 uppercase">pts</span>
+                            <span className="text-sm md:text-base ml-1 uppercase">pts</span>
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Navegação de Abas */}
-            <div className="flex flex-wrap gap-2 bg-slate-100/50 p-1.5 rounded-2xl w-fit">
+            {/* Navegação de Botões 2x2 Mobile / Lado a Lado Desktop */}
+            <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 md:gap-4 w-full">
                 <button
                     onClick={() => setActiveTab('offers')}
-                    className={`px-6 py-2 rounded-xl text-sm font-black uppercase transition-all ${activeTab === 'offers' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={cn(
+                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
+                        activeTab === 'offers'
+                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
+                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
+                    )}
                 >
-                    Descobrir Ofertas
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="truncate">Descobrir Ofertas</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('my_stores')}
-                    className={`px-6 py-2 rounded-xl text-sm font-black uppercase transition-all ${activeTab === 'my_stores' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={cn(
+                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
+                        activeTab === 'my_stores'
+                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
+                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
+                    )}
                 >
-                    Minhas Lojas
+                    <Store className="h-4 w-4" />
+                    <span className="truncate">Minhas Lojas</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('qridos')}
-                    className={`px-6 py-2 rounded-xl text-sm font-black uppercase transition-all ${activeTab === 'qridos' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={cn(
+                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
+                        activeTab === 'qridos'
+                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
+                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
+                    )}
                 >
-                    Qridos do Dia
+                    <Award className="h-4 w-4" />
+                    <span className="truncate">Qridos do Dia</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('requests')}
-                    className={`px-6 py-2 rounded-xl text-sm font-black uppercase transition-all ${activeTab === 'requests' ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={cn(
+                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
+                        activeTab === 'requests'
+                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
+                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
+                    )}
                 >
-                    Minhas Solicitações
+                    <Clock className="h-4 w-4" />
+                    <span className="truncate">Minhas Solicitações</span>
                 </button>
             </div>
 
@@ -638,13 +680,12 @@ export default function CustomerDashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {products.map(product => (
                                     <Card key={product.id} className="border-none shadow-sm bg-white overflow-hidden rounded-[32px] hover:shadow-xl transition-all h-full flex flex-col group">
-                                        <div className="aspect-square bg-slate-50 flex items-center justify-center relative">
-                                            <ShoppingBag className="h-12 w-12 text-slate-200" />
-                                            <div className="absolute top-4 right-4 bg-brand-orange text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg italic uppercase">
+                                        <div className="p-4 flex justify-end">
+                                            <div className="bg-brand-orange text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg italic uppercase">
                                                 +{product.points_reward} PTS
                                             </div>
                                         </div>
-                                        <CardHeader className="pb-2">
+                                        <CardHeader className="pb-2 pt-0">
                                             <CardTitle className="text-xl font-black text-slate-900 uppercase italic leading-tight">
                                                 {product.name}
                                             </CardTitle>
@@ -890,36 +931,46 @@ export default function CustomerDashboard() {
                         const progress = Math.min((store.points_balance || 0) / target * 100, 100)
 
                         return (
-                            <Card key={store.id} className="border-none shadow-sm hover:shadow-xl transition-all rounded-[32px] overflow-hidden bg-white p-8 space-y-6 h-full flex flex-col">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                        <Store className="h-6 w-6" />
+                            <Card key={store.id} className="border-none shadow-sm hover:shadow-xl transition-all rounded-[32px] overflow-hidden bg-white relative group flex flex-col h-full border border-slate-100">
+                                <div className="p-6 md:p-8 flex-1 space-y-6">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                                <Store className="h-6 w-6" />
+                                            </div>
+                                            <h3 className="text-lg font-black text-slate-900 uppercase italic truncate max-w-[150px]">{store.full_name}</h3>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic">Já Gastei</p>
+                                            <p className="text-xl font-black text-slate-900 italic">R$ {(store as any).total_spent || 0}</p>
+                                        </div>
                                     </div>
-                                    <h3 className="text-xl font-black text-slate-900 uppercase italic">{store.full_name}</h3>
+
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between items-end">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase italic">Meu Saldo</p>
+                                            <p className="text-sm font-black text-brand-orange uppercase italic">{store.points_balance} / {target} pts</p>
+                                        </div>
+                                        <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-brand-blue transition-all duration-1000 ease-out"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[9px] font-bold text-slate-400 italic">
+                                            {progress >= 100 ? '🎉 Resgate em breve!' : `Faltam ${target - (store.points_balance || 0)} pts`}
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-2 flex-1">
-                                    <div className="flex justify-between items-end">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">Seu Progresso</p>
-                                        <p className="text-sm font-black text-brand-blue uppercase italic">{store.points_balance} / {target} pts</p>
-                                    </div>
-                                    <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-brand-blue transition-all duration-1000 ease-out"
-                                            style={{ width: `${progress}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-[10px] font-bold text-slate-400 italic">
-                                        {progress >= 100 ? '🎉 Você já pode resgatar seu benefício!' : `Faltam ${target - (store.points_balance || 0)} pontos para o próximo resgate.`}
-                                    </p>
+                                <div className="p-4 bg-slate-50 border-t border-slate-100">
+                                    <Button
+                                        className="w-full btn-blue h-12 rounded-2xl font-black italic uppercase text-xs shadow-none hover:shadow-lg"
+                                        onClick={() => handleSelectCompany(store)}
+                                    >
+                                        Acessar Ofertas
+                                    </Button>
                                 </div>
-
-                                <Button
-                                    className="w-full btn-blue h-12 rounded-2xl font-black italic uppercase text-xs"
-                                    onClick={() => handleSelectCompany(store)}
-                                >
-                                    Ver Loja
-                                </Button>
                             </Card>
                         )
                     }) : (

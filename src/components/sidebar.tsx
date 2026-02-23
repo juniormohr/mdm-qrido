@@ -54,8 +54,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const customerNav = [
-        { name: 'Área Cliente', href: '/qrido/customer', icon: LayoutDashboard },
-        { name: 'Minhas Lojas', href: '/qrido/customer', icon: Store },
+        { name: 'Dashboard Cliente', href: '/qrido/customer', icon: LayoutDashboard },
+        { name: 'Ajustes', href: '/qrido/settings', icon: Settings },
     ]
 
     const globalNav = [
@@ -72,7 +72,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const navItems = role === 'admin'
         ? [...adminNav, ...globalNav]
         : (role === 'customer'
-            ? [...customerNav, globalNav[1]]
+            ? customerNav
             : [...companyNav, ...globalNav])
 
     return (
