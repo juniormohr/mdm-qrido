@@ -124,10 +124,12 @@ export default function CustomerDashboard() {
         }
 
         // Fetch Companies I follow/have points in
-        const { data: myCustRecords } = await supabase
+        const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
             .select('user_id, points_balance, profiles(full_name)')
             .eq('phone', profile?.phone)
+
+        if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
 
         if (myCustRecords) {
             const formattedStores = myCustRecords.map((r: any) => ({
@@ -561,7 +563,10 @@ export default function CustomerDashboard() {
                                         className="absolute inset-0"
                                         onClick={() => setIsCartOpen(false)}
                                     />
-                                    <Card className="w-full max-w-2xl mx-auto rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh]">
+                                    <Card
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="relative z-10 w-full max-w-2xl mx-auto rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh]"
+                                    >
                                         <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-4 mb-2" />
 
                                         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-blue rounded-t-[32px]">
@@ -592,13 +597,19 @@ export default function CustomerDashboard() {
                                                         <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleUpdateQuantity(item.product.id, -1)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleUpdateQuantity(item.product.id, -1)
+                                                                }}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >-</button>
                                                             <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => handleUpdateQuantity(item.product.id, 1)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    handleUpdateQuantity(item.product.id, 1)
+                                                                }}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >+</button>
                                                         </div>
