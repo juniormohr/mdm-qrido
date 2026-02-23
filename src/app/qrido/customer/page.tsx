@@ -6,7 +6,36 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { Search, Store, ShoppingBag, Star, Smartphone, TrendingUp, BarChart3, Gift, Award, Minus, Plus as PlusIcon, Trash2 } from 'lucide-react'
+import {
+    LayoutDashboard,
+    ShoppingBag,
+    Settings,
+    TrendingUp,
+    Home,
+    LogOut,
+    Search,
+    Star,
+    Award,
+    ChevronRight,
+    ArrowUpRight,
+    BarChart3,
+    Clock,
+    User,
+    ArrowLeft,
+    Plus,
+    Minus,
+    Trash2,
+    CheckCircle2,
+    X,
+    Smartphone,
+    Store,
+    Gift
+} from 'lucide-react'
+
+interface CartItem {
+    product: Product
+    quantity: number
+}
 
 interface Company {
     id: string
@@ -37,7 +66,9 @@ export default function CustomerDashboard() {
     const [myStores, setMyStores] = useState<Company[]>([])
     const [loyaltyConfigs, setLoyaltyConfigs] = useState<Record<string, any>>({})
     const [companyRewards, setCompanyRewards] = useState<any[]>([])
-    const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([])
+    const [cart, setCart] = useState<CartItem[]>([])
+    const [isCartOpen, setIsCartOpen] = useState(false)
+    const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
     const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'qridos' | 'requests'>('offers')
 
@@ -184,11 +215,17 @@ export default function CustomerDashboard() {
             const existing = prev.find(item => item.product.id === product.id)
             if (existing) {
                 return prev.map(item =>
-                    item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                    item.product.id === product.id
+                        ? { ...item, quantity: item.quantity + 1 }
+                        : item
                 )
             }
             return [...prev, { product, quantity: 1 }]
         })
+
+        // Feedback visual
+        setLastAddedItem(product.id)
+        setTimeout(() => setLastAddedItem(null), 2000)
     }
 
     const handleRemoveFromCart = (productId: string) => {
@@ -428,10 +465,20 @@ export default function CustomerDashboard() {
                                             <p className="text-xs text-slate-400 font-medium italic line-clamp-2">{product.description}</p>
                                             <div className="mt-auto pt-2">
                                                 <Button
-                                                    className="w-full bg-brand-blue hover:bg-brand-blue/90 text-brand-orange h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg"
+                                                    className={cn(
+                                                        "w-full h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg transition-all duration-300",
+                                                        lastAddedItem === product.id
+                                                            ? "bg-emerald-500 hover:bg-emerald-600 text-white"
+                                                            : "bg-brand-blue hover:bg-brand-blue/90 text-brand-orange"
+                                                    )}
                                                     onClick={() => handleAddToCart(product)}
                                                 >
-                                                    ADICIONAR AO CARRINHO
+                                                    {lastAddedItem === product.id ? (
+                                                        <span className="flex items-center gap-2">
+                                                            <CheckCircle2 className="h-4 w-4" />
+                                                            ADICIONADO!
+                                                        </span>
+                                                    ) : "ADICIONAR AO CARRINHO"}
                                                 </Button>
                                             </div>
                                         </CardContent>
@@ -439,68 +486,118 @@ export default function CustomerDashboard() {
                                 ))}
                             </div>
 
-                            {/* Carrinho Flutuante / Seção */}
-                            {cart.length > 0 && (
-                                <Card className="fixed bottom-8 right-8 left-8 md:left-auto md:w-96 z-50 border-none shadow-2xl rounded-[32px] bg-slate-900 text-white overflow-hidden animate-in slide-in-from-bottom duration-300">
-                                    <div className="p-6 bg-brand-blue flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-white/20 rounded-xl">
-                                                <ShoppingBag className="h-5 w-5" />
+                            {/* Rodapé do Carrinho Minimalista */}
+                            {cart.length > 0 && !isCartOpen && (
+                                <div
+                                    className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 animate-in slide-in-from-bottom duration-500"
+                                    onClick={() => setIsCartOpen(true)}
+                                >
+                                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group">
+                                        <div className="flex items-center gap-4">
+                                            <div className="relative">
+                                                <ShoppingBag className="h-6 w-6 text-brand-orange group-hover:scale-110 transition-transform" />
+                                                <span className="absolute -top-2 -right-2 bg-brand-orange text-white text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-slate-900">
+                                                    {cart.reduce((acc, i) => acc + i.quantity, 0)}
+                                                </span>
                                             </div>
-                                            <h3 className="text-sm font-black uppercase italic">Meu Carrinho</h3>
-                                        </div>
-                                        <span className="bg-brand-orange text-white text-[10px] font-black px-2 py-1 rounded-full">{cart.reduce((acc, i) => acc + i.quantity, 0)} ITENS</span>
-                                    </div>
-                                    <div className="max-h-64 overflow-y-auto p-4 space-y-4">
-                                        {cart.map(item => (
-                                            <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/10">
-                                                <div className="flex-1">
-                                                    <p className="text-xs font-black uppercase italic truncate">{item.product.name}</p>
-                                                    <p className="text-[10px] text-slate-400 font-bold">R$ {item.product.price} x {item.quantity}</p>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="flex items-center bg-white/10 rounded-lg overflow-hidden border border-white/5">
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(item.product.id, -1)}
-                                                            className="w-6 h-8 flex items-center justify-center hover:bg-white/10"
-                                                        >-</button>
-                                                        <span className="w-8 text-center text-xs font-black">{item.quantity}</span>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(item.product.id, 1)}
-                                                            className="w-6 h-8 flex items-center justify-center hover:bg-white/10"
-                                                        >+</button>
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => handleRemoveFromCart(item.product.id)}
-                                                        className="text-white/30 hover:text-red-400 h-8 w-8"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="p-6 bg-slate-800 border-t border-white/5 flex flex-col gap-4">
-                                        <div className="flex justify-between items-center">
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Estimado</p>
-                                                <p className="text-2xl font-black italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest">Ganhos</p>
-                                                <p className="text-xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Ver Carrinho</p>
+                                                <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
                                             </div>
                                         </div>
-                                        <Button
-                                            onClick={handleSendRequest}
-                                            className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-14 rounded-2xl font-black italic uppercase text-xs shadow-xl shadow-brand-orange/20"
-                                        >
-                                            SOLICITAR PONTOS
+                                        <Button className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px]">
+                                            Fechar Agora
                                         </Button>
                                     </div>
-                                </Card>
+                                </div>
+                            )}
+
+                            {/* Overlay de Detalhes do Carrinho (Drawer) */}
+                            {isCartOpen && (
+                                <div className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                    <div
+                                        className="absolute inset-0"
+                                        onClick={() => setIsCartOpen(false)}
+                                    />
+                                    <Card className="w-full max-w-2xl mx-auto rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh]">
+                                        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-4 mb-2" />
+
+                                        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-blue rounded-t-[32px]">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-white/20 rounded-xl">
+                                                    <ShoppingBag className="h-5 w-5 text-white" />
+                                                </div>
+                                                <h3 className="text-lg font-black uppercase italic text-white text-shadow">Resumo da Compra</h3>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-white hover:bg-white/10 rounded-full"
+                                                onClick={() => setIsCartOpen(false)}
+                                            >
+                                                <X className="h-6 w-6" />
+                                            </Button>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                            {cart.map(item => (
+                                                <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-4 rounded-[24px] border border-white/10 animate-in zoom-in-95">
+                                                    <div className="flex-1">
+                                                        <p className="text-sm font-black uppercase italic text-white">{item.product.name}</p>
+                                                        <p className="text-xs font-bold text-slate-400">R$ {item.product.price.toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
+                                                            <button
+                                                                onClick={() => handleUpdateQuantity(item.product.id, -1)}
+                                                                className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
+                                                            >-</button>
+                                                            <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
+                                                            <button
+                                                                onClick={() => handleUpdateQuantity(item.product.id, 1)}
+                                                                className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
+                                                            >+</button>
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => handleRemoveFromCart(item.product.id)}
+                                                            className="text-white/20 hover:text-red-400 h-10 w-10 hover:bg-red-500/10"
+                                                        >
+                                                            <Trash2 className="h-5 w-5" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="p-8 bg-slate-800/80 border-t border-white/5 flex flex-col gap-6">
+                                            <div className="bg-slate-900/50 p-6 rounded-[32px] border border-white/5">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Subtotal</p>
+                                                    <p className="text-2xl font-black italic text-white">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-xs font-black text-brand-orange uppercase tracking-widest italic">Total de Pontos</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <Award className="h-5 w-5 text-brand-orange" />
+                                                        <p className="text-2xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <Button
+                                                onClick={() => {
+                                                    handleSendRequest()
+                                                    setIsCartOpen(false)
+                                                }}
+                                                className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow"
+                                            >
+                                                EFETUAR SOLICITAÇÃO
+                                            </Button>
+                                        </div>
+                                    </Card>
+                                </div>
                             )}
 
                             {/* Seção de Prêmios da Loja */}
