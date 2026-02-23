@@ -155,7 +155,7 @@ export default function CustomerDashboard() {
             setUserProfile(profile)
             userPhoneRef.current = profile.phone // Imediatamente atualizar o ref
             await Promise.all([
-                fetchMyStores(profile.phone),
+                fetchMyStores(profile.phone, user.id),
                 fetchTransactions(user.id, profile.phone),
                 fetchPurchaseRequests(user.id)
             ])
@@ -186,11 +186,11 @@ export default function CustomerDashboard() {
         if (data) setPurchaseRequests(data)
     }
 
-    async function fetchMyStores(phone: string | undefined) {
+    async function fetchMyStores(phone: string | undefined, profileId?: string) {
         if (!phone) return
         const supabase = createClient()
 
-        // Buscar registros de clientes
+        // 1. Buscar registros de clientes (onde moram os saldos de pontos)
         const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
             .select('user_id, points_balance, profiles:user_id(full_name)')
@@ -199,28 +199,37 @@ export default function CustomerDashboard() {
         if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
 
         if (myCustRecords) {
-            // Buscar total gasto em cada loja (através de transações finalizadas)
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
+            // 2. Buscar total gasto em cada loja (através de transações finalizadas)
+            // Usar o profileId passado ou buscar se necessário
+            let currentUserId = profileId
+            if (!currentUserId) {
+                const { data: { user } } = await supabase.auth.getUser()
+                currentUserId = user?.id
+            }
+
+            let spentMap: Record<string, number> = {}
+            if (currentUserId) {
                 const { data: totalSpentData } = await supabase
                     .from('purchase_requests')
                     .select('company_id, total_amount')
-                    .eq('customer_profile_id', user.id)
+                    .eq('customer_profile_id', currentUserId)
                     .eq('status', 'completed')
 
-                const spentMap = totalSpentData?.reduce((acc: any, curr: any) => {
+                spentMap = totalSpentData?.reduce((acc: any, curr: any) => {
                     acc[curr.company_id] = (acc[curr.company_id] || 0) + (curr.total_amount || 0)
                     return acc
                 }, {}) || {}
-
-                const formattedStores = myCustRecords.map((r: any) => ({
-                    id: r.user_id,
-                    full_name: r.profiles?.full_name || 'Loja Parceira',
-                    points_balance: r.points_balance,
-                    total_spent: spentMap[r.user_id] || 0
-                }))
-                setMyStores(formattedStores)
             }
+
+            const formattedStores = myCustRecords.map((r: any) => ({
+                id: r.user_id,
+                full_name: r.profiles?.full_name || 'Loja Parceira',
+                points_balance: r.points_balance || 0,
+                total_spent: spentMap[r.user_id] || 0
+            }))
+
+            console.log('fetchMyStores: lojas formatadas:', formattedStores)
+            setMyStores(formattedStores)
         }
     }
 
@@ -1254,8 +1263,15 @@ export default function CustomerDashboard() {
                         {/* Footer do Modal */}
                         <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                             <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Saldo Atual</p>
-                                <p className="text-2xl font-black italic text-brand-orange">{customerBalance} PTS</p>
+                                <p className="text-[10px] font-black text-slate-400 uppercase italic">
+                                    {isGlobalHistory ? 'Saldo Total' : 'Saldo Atual'}
+                                </p>
+                                <p className="text-2xl font-black italic text-brand-orange">
+                                    {isGlobalHistory
+                                        ? myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)
+                                        : customerBalance
+                                    } PTS
+                                </p>
                             </div>
                             <Button
                                 onClick={() => setIsHistoryOpen(false)}
