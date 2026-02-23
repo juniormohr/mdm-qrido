@@ -30,6 +30,7 @@ import {
     Smartphone,
     Store,
     Gift,
+    Check,
     History as HistoryIcon
 } from 'lucide-react'
 
@@ -87,6 +88,7 @@ export default function CustomerDashboard() {
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
     const [historyData, setHistoryData] = useState<any[]>([])
     const [historyLoading, setHistoryLoading] = useState(false)
+    const [isGlobalHistory, setIsGlobalHistory] = useState(false)
 
     useEffect(() => {
         fetchInitialData()
@@ -151,8 +153,10 @@ export default function CustomerDashboard() {
         const { data: profile } = await supabase.from('profiles').select('full_name, phone').eq('id', user.id).single()
         if (profile) {
             setUserProfile(profile)
-            fetchMyStores(profile.phone)
-            fetchTransactions(user.id, profile.phone)
+            await Promise.all([
+                fetchMyStores(profile.phone),
+                fetchTransactions(user.id, profile.phone)
+            ])
         }
 
         // Fetch Loyalty Configs (to know redemption points)
@@ -163,10 +167,11 @@ export default function CustomerDashboard() {
         }
 
         // Fetch all companies for the search list
-        fetchCompanies()
+        await fetchCompanies()
 
         // Fetch purchase requests
-        fetchPurchaseRequests(user.id)
+        await fetchPurchaseRequests(user.id)
+        setLoading(false)
     }
 
     async function fetchPurchaseRequests(userId: string) {
@@ -237,16 +242,98 @@ export default function CustomerDashboard() {
             .eq('phone', phone)
             .maybeSingle()
 
+        let combinedHistory: any[] = []
+
         if (custRecord) {
-            const { data } = await supabase
+            // 2. Buscar transações de pontos
+            const { data: transactions } = await supabase
                 .from('loyalty_transactions')
                 .select('*')
                 .eq('customer_id', custRecord.id)
                 .order('created_at', { ascending: false })
-            if (data) setHistoryData(data)
-        } else {
-            setHistoryData([])
+
+            if (transactions) {
+                combinedHistory = [...transactions.map(t => ({ ...t, record_type: 'transaction' }))]
+            }
         }
+
+        // 3. Buscar solicitações finalizadas ou recusadas (Purchase Requests)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: historicalRequests } = await supabase
+                .from('purchase_requests')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('customer_profile_id', user.id)
+                .in('status', ['completed', 'rejected'])
+                .order('created_at', { ascending: false })
+
+            if (historicalRequests) {
+                const reqs = historicalRequests.map(r => ({ ...r, record_type: 'request' }))
+                combinedHistory = [...combinedHistory, ...reqs]
+            }
+        }
+
+        // Ordenar tudo por data
+        combinedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setHistoryData(combinedHistory)
+        setHistoryLoading(false)
+        setIsGlobalHistory(false)
+    }
+
+    async function fetchGlobalHistory() {
+        const phone = userPhoneRef.current
+        if (!phone) return
+
+        setHistoryLoading(true)
+        setIsHistoryOpen(true)
+        setIsGlobalHistory(true)
+        const supabase = createClient()
+
+        let combinedHistory: any[] = []
+
+        // 1. Buscar TODAS as transações deste cliente (por telefone)
+        const { data: custIds } = await supabase.from('customers').select('id').eq('phone', phone)
+        const ids = custIds?.map(c => c.id) || []
+
+        if (ids.length > 0) {
+            const { data: transactions } = await supabase
+                .from('loyalty_transactions')
+                .select('*, profiles:user_id(full_name)')
+                .in('customer_id', ids)
+                .order('created_at', { ascending: false })
+
+            if (transactions) {
+                combinedHistory = [...transactions.map(t => ({
+                    ...t,
+                    record_type: 'transaction',
+                    company_name: t.profiles?.full_name
+                }))]
+            }
+        }
+
+        // 2. Buscar TODAS as solicitações históricas do usuário
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: historicalRequests } = await supabase
+                .from('purchase_requests')
+                .select('*, company:company_id(full_name)')
+                .eq('customer_profile_id', user.id)
+                .in('status', ['completed', 'rejected'])
+                .order('created_at', { ascending: false })
+
+            if (historicalRequests) {
+                const reqs = historicalRequests.map(r => ({
+                    ...r,
+                    record_type: 'request',
+                    company_name: r.company?.full_name
+                }))
+                combinedHistory = [...combinedHistory, ...reqs]
+            }
+        }
+
+        combinedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setHistoryData(combinedHistory)
         setHistoryLoading(false)
     }
 
@@ -463,8 +550,11 @@ export default function CustomerDashboard() {
                         Indique um Amigo
                     </Button>
 
-                    <div className="text-center px-8 py-4 bg-brand-orange/5 rounded-3xl border border-brand-orange/10 min-w-[180px]">
-                        <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest">Meu Score Total</p>
+                    <div
+                        className="text-center px-8 py-4 bg-brand-orange/5 rounded-3xl border border-brand-orange/10 min-w-[180px] cursor-pointer hover:bg-brand-orange/10 transition-all hover:scale-105 active:scale-95 group"
+                        onClick={() => fetchGlobalHistory()}
+                    >
+                        <p className="text-[10px] font-black text-brand-orange uppercase tracking-widest group-hover:text-brand-orange/80">Meu Score Total</p>
                         <p className="text-4xl font-black text-brand-orange">
                             {myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)}
                             <span className="text-sm ml-1 uppercase">pts</span>
@@ -912,13 +1002,14 @@ export default function CustomerDashboard() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {purchaseRequests.length === 0 ? (
+                        {purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).length === 0 ? (
                             <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
                                 <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                                <p className="text-slate-400 font-black italic uppercase tracking-wider">Nenhuma solicitação encontrada.</p>
+                                <p className="text-slate-400 font-black italic uppercase tracking-wider">Nenhuma solicitação ativa.</p>
+                                <p className="text-slate-300 text-xs font-medium italic mt-2">Suas solicitações finalizadas e recusadas ficam no histórico do Score.</p>
                             </div>
                         ) : (
-                            purchaseRequests.map(req => (
+                            purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).map(req => (
                                 <Card key={req.id} className={cn(
                                     "p-6 rounded-[32px] border-2 shadow-sm relative overflow-hidden flex flex-col gap-4",
                                     req.status === 'pending' ? "border-amber-100 bg-amber-50/20" :
@@ -1000,8 +1091,12 @@ export default function CustomerDashboard() {
                                     <HistoryIcon className="h-6 w-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black uppercase italic leading-none">Meu Histórico</h3>
-                                    <p className="text-white/60 text-[10px] font-bold uppercase mt-1">Pontos em {selectedCompany?.full_name}</p>
+                                    <h3 className="text-xl font-black uppercase italic leading-none">
+                                        {isGlobalHistory ? 'Extrato Geral' : 'Meu Histórico'}
+                                    </h3>
+                                    <p className="text-white/60 text-[10px] font-bold uppercase mt-1">
+                                        {isGlobalHistory ? 'Todas as suas movimentações' : `Pontos em ${selectedCompany?.full_name}`}
+                                    </p>
                                 </div>
                             </div>
                             <Button
@@ -1028,37 +1123,79 @@ export default function CustomerDashboard() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {historyData.map(item => (
-                                        <div key={item.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-[24px] border border-slate-100 transition-all hover:bg-white hover:shadow-md group">
-                                            <div className="flex items-center gap-4">
-                                                <div className={cn(
-                                                    "h-12 w-12 rounded-2xl flex items-center justify-center",
-                                                    item.type === 'earn' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                                                )}>
-                                                    {item.type === 'earn' ? <Award className="h-6 w-6" /> : <Gift className="h-6 w-6" />}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-black uppercase text-slate-900 leading-tight italic">
-                                                        {item.type === 'earn' ? 'Compra Realizada' : 'Resgate de Prêmio'}
-                                                    </p>
-                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                        {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className={cn(
-                                                    "text-lg font-black italic",
-                                                    item.type === 'earn' ? "text-emerald-500" : "text-red-500"
-                                                )}>
-                                                    {item.type === 'earn' ? '+' : '-'}{item.points} pts
-                                                </p>
-                                                {item.sale_amount && (
-                                                    <p className="text-[10px] font-black text-slate-300 uppercase">R$ {item.sale_amount}</p>
+                                    {historyData.map(item => {
+                                        const isTransaction = item.record_type === 'transaction'
+                                        const isRequest = item.record_type === 'request'
+                                        const status = item.status
+                                        const type = item.type // 'earn' or 'redeem'
+
+                                        let displayTitle = ''
+                                        let displayIcon = <Award className="h-6 w-6" />
+                                        let iconBg = "bg-emerald-100 text-emerald-600"
+                                        let pointsColor = "text-emerald-500"
+                                        let pointsSign = '+'
+
+                                        if (isTransaction) {
+                                            displayTitle = type === 'earn' ? 'Compra Realizada' : 'Resgate de Prêmio'
+                                            displayIcon = type === 'earn' ? <Award className="h-6 w-6" /> : <Gift className="h-6 w-6" />
+                                            iconBg = type === 'earn' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                                            pointsColor = type === 'earn' ? "text-emerald-500" : "text-red-500"
+                                            pointsSign = type === 'earn' ? '+' : '-'
+                                        } else if (isRequest) {
+                                            if (status === 'completed') {
+                                                displayTitle = type === 'redeem' ? 'Resgate Finalizado' : 'Pedido Finalizado'
+                                                displayIcon = <Check className="h-6 w-6" />
+                                                iconBg = "bg-brand-green/10 text-brand-green"
+                                            } else if (status === 'rejected') {
+                                                displayTitle = type === 'redeem' ? 'Resgate Recusado' : 'Pedido Recusado'
+                                                displayIcon = <X className="h-6 w-6" />
+                                                iconBg = "bg-red-50 text-red-400"
+                                                pointsColor = "text-slate-300"
+                                                pointsSign = ''
+                                            }
+                                        }
+
+                                        return (
+                                            <div key={item.id} className="flex flex-col p-5 bg-slate-50 rounded-[24px] border border-slate-100 transition-all hover:bg-white hover:shadow-md group gap-3">
+                                                {isGlobalHistory && (
+                                                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-1">
+                                                        <span className="text-[10px] font-black uppercase text-brand-blue italic">{item.company_name || 'Loja Parceira'}</span>
+                                                        {isRequest && (
+                                                            <span className={cn(
+                                                                "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                                                status === 'completed' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                                                            )}>
+                                                                {status === 'completed' ? 'Finalizado' : 'Recusado'}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 )}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", iconBg)}>
+                                                            {displayIcon}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black uppercase text-slate-900 leading-tight italic">
+                                                                {displayTitle}
+                                                            </p>
+                                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                                {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={cn("text-lg font-black italic", pointsColor)}>
+                                                            {pointsSign}{item.points || item.total_points} pts
+                                                        </p>
+                                                        {(item.sale_amount || item.total_amount > 0) && (
+                                                            <p className="text-[10px] font-black text-slate-300 uppercase">R$ {item.sale_amount || item.total_amount}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             )}
                         </div>
