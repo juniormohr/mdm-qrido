@@ -67,6 +67,13 @@ export default function CustomerDashboard() {
     const [verificationCode, setVerificationCode] = useState('')
     const [customerBalance, setCustomerBalance] = useState(0)
     const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
+    const userPhoneRef = useRef<string | null>(null)
+
+    useEffect(() => {
+        if (userProfile?.phone) {
+            userPhoneRef.current = userProfile.phone
+        }
+    }, [userProfile])
     const [transactions, setTransactions] = useState<any[]>([])
     const [myStores, setMyStores] = useState<Company[]>([])
     const [loyaltyConfigs, setLoyaltyConfigs] = useState<Record<string, any>>({})
@@ -89,9 +96,6 @@ export default function CustomerDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // Re-fetch profile to have phone for balance updates
-            const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
-
             channel = supabase
                 .channel('customer_requests')
                 .on('postgres_changes', {
@@ -110,9 +114,10 @@ export default function CustomerDashboard() {
 
                     // Se o status mudou para finalizado ou houve inserção, atualiza saldos
                     if (status === 'completed') {
-                        console.log('Realtime: Pedido finalizado! Atualizando saldos... Telefone:', profile?.phone)
-                        fetchMyStores(profile?.phone)
-                        fetchTransactions(user.id, profile?.phone)
+                        const phone = userPhoneRef.current
+                        console.log('Realtime: Pedido finalizado! Atualizando saldos... Telefone:', phone)
+                        fetchMyStores(phone || undefined)
+                        fetchTransactions(user.id, phone || undefined)
 
                         if (selectedCompanyRef.current?.id === newReq.company_id) {
                             console.log('Realtime: Atualizando balance da empresa selecionada:', newReq.company_id)
@@ -262,13 +267,13 @@ export default function CustomerDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
+        const phone = userPhoneRef.current
 
         const { data } = await supabase
             .from('customers')
             .select('points_balance')
             .eq('user_id', companyId)
-            .eq('phone', profile?.phone)
+            .eq('phone', phone)
             .maybeSingle()
 
         setCustomerBalance(data?.points_balance || 0)
