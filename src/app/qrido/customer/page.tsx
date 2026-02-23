@@ -105,6 +105,7 @@ export default function CustomerDashboard() {
                     // Se o status mudou para finalizado ou houve inserção, atualiza saldos
                     if (payload.new && (payload.new as any).status === 'completed') {
                         fetchMyStores(profile?.phone)
+                        fetchTransactions(user.id, profile?.phone)
                         // Se estivermos na tela dessa empresa específica, atualiza o balance dela
                         const newReq = payload.new as any
                         if (selectedCompanyRef.current?.id === newReq.company_id) {
@@ -196,10 +197,10 @@ export default function CustomerDashboard() {
         if (ids.length > 0) {
             const { data } = await supabase
                 .from('loyalty_transactions')
-                .select('*, profiles(full_name)')
-                .eq('user_id', userId)
+                .select('*, profiles:user_id(full_name)')
+                .in('customer_id', ids) // Busca transações vinculadas a este cliente (telefone)
                 .order('created_at', { ascending: false })
-                .limit(10)
+                .limit(20)
             if (data) setTransactions(data)
         }
     }
