@@ -265,6 +265,7 @@ export default function CustomerDashboard() {
     }
 
     const handleUpdateQuantity = (productId: string, delta: number) => {
+        console.log('Atualizando quantidade:', productId, delta)
         setCart(currentCart => currentCart.map(item => {
             if (item.product.id === productId) {
                 const newQty = Math.max(1, item.quantity + delta)
@@ -275,7 +276,14 @@ export default function CustomerDashboard() {
     }
 
     const handleSendRequest = async () => {
-        if (cart.length === 0 || !selectedCompany) return
+        if (cart.length === 0) {
+            alert('Seu carrinho está vazio.')
+            return
+        }
+        if (!selectedCompany) {
+            alert('Selecione uma empresa primeiro.')
+            return
+        }
 
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -306,9 +314,10 @@ export default function CustomerDashboard() {
             setCart([])
             fetchPurchaseRequests(user.id)
             setActiveTab('requests')
+            setIsCartOpen(false)
         } else {
             console.error('Erro na solicitação:', error)
-            alert('Falha ao enviar solicitação: ' + (error.message || 'Erro desconhecido'))
+            alert('Falha ao enviar solicitação: ' + (error.message || 'Erro de conexão/tabela'))
         }
     }
 
@@ -582,18 +591,14 @@ export default function CustomerDashboard() {
                                                     <div className="flex items-center gap-4">
                                                         <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
                                                             <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleUpdateQuantity(item.product.id, -1)
-                                                                }}
+                                                                type="button"
+                                                                onClick={() => handleUpdateQuantity(item.product.id, -1)}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >-</button>
                                                             <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
                                                             <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleUpdateQuantity(item.product.id, 1)
-                                                                }}
+                                                                type="button"
+                                                                onClick={() => handleUpdateQuantity(item.product.id, 1)}
                                                                 className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
                                                             >+</button>
                                                         </div>
@@ -626,11 +631,8 @@ export default function CustomerDashboard() {
                                             </div>
 
                                             <Button
-                                                onClick={() => {
-                                                    handleSendRequest()
-                                                    setIsCartOpen(false)
-                                                }}
-                                                className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow"
+                                                onClick={handleSendRequest}
+                                                className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow font-inter"
                                             >
                                                 ENVIAR PEDIDO AGORA
                                             </Button>
