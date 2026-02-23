@@ -75,16 +75,18 @@ export default function CompanyDashboard() {
         }
 
         async function fetchPendingRequests(userId: string) {
+            console.log('Buscando solicitações para empresa:', userId)
             const supabase = createClient()
-            const { data } = await supabase
+            const { data, error } = await supabase
                 .from('purchase_requests')
                 .select('*, profiles:customer_profile_id(full_name, phone)')
                 .eq('company_id', userId)
                 .in('status', ['pending', 'confirmed'])
                 .order('created_at', { ascending: false })
 
+            if (error) console.error('Erro na busca de solicitações (Empresa):', error)
+            console.log('Solicitações recebidas pela empresa:', data)
             if (data) {
-                console.log('Solicitações carregadas:', data.length)
                 setPendingRequests(data)
             }
         }

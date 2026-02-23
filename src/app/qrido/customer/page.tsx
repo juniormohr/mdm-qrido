@@ -151,14 +151,17 @@ export default function CustomerDashboard() {
     }
 
     async function fetchPurchaseRequests(userId: string) {
+        console.log('Buscando solicitações para cliente:', userId)
         const supabase = createClient()
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('purchase_requests')
             .select('*, profiles:company_id(full_name)')
             .eq('customer_profile_id', userId)
             .order('created_at', { ascending: false })
             .limit(5)
 
+        if (error) console.error('Erro na busca de solicitações:', error)
+        console.log('Solicitações recebidas:', data)
         if (data) setPurchaseRequests(data)
     }
 
@@ -302,23 +305,27 @@ export default function CustomerDashboard() {
             points: item.product.points_reward
         }))
 
-        const { error } = await supabase.from('purchase_requests').insert({
+        const payload = {
             company_id: selectedCompany.id,
             customer_profile_id: user.id,
             items,
             total_amount: totalAmount,
             total_points: totalPoints,
             status: 'pending'
-        })
+        }
+        console.log('Finalizando pedido. Payload:', payload)
+
+        const { data: insertRes, error } = await supabase.from('purchase_requests').insert(payload).select()
 
         if (!error) {
+            console.log('Pedido inserido com sucesso:', insertRes)
             alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
             setCart([])
             fetchPurchaseRequests(user.id)
             setActiveTab('requests')
             setIsCartOpen(false)
         } else {
-            console.error('Erro na solicitação:', error)
+            console.error('Erro detalhado no envio:', error)
             alert('Falha ao enviar solicitação: ' + (error.message || 'Erro de conexão/tabela'))
         }
     }
