@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 import {
     LayoutDashboard,
     ShoppingBag,
@@ -32,7 +33,9 @@ import {
     Bell,
     Eye,
     EyeOff,
-    Grid
+    Grid,
+    Store,
+    Gift
 } from 'lucide-react'
 
 interface CartItem {
@@ -56,6 +59,7 @@ interface Product {
 }
 
 export default function CustomerDashboard() {
+    const router = useRouter()
     const [companies, setCompanies] = useState<Company[]>([])
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
     const selectedCompanyRef = useRef<Company | null>(null)
@@ -104,8 +108,9 @@ export default function CustomerDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
+            // 1. Ouvir mudanças em Pedidos
             channel = supabase
-                .channel('customer_requests')
+                .channel('customer_realtime')
                 .on('postgres_changes', {
                     event: '*',
                     schema: 'public',
@@ -118,18 +123,29 @@ export default function CustomerDashboard() {
                     const newReq = payload.new as any
                     const status = newReq?.status
 
-                    console.log('Realtime: Novo status:', status)
-
-                    // Se o status mudou para finalizado ou houve inserção, atualiza saldos
                     if (status === 'completed') {
                         const phone = userPhoneRef.current
-                        console.log('Realtime: Pedido finalizado! Atualizando saldos... Telefone:', phone)
-                        fetchMyStores(phone || undefined)
+                        console.log('Realtime: Pedido finalizado! Atualizando saldos...')
+                        fetchMyStores(phone || undefined, user.id)
                         fetchTransactions(user.id, phone || undefined)
 
                         if (selectedCompanyRef.current?.id === newReq.company_id) {
-                            console.log('Realtime: Atualizando balance da empresa selecionada:', newReq.company_id)
                             fetchCustomerBalance(newReq.company_id)
+                        }
+                    }
+                })
+                // 2. Ouvir mudanças diretas na tabela de clientes (pontos)
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'customers'
+                }, (payload) => {
+                    const phone = userPhoneRef.current
+                    if (phone && (payload.new as any).phone === phone) {
+                        console.log('Realtime: Saldo de pontos alterado! Atualizando...')
+                        fetchMyStores(phone, user.id)
+                        if (selectedCompanyRef.current?.id === (payload.new as any).user_id) {
+                            setCustomerBalance((payload.new as any).points_balance || 0)
                         }
                     }
                 })
@@ -147,31 +163,45 @@ export default function CustomerDashboard() {
     }, [])
 
     async function fetchInitialData() {
+        setLoading(true)
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+
+        if (!user) {
+            console.log('fetchInitialData: Usuário não autenticado')
+            return
+        }
+
+        console.log('fetchInitialData: Buscando perfil para ID:', user.id)
 
         // Fetch User Profile
-        const { data: profile } = await supabase.from('profiles').select('full_name, phone').eq('id', user.id).single()
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', user.id)
+            .single()
+
+        if (profileError) {
+            console.error('fetchInitialData: Erro ao buscar perfil:', profileError)
+        }
+
         if (profile) {
+            console.log('fetchInitialData: Perfil encontrado:', profile.phone)
             setUserProfile(profile)
-            userPhoneRef.current = profile.phone // Imediatamente atualizar o ref
+            userPhoneRef.current = profile.phone
+
+            // Disparar buscas em paralelo
             await Promise.all([
                 fetchMyStores(profile.phone, user.id),
                 fetchTransactions(user.id, profile.phone),
-                fetchPurchaseRequests(user.id)
+                fetchPurchaseRequests(user.id),
+                fetchCompanies()
             ])
+        } else {
+            console.warn('fetchInitialData: Perfil não encontrado ou sem telefone.')
+            await fetchCompanies()
         }
 
-        // Fetch Loyalty Configs (to know redemption points)
-        const { data: configs } = await supabase.from('loyalty_configs').select('*')
-        if (configs) {
-            const configMap = configs.reduce((acc: any, curr: any) => ({ ...acc, [curr.user_id]: curr }), {})
-            setLoyaltyConfigs(configMap)
-        }
-
-        // Fetch all companies for the search list
-        await fetchCompanies()
         setLoading(false)
     }
 
@@ -551,97 +581,114 @@ export default function CustomerDashboard() {
 
 
     return (
-        <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Cabeçalho do Cliente Simplificado */}
-            <div className="bg-white rounded-[40px] p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div className="flex items-center gap-4 md:gap-6 w-full md:w-auto">
-                    <div className="h-16 w-16 md:h-20 md:w-20 bg-brand-blue rounded-3xl flex items-center justify-center text-white text-2xl md:text-3xl font-black italic shrink-0">
-                        {userProfile?.full_name?.charAt(0) || 'U'}
+        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
+            {/* Header Estilo App */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 bg-brand-blue/10 rounded-full flex items-center justify-center border border-brand-blue/20 overflow-hidden">
+                        {userProfile?.full_name ? (
+                            <div className="text-brand-blue font-black flex items-center justify-center w-full h-full bg-white">
+                                {userProfile.full_name.charAt(0)}
+                            </div>
+                        ) : (
+                            <User className="h-6 w-6 text-brand-blue" />
+                        )}
                     </div>
                     <div>
-                        <h2 className="text-xl md:text-3xl font-black text-slate-900 uppercase italic leading-tight">Oi, {userProfile?.full_name?.split(' ')[0]}</h2>
-                        <p className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-2 mt-1">
-                            <Smartphone className="h-3 w-3 md:h-4 md:w-4" /> {userProfile?.phone}
-                        </p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Seja bem-vindo</p>
+                        <h2 className="text-lg font-black text-slate-900 italic uppercase">{userProfile?.full_name?.split(' ')[0]}</h2>
                     </div>
                 </div>
-
-                <div className="flex flex-col-reverse md:flex-row gap-4 items-center w-full md:w-auto">
-                    <Button
-                        variant="ghost"
-                        className="text-slate-400 hover:text-brand-orange hover:bg-brand-orange/5 h-10 px-4 rounded-xl font-bold uppercase text-[10px] flex items-center gap-2 transition-all"
-                        onClick={() => {
-                            const msg = encodeURIComponent("Encontrei esse qrido aqui e quero que você conheça: https://qrido.com.br")
-                            window.open(`https://wa.me/?text=${msg}`, '_blank')
-                        }}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => alert('Você não tem novas notificações no momento.')}
+                        className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors relative"
                     >
-                        <ShoppingBag className="h-3 w-3" />
-                        Indicar um Amigo
-                    </Button>
-
-                    <div
-                        className="text-center px-10 py-5 md:py-6 bg-brand-orange/5 rounded-[32px] border-2 border-brand-orange/20 min-w-full md:min-w-[220px] cursor-pointer hover:bg-brand-orange/10 transition-all hover:scale-[1.02] active:scale-95 group shadow-lg shadow-brand-orange/10"
-                        onClick={() => fetchGlobalHistory()}
+                        <Bell className="h-5 w-5" />
+                        <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-brand-orange rounded-full border-2 border-white" />
+                    </button>
+                    <button
+                        onClick={() => router.push('/qrido/settings')}
+                        className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
                     >
-                        <p className="text-[10px] md:text-xs font-black text-brand-orange uppercase tracking-[2px] group-hover:text-brand-orange/80 mb-1">Meu Score Total</p>
-                        <p className="text-4xl md:text-5xl font-black text-brand-orange leading-none">
-                            {myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)}
-                            <span className="text-sm md:text-base ml-1 uppercase">pts</span>
-                        </p>
+                        <Settings className="h-5 w-5" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Cartão de Score Principal (Hero) */}
+            <div className="relative group overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#F7AA1C]/10 to-[#297CCB]/10 blur-3xl opacity-50" />
+                <div className="relative bg-white border border-slate-100 rounded-[32px] p-8 shadow-xl shadow-slate-200/50 overflow-hidden">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="space-y-1">
+                            <p className="text-[11px] font-black text-[#E9592C] uppercase tracking-[3px] italic">Meu Score Total</p>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter">
+                                    {showScore ? myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0) : '••••'}
+                                    <span className="text-xl ml-2 text-slate-400 uppercase tracking-normal font-bold">pts</span>
+                                </h2>
+                                <button
+                                    onClick={() => setShowScore(!showScore)}
+                                    className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400 hover:text-slate-600"
+                                >
+                                    {showScore ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                </button>
+                            </div>
+                        </div>
+                        <div className="h-14 w-14 bg-amber-50 rounded-2xl flex items-center justify-center text-[#F7AA1C] border border-amber-100 shadow-sm">
+                            <TrendingUp className="h-8 w-8" />
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
+                        <Button
+                            variant="ghost"
+                            className="text-slate-500 hover:text-[#E9592C] hover:bg-orange-50 h-9 px-4 rounded-xl font-bold uppercase text-[10px] flex items-center gap-2 transition-all p-0"
+                            onClick={() => {
+                                const msg = encodeURIComponent("Encontrei esse qrido aqui e quero que você conheça: https://qrido.com.br")
+                                window.open(`https://wa.me/?text=${msg}`, '_blank')
+                            }}
+                        >
+                            <Plus className="h-3 w-3" />
+                            Indicar um Amigo
+                        </Button>
                     </div>
                 </div>
             </div>
 
-            {/* Navegação de Botões 2x2 Mobile / Lado a Lado Desktop */}
-            <div className="grid grid-cols-2 md:flex md:flex-wrap gap-3 md:gap-4 w-full">
-                <button
-                    onClick={() => setActiveTab('offers')}
-                    className={cn(
-                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
-                        activeTab === 'offers'
-                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
-                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
-                    )}
-                >
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="truncate">Descobrir Ofertas</span>
-                </button>
-                <button
-                    onClick={() => setActiveTab('my_stores')}
-                    className={cn(
-                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
-                        activeTab === 'my_stores'
-                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
-                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
-                    )}
-                >
-                    <Store className="h-4 w-4" />
-                    <span className="truncate">Minhas Lojas</span>
-                </button>
-                <button
-                    onClick={() => setActiveTab('qridos')}
-                    className={cn(
-                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
-                        activeTab === 'qridos'
-                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
-                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
-                    )}
-                >
-                    <Award className="h-4 w-4" />
-                    <span className="truncate">Qridos do Dia</span>
-                </button>
-                <button
-                    onClick={() => setActiveTab('requests')}
-                    className={cn(
-                        "h-14 md:h-12 md:px-8 rounded-2xl md:rounded-xl text-[10px] md:text-xs font-black uppercase transition-all flex items-center justify-center gap-2 shadow-sm",
-                        activeTab === 'requests'
-                            ? 'bg-brand-yellow text-brand-blue border-b-4 border-brand-blue/20'
-                            : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'
-                    )}
-                >
-                    <Clock className="h-4 w-4" />
-                    <span className="truncate">Minhas Solicitações</span>
-                </button>
+            {/* Grade de Ações Rápidas (Grid Style) */}
+            <div className="grid grid-cols-5 gap-2 sm:gap-4">
+                {[
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, color: 'text-[#F7AA1C]', bg: 'bg-amber-50 border-amber-100' },
+                    { id: 'my_stores', label: 'Lojas', icon: Store, color: 'text-[#297CCB]', bg: 'bg-blue-50 border-blue-100' },
+                    { id: 'qridos', label: 'Hoje', icon: Award, color: 'text-[#E9592C]', bg: 'bg-orange-50 border-orange-100' },
+                    { id: 'requests', label: 'Pedidos', icon: Star, color: 'text-[#297CCB]', bg: 'bg-blue-50 border-blue-100' },
+                    { id: 'history', label: 'Extrato', icon: HistoryIcon, color: 'text-slate-500', bg: 'bg-slate-100 border-slate-200' },
+                ].map((item) => (
+                    <button
+                        key={item.id}
+                        onClick={() => {
+                            if (item.id === 'history') fetchGlobalHistory()
+                            else setActiveTab(item.id as any)
+                        }}
+                        className="flex flex-col items-center gap-2 group"
+                    >
+                        <div className={cn(
+                            "h-16 w-16 rounded-2xl flex items-center justify-center transition-all duration-300 border shadow-sm",
+                            activeTab === (item.id as any) ? "scale-110 border-slate-300 shadow-md ring-2 ring-slate-100" : "hover:scale-105",
+                            item.bg
+                        )}>
+                            <item.icon className={cn("h-7 w-7", item.color)} />
+                        </div>
+                        <span className={cn(
+                            "text-[10px] font-black uppercase italic tracking-wider transition-colors",
+                            activeTab === (item.id as any) ? "text-slate-900" : "text-slate-500"
+                        )}>
+                            {item.label}
+                        </span>
+                    </button>
+                ))}
             </div>
 
             {activeTab === 'offers' ? (
@@ -658,15 +705,15 @@ export default function CustomerDashboard() {
                                     key={company.id}
                                     onClick={() => handleSelectCompany(company)}
                                     className={cn(
-                                        "flex items-center gap-4 p-5 rounded-3xl transition-all border",
+                                        "flex items-center gap-4 p-5 rounded-3xl transition-all border shadow-sm",
                                         selectedCompany?.id === company.id
-                                            ? 'bg-brand-blue border-brand-blue text-white shadow-lg shadow-brand-blue/20'
-                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800/50'
+                                            ? 'bg-[#297CCB] border-[#297CCB] text-white shadow-lg shadow-blue-200'
+                                            : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200 hover:bg-slate-50'
                                     )}
                                 >
                                     <div className={cn(
                                         "p-2.5 rounded-xl",
-                                        selectedCompany?.id === company.id ? 'bg-white/20' : 'bg-slate-800 text-brand-blue'
+                                        selectedCompany?.id === company.id ? 'bg-white/20' : 'bg-blue-50 text-[#297CCB]'
                                     )}>
                                         <Store className="h-5 w-5" />
                                     </div>
@@ -676,43 +723,43 @@ export default function CustomerDashboard() {
                         </div>
                     </div>
 
-                    {selectedCompany ? (
+                    {selectedCompany && (
                         <div className="animate-in zoom-in-95 duration-500 space-y-6">
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-900 p-6 rounded-[32px] border border-slate-800 shadow-xl gap-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-100 gap-4">
                                 <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 bg-brand-orange/10 rounded-full flex items-center justify-center">
-                                        <Award className="h-5 w-5 text-brand-orange" />
+                                    <div className="h-10 w-10 bg-orange-50 rounded-full flex items-center justify-center">
+                                        <Award className="h-5 w-5 text-[#E9592C]" />
                                     </div>
-                                    <h2 className="text-lg font-black text-white uppercase italic">Ofertas: {selectedCompany.full_name}</h2>
+                                    <h2 className="text-lg font-black text-slate-900 uppercase italic">Ofertas: {selectedCompany.full_name}</h2>
                                 </div>
                                 <button
                                     onClick={() => fetchHistoryForCompany(selectedCompany.id)}
-                                    className="w-full sm:w-auto text-left sm:text-right bg-slate-800 hover:bg-slate-700/50 p-3 sm:py-2 sm:px-4 rounded-2xl border border-slate-700 transition-all group"
+                                    className="w-full sm:w-auto text-left sm:text-right bg-slate-50 hover:bg-slate-100 p-3 sm:py-2 sm:px-4 rounded-2xl border border-slate-100 transition-all group"
                                 >
                                     <p className="text-[9px] font-black text-slate-500 uppercase italic mb-0.5">Saldo na Loja</p>
                                     <div className="flex items-center sm:justify-end gap-2">
-                                        <p className="text-xs font-black text-brand-orange uppercase italic">{customerBalance} pts</p>
-                                        <HistoryIcon className="h-3 w-3 text-brand-orange group-hover:rotate-12 transition-transform" />
+                                        <p className="text-xs font-black text-[#E9592C] uppercase italic">{customerBalance} pts</p>
+                                        <HistoryIcon className="h-3 w-3 text-[#E9592C] group-hover:rotate-12 transition-transform" />
                                     </div>
                                 </button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                 {products.map(product => (
-                                    <Card key={product.id} className="border-none shadow-xl bg-slate-900 overflow-hidden rounded-[32px] hover:border-brand-blue/20 border border-slate-800 transition-all h-full flex flex-col group">
+                                    <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white overflow-hidden rounded-[32px] border border-slate-100 hover:border-blue-200 transition-all h-full flex flex-col group">
                                         <div className="p-5 flex justify-between items-start">
-                                            <div className="h-12 w-12 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-600 group-hover:text-brand-blue transition-colors">
+                                            <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-[#297CCB] transition-colors">
                                                 <ShoppingBag className="h-6 w-6" />
                                             </div>
-                                            <div className="bg-brand-orange/10 border border-brand-orange/20 text-brand-orange text-[10px] font-black px-3 py-1.5 rounded-full italic uppercase shadow-inner">
+                                            <div className="bg-orange-50 border border-orange-100 text-[#E9592C] text-[10px] font-black px-3 py-1.5 rounded-full italic uppercase shadow-sm">
                                                 +{product.points_reward} PTS
                                             </div>
                                         </div>
                                         <CardHeader className="pb-2 pt-0">
-                                            <CardTitle className="text-xl font-black text-white uppercase italic leading-tight">
+                                            <CardTitle className="text-xl font-black text-slate-900 uppercase italic leading-tight">
                                                 {product.name}
                                             </CardTitle>
-                                            <div className="text-brand-blue font-black italic text-lg mt-1">R$ {product.price}</div>
+                                            <div className="text-[#297CCB] font-black italic text-lg mt-1">R$ {product.price}</div>
                                         </CardHeader>
                                         <CardContent className="space-y-4 flex-1 flex flex-col pt-0">
                                             <p className="text-[11px] text-slate-500 font-medium italic line-clamp-2 leading-relaxed">{product.description}</p>
@@ -721,8 +768,8 @@ export default function CustomerDashboard() {
                                                     className={cn(
                                                         "w-full h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg transition-all duration-300",
                                                         lastAddedItem === product.id
-                                                            ? "bg-emerald-500 hover:bg-emerald-600 text-white"
-                                                            : "bg-white hover:bg-slate-100 text-slate-900"
+                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                            : "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-200"
                                                     )}
                                                     onClick={() => handleAddToCart(product)}
                                                 >
@@ -738,211 +785,205 @@ export default function CustomerDashboard() {
                                     </Card>
                                 ))}
                             </div>
+                        </div>
+                    )}
 
-                            {/* Rodapé do Carrinho Minimalista */}
-                            {cart.length > 0 && !isCartOpen && (
-                                <div
-                                    className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 animate-in slide-in-from-bottom duration-500"
-                                    onClick={() => setIsCartOpen(true)}
-                                >
-                                    <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-900 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="relative">
-                                                <ShoppingBag className="h-6 w-6 text-brand-orange group-hover:scale-110 transition-transform" />
-                                                <span className="absolute -top-2 -right-2 bg-brand-orange text-white text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-slate-900">
-                                                    {cart.reduce((acc, i) => acc + i.quantity, 0)}
-                                                </span>
+                    {/* Rodapé do Carrinho Minimalista */}
+                    {cart.length > 0 && !isCartOpen && (
+                        <div
+                            className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 animate-in slide-in-from-bottom duration-500"
+                            onClick={() => setIsCartOpen(true)}
+                        >
+                            <div className="bg-slate-900 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-800 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className="relative">
+                                        <ShoppingBag className="h-6 w-6 text-[#F7AA1C] group-hover:scale-110 transition-transform" />
+                                        <span className="absolute -top-2 -right-2 bg-[#E9592C] text-white text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-slate-900">
+                                            {cart.reduce((acc, i) => acc + i.quantity, 0)}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">Meu Pedido</p>
+                                        <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                <Button className="bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-orange-900/20">
+                                    Revisar Itens
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Overlay de Detalhes do Carrinho (Drawer) */}
+                    {isCartOpen && (
+                        <div
+                            className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
+                            onClick={(e) => {
+                                if (e.target === e.currentTarget) setIsCartOpen(false)
+                            }}
+                        >
+                            <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full max-w-2xl mx-auto"
+                            >
+                                <Card className="rounded-t-[40px] bg-white border-t border-slate-100 shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh] overflow-hidden relative">
+                                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-4 mb-2" />
+
+                                    <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-[#297CCB] rounded-t-[32px]">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-white/20 rounded-xl">
+                                                <ShoppingBag className="h-5 w-5 text-white" />
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Meu Pedido</p>
-                                                <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
-                                            </div>
+                                            <h3 className="text-lg font-black uppercase italic text-white">Resumo da Compra</h3>
                                         </div>
-                                        <Button className="btn-orange h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-brand-orange/20">
-                                            Revisar Itens
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-white hover:bg-white/10 rounded-full"
+                                            onClick={() => setIsCartOpen(false)}
+                                        >
+                                            <X className="h-6 w-6" />
                                         </Button>
                                     </div>
-                                </div>
-                            )}
 
-                            {/* Overlay de Detalhes do Carrinho (Drawer) */}
-                            {isCartOpen && (
-                                <div
-                                    className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300"
-                                    onClick={(e) => {
-                                        if (e.target === e.currentTarget) setIsCartOpen(false)
-                                    }}
-                                >
-                                    <div
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-full max-w-2xl mx-auto"
-                                    >
-                                        <Card className="rounded-t-[40px] bg-slate-900 border-none shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh] overflow-hidden relative">
-                                            <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mt-4 mb-2" />
-
-                                            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-brand-blue rounded-t-[32px]">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-white/20 rounded-xl">
-                                                        <ShoppingBag className="h-5 w-5 text-white" />
-                                                    </div>
-                                                    <h3 className="text-lg font-black uppercase italic text-white text-shadow">Resumo da Compra</h3>
+                                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF9F6]">
+                                        {cart.map(item => (
+                                            <div key={item.product.id} className="flex items-center justify-between bg-white p-4 rounded-[24px] border border-slate-100 animate-in zoom-in-95 shadow-sm shadow-slate-100">
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-black uppercase italic text-slate-900">{item.product.name}</p>
+                                                    <p className="text-xs font-bold text-slate-500">R$ {item.product.price.toFixed(2)}</p>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-white hover:bg-white/10 rounded-full"
-                                                    onClick={() => setIsCartOpen(false)}
-                                                >
-                                                    <X className="h-6 w-6" />
-                                                </Button>
-                                            </div>
-
-                                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                                                {cart.map(item => (
-                                                    <div key={item.product.id} className="flex items-center justify-between bg-white/5 p-4 rounded-[24px] border border-white/10 animate-in zoom-in-95">
-                                                        <div className="flex-1">
-                                                            <p className="text-sm font-black uppercase italic text-white">{item.product.name}</p>
-                                                            <p className="text-xs font-bold text-slate-400">R$ {item.product.price.toFixed(2)}</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-4">
-                                                            <div className="flex items-center bg-white/10 rounded-xl overflow-hidden border border-white/5">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        handleUpdateQuantity(item.product.id, -1)
-                                                                    }}
-                                                                    className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
-                                                                >-</button>
-                                                                <span className="w-10 text-center text-sm font-black text-white">{item.quantity}</span>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation()
-                                                                        handleUpdateQuantity(item.product.id, 1)
-                                                                    }}
-                                                                    className="w-10 h-10 flex items-center justify-center hover:bg-white/10 text-white font-black"
-                                                                >+</button>
-                                                            </div>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => handleRemoveFromCart(item.product.id)}
-                                                                className="text-white/20 hover:text-red-400 h-10 w-10 hover:bg-red-500/10"
-                                                            >
-                                                                <Trash2 className="h-5 w-5" />
-                                                            </Button>
-                                                        </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleUpdateQuantity(item.product.id, -1)
+                                                            }}
+                                                            className="w-10 h-10 flex items-center justify-center hover:bg-slate-200 text-slate-900 font-black"
+                                                        >-</button>
+                                                        <span className="w-10 text-center text-sm font-black text-slate-900">{item.quantity}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleUpdateQuantity(item.product.id, 1)
+                                                            }}
+                                                            className="w-10 h-10 flex items-center justify-center hover:bg-slate-200 text-slate-900 font-black"
+                                                        >+</button>
                                                     </div>
-                                                ))}
-                                            </div>
-
-                                            <div className="p-8 bg-slate-800/80 border-t border-white/5 flex flex-col gap-6">
-                                                <div className="bg-slate-900/50 p-6 rounded-[32px] border border-white/5">
-                                                    <div className="flex justify-between items-center mb-4">
-                                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest italic">Subtotal</p>
-                                                        <p className="text-2xl font-black italic text-white">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <p className="text-xs font-black text-brand-orange uppercase tracking-widest italic">Total de Pontos</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <Award className="h-5 w-5 text-brand-orange" />
-                                                            <p className="text-2xl font-black italic text-brand-orange">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
-                                                        </div>
-                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveFromCart(item.product.id)}
+                                                        className="text-slate-400 hover:text-red-500 h-10 w-10 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-5 w-5" />
+                                                    </Button>
                                                 </div>
-
-                                                <Button
-                                                    onClick={(e) => {
-                                                        e.preventDefault()
-                                                        e.stopPropagation()
-                                                        handleSendRequest()
-                                                    }}
-                                                    className="w-full bg-brand-orange hover:bg-brand-orange/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-brand-orange/20 animate-pulse-slow font-inter mb-4"
-                                                >
-                                                    ENVIAR PEDIDO AGORA
-                                                </Button>
                                             </div>
-                                        </Card>
+                                        ))}
                                     </div>
-                                </div>
-                            )}
 
-                            {/* Seção de Prêmios da Loja */}
-                            {companyRewards.length > 0 && (
-                                <div className="pt-8 space-y-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange">
-                                            <Award className="h-6 w-6" />
+                                    <div className="p-8 bg-white border-t border-slate-50 flex flex-col gap-6">
+                                        <div className="bg-[#FAF9F6] p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <p className="text-xs font-black text-slate-500 uppercase tracking-widest italic">Subtotal</p>
+                                                <p className="text-2xl font-black italic text-slate-900">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-xs font-black text-[#E9592C] uppercase tracking-widest italic">Total de Pontos</p>
+                                                <div className="flex items-center gap-2">
+                                                    <Award className="h-5 w-5 text-[#E9592C]" />
+                                                    <p className="text-2xl font-black italic text-[#E9592C]">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <h2 className="text-xl font-black text-slate-900 uppercase italic">Prêmios Disponíveis</h2>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {companyRewards.map(reward => {
-                                            const progress = Math.min((customerBalance / reward.points_required) * 100, 100)
-                                            const isAvailable = customerBalance >= reward.points_required
 
-                                            return (
-                                                <Card key={reward.id} className={cn(
-                                                    "p-6 rounded-[32px] border shadow-sm transition-all flex flex-col gap-4",
-                                                    isAvailable ? "border-brand-green bg-brand-green/[0.02]" : "border-slate-100 bg-white"
-                                                )}>
-                                                    <div className="flex justify-between items-start">
-                                                        <div className={cn(
-                                                            "p-3 rounded-2xl",
-                                                            isAvailable ? "bg-brand-green/10 text-brand-green" : "bg-slate-100 text-slate-400"
-                                                        )}>
-                                                            <Gift className="h-5 w-5" />
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className="text-[10px] font-black uppercase text-slate-400">Objetivo</p>
-                                                            <p className="text-lg font-black text-slate-700 leading-none">{reward.points_required} pts</p>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-base font-black text-slate-800 uppercase italic">{reward.title}</h3>
-                                                        <p className="text-xs text-slate-400 italic mt-1">{reward.description}</p>
-                                                    </div>
-                                                    <div className="space-y-1.5 mt-auto">
-                                                        <div className="flex justify-between items-end">
-                                                            <p className="text-[10px] font-black uppercase text-slate-400 italic">Progresso</p>
-                                                            <p className="text-[10px] font-black text-brand-blue uppercase italic">{customerBalance} / {reward.points_required} pts</p>
-                                                        </div>
-                                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                                            <div
-                                                                className={cn(
-                                                                    "h-full transition-all duration-1000 ease-out",
-                                                                    isAvailable ? "bg-brand-green" : "bg-brand-blue"
-                                                                )}
-                                                                style={{ width: `${progress}%` }}
-                                                            />
-                                                        </div>
-                                                        <p className={cn(
-                                                            "text-[10px] font-bold italic",
-                                                            isAvailable ? "text-brand-green" : "text-slate-400"
-                                                        )}>
-                                                            {isAvailable ? "🎉 PRONTO PARA RESGATE!" : `Faltam ${reward.points_required - customerBalance} pontos.`}
-                                                        </p>
-                                                    </div>
-                                                    {isAvailable && (
-                                                        <Button
-                                                            className="w-full bg-brand-green hover:bg-brand-green/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg mt-2"
-                                                            onClick={() => handleRedeemReward(reward)}
-                                                        >
-                                                            SOLICITAR RESGATE
-                                                        </Button>
-                                                    )}
-                                                </Card>
-                                            )
-                                        })}
+                                        <Button
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                e.stopPropagation()
+                                                handleSendRequest()
+                                            }}
+                                            className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-orange-100 mb-4"
+                                        >
+                                            ENVIAR PEDIDO AGORA
+                                        </Button>
                                     </div>
-                                </div>
-                            )}
+                                </Card>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
-                            <Store className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-400 font-black italic uppercase tracking-wider">Selecione uma loja para ver as ofertas</p>
+                    )}
+
+                    {selectedCompany && companyRewards.length > 0 && (
+                        <div className="pt-8 space-y-6">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm">
+                                    <Award className="h-6 w-6" />
+                                </div>
+                                <h2 className="text-xl font-black text-slate-900 uppercase italic">Prêmios Disponíveis</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {companyRewards.map(reward => {
+                                    const progress = Math.min((customerBalance / reward.points_required) * 100, 100)
+                                    const isAvailable = customerBalance >= reward.points_required
+
+                                    return (
+                                        <Card key={reward.id} className={cn(
+                                            "p-6 rounded-[32px] border shadow-xl shadow-slate-100 transition-all flex flex-col gap-4 bg-white",
+                                            isAvailable ? "border-emerald-200" : "border-slate-100"
+                                        )}>
+                                            <div className="flex justify-between items-start">
+                                                <div className={cn(
+                                                    "p-3 rounded-2xl border",
+                                                    isAvailable ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-400 border-slate-100 shadow-inner"
+                                                )}>
+                                                    <Gift className="h-5 w-5" />
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400">Objetivo</p>
+                                                    <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
+                                                <p className="text-xs text-slate-500 italic mt-1">{reward.description}</p>
+                                            </div>
+                                            <div className="space-y-2 mt-auto">
+                                                <div className="flex justify-between items-end">
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 italic">Progresso</p>
+                                                    <p className="text-[10px] font-black text-[#297CCB] uppercase italic">{customerBalance} / {reward.points_required} pts</p>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={cn(
+                                                            "h-full transition-all duration-1000 ease-out",
+                                                            isAvailable ? "bg-emerald-500" : "bg-[#297CCB]"
+                                                        )}
+                                                        style={{ width: `${progress}%` }}
+                                                    />
+                                                </div>
+                                                <p className={cn(
+                                                    "text-[9px] font-black italic uppercase tracking-tighter",
+                                                    isAvailable ? "text-emerald-500" : "text-slate-400"
+                                                )}>
+                                                    {isAvailable ? "🎉 PRONTO PARA RESGATE!" : `Faltam ${reward.points_required - customerBalance} pontos.`}
+                                                </p>
+                                            </div>
+                                            {isAvailable && (
+                                                <Button
+                                                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-emerald-100 mt-2"
+                                                    onClick={() => handleRedeemReward(reward)}
+                                                >
+                                                    SOLICITAR RESGATE
+                                                </Button>
+                                            )}
+                                        </Card>
+                                    )
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -963,16 +1004,16 @@ export default function CustomerDashboard() {
                                 <button
                                     key={store.id}
                                     onClick={() => handleSelectCompany(store)}
-                                    className="w-full text-left bg-slate-900 border border-slate-800 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-slate-700 transition-all hover:shadow-2xl hover:bg-slate-800/80 group"
+                                    className="w-full text-left bg-white border border-slate-100 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-slate-200 transition-all hover:shadow-xl hover:bg-slate-50 group shadow-sm shadow-slate-100"
                                 >
                                     <div className="flex items-center gap-5 w-full sm:w-auto">
-                                        <div className="h-16 w-16 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                                        <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center text-[#297CCB] group-hover:scale-110 transition-transform shadow-sm">
                                             <Store className="h-8 w-8" />
                                         </div>
                                         <div className="space-y-1">
-                                            <h3 className="text-xl font-black text-white uppercase italic leading-none">{store.full_name}</h3>
+                                            <h3 className="text-xl font-black text-slate-900 uppercase italic leading-none">{store.full_name}</h3>
                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                Gasto total: <span className="text-white italic">R$ {(store as any).total_spent || 0}</span>
+                                                Gasto total: <span className="text-slate-900 italic">R$ {(store as any).total_spent || 0}</span>
                                             </p>
                                         </div>
                                     </div>
@@ -980,19 +1021,19 @@ export default function CustomerDashboard() {
                                     <div className="w-full sm:w-[250px] space-y-3">
                                         <div className="flex justify-between items-end">
                                             <p className="text-[9px] font-black text-slate-500 uppercase italic tracking-tighter">Progresso para resgate</p>
-                                            <p className="text-xs font-black text-brand-orange uppercase italic">{store.points_balance} / {target} pts</p>
+                                            <p className="text-xs font-black text-[#E9592C] uppercase italic">{store.points_balance} / {target} pts</p>
                                         </div>
-                                        <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden border border-white/5">
+                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                                             <div
-                                                className="h-full bg-gradient-to-r from-brand-blue to-brand-orange transition-all duration-1000 ease-out"
+                                                className="h-full bg-gradient-to-r from-[#297CCB] to-[#E9592C] transition-all duration-1000 ease-out"
                                                 style={{ width: `${progress}%` }}
                                             />
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <p className="text-[9px] font-bold text-slate-500 italic">
+                                            <p className="text-[9px] font-bold text-slate-400 italic">
                                                 {progress >= 100 ? '🎉 Resgate pronto!' : `Faltam ${target - (store.points_balance || 0)} pts`}
                                             </p>
-                                            <div className="flex items-center gap-1 text-[9px] font-black text-brand-blue uppercase group-hover:translate-x-1 transition-transform">
+                                            <div className="flex items-center gap-1 text-[9px] font-black text-[#297CCB] uppercase group-hover:translate-x-1 transition-transform">
                                                 Acessar Loja <ChevronRight className="h-3 w-3" />
                                             </div>
                                         </div>
@@ -1002,304 +1043,297 @@ export default function CustomerDashboard() {
                         }) : (
                             <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
                                 <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                                <p className="text-slate-400 font-black italic uppercase tracking-wider text-xl">aqui é o lugar das suas lojas mais qridas</p>
-                                <p className="text-slate-300 font-medium italic mt-2">Comece a comprar em nossas lojas parceiras para ganhar pontos!</p>
+                                <p className="text-slate-500 font-black italic uppercase tracking-wider text-xl text-balance px-4">aqui é o lugar das suas lojas mais qridas</p>
+                                <p className="text-slate-400 font-medium italic mt-2">Comece a comprar em nossas lojas parceiras para ganhar pontos!</p>
                             </div>
                         )}
                     </div>
-                    ) : activeTab === 'qridos' ? (
-                    <div className="animate-in fade-in duration-500 space-y-8">
-                        <div className="bg-gradient-to-r from-brand-orange to-brand-yellow p-8 rounded-[40px] text-white">
+                </div>
+            ) : activeTab === 'qridos' ? (
+                <div className="animate-in fade-in duration-500 space-y-8">
+                    <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
+                        <div className="relative z-10">
                             <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
                             <p className="text-white/80 font-bold italic">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
                         </div>
+                        <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
+                    </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {companies.slice(0, 4).map((c, i) => (
-                                <Card key={c.id} className="border-none shadow-xl bg-white overflow-hidden rounded-[32px] border-t-8 border-brand-orange h-full flex flex-col">
-                                    <CardHeader className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <TrendingUp className="h-4 w-4 text-brand-orange" />
-                                            <span className="text-[10px] font-black text-brand-orange uppercase italic tracking-widest">Destaque QRido</span>
-                                        </div>
-                                        <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
-                                        <p className="text-xs font-medium text-slate-400 italic">Cupom de Pontos em Dobro ativado!</p>
-                                    </CardHeader>
-                                    <CardContent className="pt-0">
-                                        <Button
-                                            className="w-full btn-orange h-10 rounded-xl font-black italic uppercase text-[10px]"
-                                            onClick={() => handleSelectCompany(c)}
-                                        >
-                                            Aproveitar Agora
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {companies.slice(0, 4).map((c, i) => (
+                            <Card key={c.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group">
+                                <CardHeader className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <TrendingUp className="h-3 w-3 text-[#E9592C]" />
+                                        <span className="text-[9px] font-black text-[#E9592C] uppercase italic tracking-widest">Destaque QRido</span>
+                                    </div>
+                                    <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
+                                    <p className="text-[10px] font-bold text-slate-500 italic">Cupom de Pontos em Dobro ativado!</p>
+                                </CardHeader>
+                                <CardContent className="pt-0">
+                                    <Button
+                                        className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
+                                        onClick={() => handleSelectCompany(c)}
+                                    >
+                                        Aproveitar Agora
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
+                    <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="p-6 md:p-8 border-b border-slate-50 flex items-center justify-between">
+                            <h3 className="text-xl font-black italic uppercase text-slate-900">Crescimento na Rede</h3>
+                            <BarChart3 className="h-5 w-5 text-slate-400" />
                         </div>
-
-                        <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden">
-                            <div className="p-6 md:p-8 border-b border-slate-50 flex items-center justify-between">
-                                <h3 className="text-xl font-black italic uppercase text-slate-800">Crescimento na Rede</h3>
-                                <BarChart3 className="h-5 w-5 text-slate-300" />
-                            </div>
-                            <div className="divide-y divide-slate-50">
-                                {transactions.length > 0 ? transactions.map(tx => (
-                                    <div key={tx.id} className="p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50 transition-all gap-4">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`p-3 rounded-2xl ${tx.type === 'earn' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
-                                                <TrendingUp className="h-6 w-6" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-slate-800 italic uppercase text-sm">{tx.profiles?.full_name}</p>
-                                                <p className="text-[10px] text-slate-400 font-black italic uppercase">{new Date(tx.created_at).toLocaleDateString()}</p>
-                                            </div>
+                        <div className="divide-y divide-slate-50">
+                            {transactions.length > 0 ? transactions.map(tx => (
+                                <div key={tx.id} className="p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50 transition-all gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-2xl ${tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                                            <TrendingUp className="h-6 w-6" />
                                         </div>
-                                        <div className="w-full sm:w-auto text-right">
-                                            <p className={`font-black text-lg italic ${tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500'}`}>
-                                                {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
-                                            </p>
+                                        <div>
+                                            <p className="font-bold text-slate-900 italic uppercase text-sm">{tx.profiles?.full_name}</p>
+                                            <p className="text-[10px] text-slate-400 font-black italic uppercase">{new Date(tx.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
-                                )) : (
-                                    <div className="p-20 text-center text-slate-400 font-black uppercase italic italic">Nenhuma transação encontrada.</div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    ) : (
-                    <div className="animate-in fade-in duration-500 space-y-8">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                <Star className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <h2 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">Minhas Solicitações</h2>
-                                <p className="text-slate-500 font-medium">Acompanhe e valide seus pontos aqui.</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).length === 0 ? (
-                                <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
-                                    <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                                    <p className="text-slate-400 font-black italic uppercase tracking-wider">Nenhuma solicitação ativa.</p>
-                                    <p className="text-slate-300 text-xs font-medium italic mt-2">Suas solicitações finalizadas e recusadas ficam no histórico do Score.</p>
+                                    <div className="w-full sm:w-auto text-right">
+                                        <p className={`font-black text-lg italic ${tx.type === 'earn' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                            {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
+                                        </p>
+                                    </div>
                                 </div>
-                            ) : (
-                                purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).map(req => (
-                                    <Card key={req.id} className={cn(
-                                        "p-6 rounded-[32px] border-2 shadow-sm relative overflow-hidden flex flex-col gap-4",
-                                        req.status === 'pending' ? "border-amber-100 bg-amber-50/20" :
-                                            req.status === 'confirmed' ? "border-brand-blue/30 bg-brand-blue/[0.02]" :
-                                                req.status === 'completed' ? "border-brand-green/30 bg-brand-green/[0.02]" : "border-slate-100"
-                                    )}>
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1">
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.company?.full_name}</p>
-                                                <h3 className="text-sm font-black uppercase text-slate-900 truncate">
-                                                    {req.items.length === 1 ? req.items[0].name : `${req.items[0].name} +${req.items.length - 1} itens`}
-                                                </h3>
-                                            </div>
-                                            <div className={cn(
-                                                "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                                req.status === 'pending' ? "bg-amber-100 text-amber-600" :
-                                                    req.status === 'confirmed' ? "bg-brand-blue text-white" :
-                                                        req.status === 'completed' ? "bg-brand-green text-white" : "bg-slate-100 text-slate-400"
-                                            )}>
-                                                {req.status === 'pending' ? 'Pendente' :
-                                                    req.status === 'confirmed' ? 'Confirmado' :
-                                                        req.status === 'completed' ? 'Finalizado' : 'Recusado'}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-between items-center py-2 border-y border-slate-100/50">
-                                            <div>
-                                                <p className="text-[8px] font-black text-slate-400 uppercase">{req.type === 'redeem' ? 'Resgate' : 'Valor'}</p>
-                                                <p className="text-base font-black italic">{req.type === 'redeem' ? 'Prêmio' : `R$ ${req.total_amount}`}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase">Pontos</p>
-                                                <p className={cn(
-                                                    "text-base font-black italic",
-                                                    req.type === 'redeem' ? "text-red-500" : "text-brand-orange"
-                                                )}>
-                                                    {req.type === 'redeem' ? '-' : '+'}{req.total_points} PTS
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {req.status === 'pending' && req.type === 'redeem' && (
-                                            <div className="bg-brand-blue/10 p-4 rounded-2xl text-center border border-brand-blue/20">
-                                                <p className="text-[10px] font-black text-brand-blue uppercase italic mb-1">Seu Código de Resgate</p>
-                                                <p className="text-2xl font-black italic text-brand-blue tracking-[8px]">{req.verification_code}</p>
-                                            </div>
-                                        )}
-
-
-                                        {req.status === 'completed' && (
-                                            <div className="flex items-center justify-center gap-2 py-4 text-brand-green">
-                                                <Award className="h-5 w-5" />
-                                                <span className="text-xs font-black uppercase italic">Pontos Creditados!</span>
-                                            </div>
-                                        )}
-
-                                        <p className="text-[8px] text-slate-300 font-bold text-center italic">{new Date(req.created_at).toLocaleString()}</p>
-                                    </Card>
-                                ))
+                            )) : (
+                                <div className="p-20 text-center text-slate-400 font-black uppercase italic">Nenhuma transação encontrada.</div>
                             )}
                         </div>
                     </div>
-            )}
+                </div>
+            ) : (
+                <div className="animate-in fade-in duration-500 space-y-8">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-blue-50 rounded-2xl flex items-center justify-center text-[#297CCB] border border-blue-100 shadow-sm">
+                            <Star className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">Minhas Solicitações</h2>
+                            <p className="text-slate-500 font-medium italic">Acompanhe e valide seus pontos aqui.</p>
+                        </div>
+                    </div>
 
-                    {/* Modal de Histórico de Pontos */}
-                    {isHistoryOpen && (
-                        <div
-                            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
-                            onClick={() => setIsHistoryOpen(false)}
-                        >
-                            <div
-                                className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
-                                onClick={e => e.stopPropagation()}
-                            >
-                                {/* Header do Modal */}
-                                <div className="bg-brand-blue p-8 flex justify-between items-center text-white">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-white/20 rounded-2xl">
-                                            <HistoryIcon className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-black uppercase italic leading-none">
-                                                {isGlobalHistory ? 'Extrato Geral' : 'Meu Histórico'}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+                        {purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).length === 0 ? (
+                            <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                                <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                                <p className="text-slate-500 font-black italic uppercase tracking-wider">Nenhuma solicitação ativa.</p>
+                                <p className="text-slate-400 text-xs font-medium italic mt-2">Suas solicitações finalizadas e recusadas ficam no histórico.</p>
+                            </div>
+                        ) : (
+                            purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).map(req => (
+                                <Card key={req.id} className={cn(
+                                    "p-6 rounded-[32px] border shadow-xl shadow-slate-100 relative overflow-hidden flex flex-col gap-4 bg-white",
+                                    req.status === 'pending' ? "border-amber-200" :
+                                        req.status === 'confirmed' ? "border-blue-200" :
+                                            req.status === 'completed' ? "border-emerald-200" : "border-slate-100"
+                                )}>
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.company?.full_name}</p>
+                                            <h3 className="text-sm font-black uppercase text-slate-900 truncate italic">
+                                                {req.items.length === 1 ? req.items[0].name : `${req.items[0].name} +${req.items.length - 1} itens`}
                                             </h3>
-                                            <p className="text-white/60 text-[10px] font-bold uppercase mt-1">
-                                                {isGlobalHistory ? 'Todas as suas movimentações' : `Pontos em ${selectedCompany?.full_name}`}
+                                        </div>
+                                        <div className={cn(
+                                            "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                            req.status === 'pending' ? "bg-amber-50 text-[#F7AA1C] border border-amber-100" :
+                                                req.status === 'confirmed' ? "bg-blue-50 text-[#297CCB] border border-blue-100" :
+                                                    req.status === 'completed' ? "bg-emerald-50 text-[#167657] border border-emerald-100" : "bg-slate-100 text-slate-500"
+                                        )}>
+                                            {req.status === 'pending' ? 'Pendente' :
+                                                req.status === 'confirmed' ? 'Confirmado' :
+                                                    req.status === 'completed' ? 'Finalizado' : 'Recusado'}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center py-2 border-y border-slate-50">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Tipo</p>
+                                            <p className="text-base font-black italic text-slate-900 uppercase">{req.type === 'redeem' ? 'Resgate' : 'Compra'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Pontos</p>
+                                            <p className={cn(
+                                                "text-base font-black italic",
+                                                req.status === 'rejected' ? "text-slate-300" :
+                                                    req.type === 'redeem' ? "text-red-500" : "text-[#E9592C]"
+                                            )}>
+                                                {req.type === 'redeem' ? '-' : '+'}{req.total_points} PTS
                                             </p>
                                         </div>
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-white hover:bg-white/10 rounded-full"
-                                        onClick={() => setIsHistoryOpen(false)}
-                                    >
-                                        <X className="h-6 w-6" />
-                                    </Button>
-                                </div>
 
-                                {/* Conteúdo do Modal */}
-                                <div className="max-h-[60vh] overflow-y-auto p-8">
-                                    {historyLoading ? (
-                                        <div className="py-20 text-center space-y-4">
-                                            <div className="h-10 w-10 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto" />
-                                            <p className="text-slate-400 font-black italic uppercase text-xs">Carregando histórico...</p>
-                                        </div>
-                                    ) : historyData.length === 0 ? (
-                                        <div className="py-20 text-center space-y-4">
-                                            <HistoryIcon className="h-12 w-12 text-slate-100 mx-auto" />
-                                            <p className="text-slate-400 font-black italic uppercase text-xs">Nenhuma transação encontrada.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {historyData.map(item => {
-                                                const isTransaction = item.record_type === 'transaction'
-                                                const isRequest = item.record_type === 'request'
-                                                const status = item.status
-                                                const type = item.type // 'earn' or 'redeem'
-
-                                                let displayTitle = ''
-                                                let displayIcon = <Award className="h-6 w-6" />
-                                                let iconBg = "bg-emerald-100 text-emerald-600"
-                                                let pointsColor = "text-emerald-500"
-                                                let pointsSign = '+'
-
-                                                if (isTransaction) {
-                                                    displayTitle = type === 'earn' ? 'Compra Realizada' : 'Resgate de Prêmio'
-                                                    displayIcon = type === 'earn' ? <Award className="h-6 w-6" /> : <Gift className="h-6 w-6" />
-                                                    iconBg = type === 'earn' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                                                    pointsColor = type === 'earn' ? "text-emerald-500" : "text-red-500"
-                                                    pointsSign = type === 'earn' ? '+' : '-'
-                                                } else if (isRequest) {
-                                                    if (status === 'completed') {
-                                                        displayTitle = type === 'redeem' ? 'Resgate Finalizado' : 'Pedido Finalizado'
-                                                        displayIcon = <Check className="h-6 w-6" />
-                                                        iconBg = "bg-brand-green/10 text-brand-green"
-                                                    } else if (status === 'rejected') {
-                                                        displayTitle = type === 'redeem' ? 'Resgate Recusado' : 'Pedido Recusado'
-                                                        displayIcon = <X className="h-6 w-6" />
-                                                        iconBg = "bg-red-50 text-red-400"
-                                                        pointsColor = "text-slate-300"
-                                                        pointsSign = ''
-                                                    }
-                                                }
-
-                                                return (
-                                                    <div key={item.id} className="flex flex-col p-5 bg-slate-50 rounded-[24px] border border-slate-100 transition-all hover:bg-white hover:shadow-md group gap-3">
-                                                        {isGlobalHistory && (
-                                                            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-1">
-                                                                <span className="text-[10px] font-black uppercase text-brand-blue italic">{item.company_name || 'Loja Parceira'}</span>
-                                                                {isRequest && (
-                                                                    <span className={cn(
-                                                                        "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                                                        status === 'completed' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-                                                                    )}>
-                                                                        {status === 'completed' ? 'Finalizado' : 'Recusado'}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center", iconBg)}>
-                                                                    {displayIcon}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-sm font-black uppercase text-slate-900 leading-tight italic">
-                                                                        {displayTitle}
-                                                                    </p>
-                                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                                        {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <p className={cn("text-lg font-black italic", pointsColor)}>
-                                                                    {pointsSign}{item.points || item.total_points} pts
-                                                                </p>
-                                                                {(item.sale_amount || item.total_amount > 0) && (
-                                                                    <p className="text-[10px] font-black text-slate-300 uppercase">R$ {item.sale_amount || item.total_amount}</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
+                                    {req.status === 'pending' && req.type === 'redeem' && (
+                                        <div className="bg-blue-50 p-4 rounded-2xl text-center border border-blue-100">
+                                            <p className="text-[10px] font-black text-[#297CCB] uppercase italic mb-1">Seu Código de Resgate</p>
+                                            <p className="text-3xl font-black italic text-[#297CCB] tracking-[8px]">{req.verification_code}</p>
                                         </div>
                                     )}
-                                </div>
 
-                                {/* Footer do Modal */}
-                                <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">
-                                            {isGlobalHistory ? 'Saldo Total' : 'Saldo Atual'}
-                                        </p>
-                                        <p className="text-2xl font-black italic text-brand-orange">
-                                            {isGlobalHistory
-                                                ? myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)
-                                                : customerBalance
-                                            } PTS
-                                        </p>
-                                    </div>
-                                    <Button
-                                        onClick={() => setIsHistoryOpen(false)}
-                                        className="bg-brand-blue hover:bg-brand-blue/90 text-white h-12 px-8 rounded-2xl font-black italic uppercase text-xs"
-                                    >
-                                        FECHAR
-                                    </Button>
+                                    <p className="text-[8px] text-slate-400 font-bold text-center italic">{new Date(req.created_at).toLocaleString()}</p>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Histórico de Pontos */}
+            {isHistoryOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setIsHistoryOpen(false)} />
+                    <div className="relative bg-white w-full max-w-xl rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+                        {/* Header do Modal */}
+                        <div className="bg-gradient-to-r from-[#297CCB] to-[#297CCB]/80 p-8 flex justify-between items-center text-white border-b border-white/5">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/10 rounded-2xl border border-white/20">
+                                    <HistoryIcon className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic leading-none">
+                                        {isGlobalHistory ? 'Extrato Geral' : 'Meu Histórico'}
+                                    </h3>
+                                    <p className="text-white/70 text-[10px] font-bold uppercase mt-1 tracking-wider">
+                                        {isGlobalHistory ? 'Todas as suas movimentações' : `Pontos em ${selectedCompany?.full_name}`}
+                                    </p>
                                 </div>
                             </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                                onClick={() => setIsHistoryOpen(false)}
+                            >
+                                <X className="h-6 w-6" />
+                            </Button>
                         </div>
-                    )}
+
+                        {/* Conteúdo do Modal */}
+                        <div className="max-h-[60vh] overflow-y-auto p-4 md:p-8 bg-[#FAF9F6] space-y-4">
+                            {historyLoading ? (
+                                <div className="py-20 text-center space-y-4">
+                                    <div className="h-10 w-10 border-4 border-[#297CCB] border-t-transparent rounded-full animate-spin mx-auto" />
+                                    <p className="text-slate-400 font-black italic uppercase text-xs">Carregando histórico...</p>
+                                </div>
+                            ) : historyData.length === 0 ? (
+                                <div className="py-20 text-center space-y-4">
+                                    <HistoryIcon className="h-12 w-12 text-slate-200 mx-auto" />
+                                    <p className="text-slate-400 font-black italic uppercase text-xs">Nenhuma transação encontrada.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {historyData.map(item => {
+                                        const isTransaction = item.record_type === 'transaction'
+                                        const isRequest = item.record_type === 'request'
+                                        const status = item.status
+                                        const type = item.type // 'earn' or 'redeem'
+
+                                        let displayTitle = ''
+                                        let displayIcon = <Award className="h-6 w-6" />
+                                        let iconBg = "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        let pointsColor = "text-emerald-600"
+                                        let pointsSign = '+'
+
+                                        if (isTransaction) {
+                                            displayTitle = type === 'earn' ? 'Compra Realizada' : 'Resgate de Prêmio'
+                                            displayIcon = type === 'earn' ? <Award className="h-6 w-6" /> : <Gift className="h-6 w-6" />
+                                            iconBg = type === 'earn' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
+                                            pointsColor = type === 'earn' ? "text-emerald-600" : "text-red-600"
+                                            pointsSign = type === 'earn' ? '+' : '-'
+                                        } else if (isRequest) {
+                                            if (status === 'completed') {
+                                                displayTitle = type === 'redeem' ? 'Resgate Finalizado' : 'Pedido Finalizado'
+                                                displayIcon = <Check className="h-6 w-6" />
+                                                iconBg = "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                            } else if (status === 'rejected') {
+                                                displayTitle = type === 'redeem' ? 'Resgate Recusado' : 'Pedido Recusado'
+                                                displayIcon = <X className="h-6 w-6" />
+                                                iconBg = "bg-slate-100 text-slate-400 border-slate-200"
+                                                pointsColor = "text-slate-400"
+                                                pointsSign = ''
+                                            }
+                                        }
+
+                                        return (
+                                            <div key={item.id} className="flex flex-col p-5 bg-white rounded-[24px] border border-slate-100 transition-all hover:bg-slate-50 hover:border-slate-200 group gap-3 shadow-sm shadow-slate-100">
+                                                {isGlobalHistory && (
+                                                    <div className="flex items-center justify-between border-b border-slate-50 pb-2 mb-1">
+                                                        <span className="text-[10px] font-black uppercase text-[#297CCB] italic tracking-widest">{item.company_name || 'Loja Parceira'}</span>
+                                                        {isRequest && (
+                                                            <span className={cn(
+                                                                "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                                                status === 'completed' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                                                            )}>
+                                                                {status === 'completed' ? 'Finalizado' : 'Recusado'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center border", iconBg)}>
+                                                            {displayIcon}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black uppercase text-slate-900 leading-tight italic">
+                                                                {displayTitle}
+                                                            </p>
+                                                            <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                                {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={cn("text-lg font-black italic", pointsColor)}>
+                                                            {pointsSign}{item.points || item.total_points} pts
+                                                        </p>
+                                                        {(item.sale_amount || item.total_amount > 0) && (
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase">R$ {item.sale_amount || item.total_amount}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer do Modal */}
+                        <div className="p-8 bg-white border-t border-slate-50 flex justify-between items-center">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase italic">
+                                    {isGlobalHistory ? 'Saldo Total' : 'Saldo Atual'}
+                                </p>
+                                <p className="text-2xl font-black italic text-[#E9592C]">
+                                    {isGlobalHistory
+                                        ? myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0)
+                                        : customerBalance
+                                    } PTS
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => setIsHistoryOpen(false)}
+                                className="bg-slate-900 hover:bg-slate-800 text-white h-12 px-8 rounded-2xl font-black italic uppercase text-xs border border-transparent shadow-lg shadow-slate-200"
+                            >
+                                FECHAR
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-            )
+            )}
+        </div>
+    )
 }
+
