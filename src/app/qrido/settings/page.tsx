@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { User, Phone, Mail, Save, CheckCircle2, Shield, Zap, Lock, CreditCard, ChevronRight } from 'lucide-react'
+import { User, Phone, Mail, Save, CheckCircle2, Shield, Zap, Lock, CreditCard, ChevronRight, ArrowLeft } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 
 export default function QRidoSettings() {
@@ -119,13 +119,22 @@ export default function QRidoSettings() {
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
-            <div className="flex flex-col gap-1">
-                <h1 className="heading-mobile text-slate-900">MINHA CONTA</h1>
-                <p className="subheading-mobile">Gerencie suas informações de acesso e perfil.</p>
+            <div className="flex flex-col gap-4">
+                <button
+                    onClick={() => window.history.back()}
+                    className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors w-fit"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="text-xs font-black uppercase italic">Voltar</span>
+                </button>
+                <div className="flex flex-col gap-1">
+                    <h1 className="heading-mobile text-slate-900">MINHA CONTA</h1>
+                    <p className="subheading-mobile">Gerencie suas informações de acesso e perfil.</p>
+                </div>
             </div>
 
             <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
-                <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-row items-center justify-between">
+                <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-col items-center gap-6">
                     <CardTitle className="text-xl font-black italic uppercase text-brand-blue flex items-center gap-3">
                         <User className="h-6 w-6" />
                         Informações do Perfil
