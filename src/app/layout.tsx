@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MDM - Ecossistema de Marketing",
   description: "Plataforma de gestão de marketing e leads.",
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
