@@ -90,7 +90,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                 <div className="flex h-16 items-center justify-between px-6 border-b border-slate-50">
-                    <span className="text-xl font-bold tracking-tight text-brand-blue uppercase">MDM Marketing</span>
+                    <div className="h-10">
+                        <img src="/logo-main.png" alt="QRido" className="h-full object-contain" />
+                    </div>
                     <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-slate-600">
                         <X className="h-6 w-6" />
                     </button>

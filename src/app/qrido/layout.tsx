@@ -29,7 +29,9 @@ export default function DashboardLayout({
                     >
                         <Menu className="h-6 w-6" />
                     </button>
-                    <span className="text-lg font-black tracking-tight text-brand-blue uppercase">QRido</span>
+                    <div className="h-8">
+                        <img src="/logo-orange.png" alt="QRido" className="h-full object-contain" />
+                    </div>
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
