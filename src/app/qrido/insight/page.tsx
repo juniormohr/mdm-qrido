@@ -2,10 +2,14 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Sparkles, Construction } from "lucide-react"
+import { BackButton } from "@/components/ui/back-button"
 
 export default function InsightPlaceholder() {
     return (
-        <div className="h-[80vh] flex items-center justify-center p-6">
+        <div className="h-[80vh] flex flex-col items-center justify-center p-6 gap-6">
+            <div className="max-w-md w-full">
+                <BackButton />
+            </div>
             <Card className="max-w-md w-full border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80 backdrop-blur-sm rounded-[40px] overflow-hidden">
                 <CardContent className="p-12 text-center space-y-6">
                     <div className="flex justify-center">

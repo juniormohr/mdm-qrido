@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Settings2, Save, CheckCircle2, TrendingUp, Wallet } from 'lucide-react'
+import { BackButton } from '@/components/ui/back-button'
 
 export default function LoyaltySettings() {
     const [config, setConfig] = useState({
@@ -69,9 +70,12 @@ export default function LoyaltySettings() {
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
-            <div>
-                <h1 className="text-4xl font-black tracking-tight text-slate-900 italic">REGRAS DE PONTOS</h1>
-                <p className="text-slate-500 mt-1">Configure como seus clientes ganham e trocam pontos.</p>
+            <div className="flex flex-col gap-4">
+                <BackButton />
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight text-slate-900 italic">REGRAS DE PONTOS</h1>
+                    <p className="text-slate-500 mt-1">Configure como seus clientes ganham e trocam pontos.</p>
+                </div>
             </div>
 
             <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">

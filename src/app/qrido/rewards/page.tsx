@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Gift, Plus, Trash2, Award, Pencil, Calendar, Clock, AlertTriangle, RefreshCcw } from 'lucide-react'
+import { BackButton } from '@/components/ui/back-button'
 
 interface Reward {
     id: string
@@ -115,9 +116,12 @@ export default function RewardsPage() {
     return (
         <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Catálogo de Prêmios</h1>
-                    <p className="text-slate-500 font-medium">Gerencie as recompensas que seus clientes podem resgatar.</p>
+                <div className="flex flex-col gap-4">
+                    <BackButton />
+                    <div>
+                        <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Catálogo de Prêmios</h1>
+                        <p className="text-slate-500 font-medium">Gerencie as recompensas que seus clientes podem resgatar.</p>
+                    </div>
                 </div>
                 <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2">
                     <Plus className="h-4 w-4 text-[#F7AA1C]" />

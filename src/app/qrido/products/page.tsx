@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil } from 'lucide-react'
+import { BackButton } from '@/components/ui/back-button'
 
 interface Product {
     id: string
@@ -117,9 +118,12 @@ export default function ProductManagementPage() {
     return (
         <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                    <h1 className="heading-mobile text-slate-900">Gestão de Produtos</h1>
-                    <p className="subheading-mobile">Cadastre os produtos que seus clientes podem comprar para gerar pontos.</p>
+                <div className="flex flex-col gap-4">
+                    <BackButton />
+                    <div className="flex flex-col gap-1">
+                        <h1 className="heading-mobile text-slate-900">Gestão de Produtos</h1>
+                        <p className="subheading-mobile">Cadastre os produtos que seus clientes podem comprar para gerar pontos.</p>
+                    </div>
                 </div>
                 <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2 w-full sm:w-auto h-14 sm:h-auto">
                     <Plus className="h-4 w-4 text-[#F7AA1C]" />

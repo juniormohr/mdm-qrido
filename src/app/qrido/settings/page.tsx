@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { User, Phone, Mail, Save, CheckCircle2, Shield, Zap, Lock, CreditCard, ChevronRight, ArrowLeft } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+import { BackButton } from '@/components/ui/back-button'
+import Link from 'next/link'
 
 export default function QRidoSettings() {
     const [profile, setProfile] = useState({
@@ -120,13 +122,7 @@ export default function QRidoSettings() {
     return (
         <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
             <div className="flex flex-col gap-4">
-                <button
-                    onClick={() => window.history.back()}
-                    className="flex items-center gap-2 text-slate-400 hover:text-slate-600 transition-colors w-fit"
-                >
-                    <ArrowLeft className="h-4 w-4" />
-                    <span className="text-xs font-black uppercase italic">Voltar</span>
-                </button>
+                <BackButton />
                 <div className="flex flex-col gap-1">
                     <h1 className="heading-mobile text-slate-900">MINHA CONTA</h1>
                     <p className="subheading-mobile">Gerencie suas informações de acesso e perfil.</p>
@@ -225,7 +221,7 @@ export default function QRidoSettings() {
                                 <Zap className="h-6 w-6" />
                                 Meu Plano e Limites
                             </CardTitle>
-                            <div className="px-4 py-1.5 rounded-full bg-brand-orange/10 text-brand-orange text-[10px] font-black uppercase tracking-widest">
+                            <div className="px-4 py-1.5 rounded-full bg-brand-orange/10 text-brand-orange text-[10px] font-black uppercase tracking-widest flex items-center justify-center min-w-[124px]">
                                 Plano {profile.subscription_tier}
                             </div>
                         </CardHeader>
@@ -258,10 +254,12 @@ export default function QRidoSettings() {
                                     <h4 className="font-black text-brand-blue uppercase italic">Precisa de mais espaço?</h4>
                                     <p className="text-sm text-slate-500 font-medium">Faça o upgrade agora e desbloqueie novos limites.</p>
                                 </div>
-                                <Button className="btn-blue gap-2 h-14 sm:h-11 px-8 sm:px-6 text-xs w-full sm:w-auto">
-                                    UPGRADE PLANO
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
+                                <Link href="/qrido/pricing" className="w-full sm:w-auto">
+                                    <Button className="btn-blue gap-2 h-14 sm:h-11 px-8 sm:px-6 text-xs w-full">
+                                        UPGRADE PLANO
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </Link>
                             </div>
                         </CardContent>
                     </Card>

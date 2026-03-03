@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { MessageCircle, Search, Filter, Download, Flame } from 'lucide-react'
 import Link from 'next/link'
+import { BackButton } from '@/components/ui/back-button'
 
 interface Customer {
     id: string
@@ -102,9 +103,12 @@ export default function CustomersPage() {
     return (
         <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                    <h1 className="heading-mobile text-slate-900">Meus Qridos</h1>
-                    <p className="subheading-mobile">Gestão de pontos e fidelização ativa.</p>
+                <div className="flex flex-col gap-4">
+                    <BackButton />
+                    <div className="flex flex-col gap-1">
+                        <h1 className="heading-mobile text-slate-900">Meus Qridos</h1>
+                        <p className="subheading-mobile">Gestão de pontos e fidelização ativa.</p>
+                    </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <Button variant="outline" onClick={handleExportCSV} className="gap-2 rounded-2xl border-slate-200 h-12 w-full sm:w-auto order-2 sm:order-1 font-bold">
@@ -208,6 +212,6 @@ export default function CustomersPage() {
                     </Table>
                 </div>
             </Card>
-        </div>
+        </div >
     )
 }

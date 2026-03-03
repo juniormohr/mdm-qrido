@@ -48,6 +48,7 @@ interface Company {
     id: string
     full_name: string
     points_balance?: number
+    total_spent?: number
 }
 
 interface Product {
@@ -74,6 +75,7 @@ export default function CustomerDashboard() {
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
     const [verificationCode, setVerificationCode] = useState('')
     const [customerBalance, setCustomerBalance] = useState(0)
+    const [globalScore, setGlobalScore] = useState(0)
     const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
     const userPhoneRef = useRef<string | null>(null)
 
@@ -90,7 +92,7 @@ export default function CustomerDashboard() {
     const [isCartOpen, setIsCartOpen] = useState(false)
     const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
     const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
-    const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'requests' | 'history'>('offers')
+    const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'requests' | 'history' | 'rewards'>('offers')
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
     const [historyData, setHistoryData] = useState<any[]>([])
     const [historyLoading, setHistoryLoading] = useState(false)
@@ -225,23 +227,72 @@ export default function CustomerDashboard() {
         if (!phone) return
         const supabase = createClient()
 
-        // 1. Buscar registros de clientes (onde moram os saldos de pontos)
+        console.log('fetchMyStores: Buscando para phone:', phone)
+
+        // 1. Normalização agressiva de telefone (BR)
+        const cleanPhone = phone.replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+
+        // Variações comuns no Brasil
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) {
+            searchTerms.push('55' + cleanPhone)
+        } else if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) {
+            searchTerms.push(cleanPhone.substring(2))
+        }
+
         const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
-            .select('user_id, points_balance, profiles:user_id(full_name)')
-            .eq('phone', phone)
+            .select('id, user_id, points_balance, profiles:user_id(full_name)')
+            .in('phone', searchTerms)
 
-        if (custError) console.error('Erro ao buscar meus registros de pontos:', custError)
+        if (custError) {
+            console.error('Erro ao buscar registros de fidelidade:', custError)
+            return
+        }
 
-        if (myCustRecords) {
-            // 2. Buscar total gasto em cada loja (através de transações finalizadas)
-            // Usar o profileId passado ou buscar se necessário
-            let currentUserId = profileId
-            if (!currentUserId) {
-                const { data: { user } } = await supabase.auth.getUser()
-                currentUserId = user?.id
+        if (myCustRecords && myCustRecords.length > 0) {
+            const customerIds = myCustRecords.map(r => r.id)
+
+            // 2. Buscar Transações (Fonte da Verdade)
+            const { data: allTxs } = await supabase
+                .from('loyalty_transactions')
+                .select('customer_id, points, type, expires_at')
+                .in('customer_id', customerIds)
+
+            const now = new Date()
+            const realBalances: Record<string, number> = {}
+            allTxs?.forEach(t => {
+                const pts = Number(t.points) || 0
+                // Se não tem data de expiração, NÃO está expirado (é válido)
+                const isExpired = t.expires_at ? new Date(t.expires_at) < now : false
+
+                if (t.type === 'earn') {
+                    if (!isExpired) {
+                        realBalances[t.customer_id] = (realBalances[t.customer_id] || 0) + pts
+                    }
+                } else {
+                    // Resgates sempre subtraem
+                    realBalances[t.customer_id] = (realBalances[t.customer_id] || 0) - pts
+                }
+            })
+
+            // 2.1 Buscar Pontos de Pedidos (Purchase Requests)
+            let currentUserId = profileId || (await supabase.auth.getUser()).data.user?.id
+            const reqBalances: Record<string, number> = {}
+            if (currentUserId) {
+                const { data: allReqs } = await supabase
+                    .from('purchase_requests')
+                    .select('company_id, total_points')
+                    .eq('customer_profile_id', currentUserId)
+                    .eq('status', 'completed')
+
+                allReqs?.forEach(r => {
+                    reqBalances[r.company_id] = (reqBalances[r.company_id] || 0) + (Number(r.total_points) || 0)
+                })
             }
 
+            // 3. Gastos Totais
             let spentMap: Record<string, number> = {}
             if (currentUserId) {
                 const { data: totalSpentData } = await supabase
@@ -251,20 +302,44 @@ export default function CustomerDashboard() {
                     .eq('status', 'completed')
 
                 spentMap = totalSpentData?.reduce((acc: any, curr: any) => {
-                    acc[curr.company_id] = (acc[curr.company_id] || 0) + (curr.total_amount || 0)
+                    acc[curr.company_id] = (acc[curr.company_id] || 0) + (Number(curr.total_amount) || 0)
                     return acc
                 }, {}) || {}
             }
 
-            const formattedStores = myCustRecords.map((r: any) => ({
-                id: r.user_id,
-                full_name: r.profiles?.full_name || 'Loja Parceira',
-                points_balance: r.points_balance || 0,
-                total_spent: spentMap[r.user_id] || 0
-            }))
+            // 4. Agrupar por Empresa (r.user_id)
+            const storesMap: Record<string, Company> = {}
+            myCustRecords.forEach((r: any) => {
+                const companyId = r.user_id
+                if (!companyId) return
 
-            console.log('fetchMyStores: lojas formatadas:', formattedStores)
-            setMyStores(formattedStores)
+                if (!storesMap[companyId]) {
+                    storesMap[companyId] = {
+                        id: companyId,
+                        full_name: (r.profiles as any)?.full_name || 'Loja Parceira',
+                        points_balance: 0,
+                        total_spent: spentMap[companyId] || 0
+                    }
+                }
+                const balanceFromTxs = Number(realBalances[r.id]) || 0
+                storesMap[companyId].points_balance! += balanceFromTxs
+            })
+
+            // Adicionar pontos de solicitações do app (uma vez por loja)
+            Object.keys(storesMap).forEach(companyId => {
+                storesMap[companyId].points_balance! += (Number(reqBalances[companyId]) || 0)
+            })
+
+            const finalStoresList = Object.values(storesMap)
+            const totalScore = finalStoresList.reduce((acc, s) => acc + (s.points_balance || 0), 0)
+            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore)
+
+            setMyStores(finalStoresList)
+            setGlobalScore(totalScore) // Set global score here
+        } else {
+            console.warn('fetchMyStores: Nenhum registro encontrado para searchTerms:', searchTerms)
+            setMyStores([])
+            setGlobalScore(0) // Reset global score if no records
         }
     }
 
@@ -272,15 +347,24 @@ export default function CustomerDashboard() {
         if (!phone) return
         const supabase = createClient()
 
-        // Find my customer IDs across all stores
-        const { data: custIds } = await supabase.from('customers').select('id').eq('phone', phone)
+        const cleanPhone = phone.replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        const { data: custIds } = await supabase
+            .from('customers')
+            .select('id')
+            .in('phone', searchTerms)
+
         const ids = custIds?.map(c => c.id) || []
 
         if (ids.length > 0) {
             const { data } = await supabase
                 .from('loyalty_transactions')
                 .select('*, profiles:user_id(full_name)')
-                .in('customer_id', ids) // Busca transações vinculadas a este cliente (telefone)
+                .in('customer_id', ids)
                 .order('created_at', { ascending: false })
                 .limit(20)
             if (data) setTransactions(data)
@@ -295,12 +379,18 @@ export default function CustomerDashboard() {
         setIsHistoryOpen(true)
         const supabase = createClient()
 
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
         // 1. Encontrar o registro de cliente deste telefone para esta empresa
         const { data: custRecord } = await supabase
             .from('customers')
             .select('id')
             .eq('user_id', companyId)
-            .eq('phone', phone)
+            .in('phone', searchTerms)
             .maybeSingle()
 
         let combinedHistory: any[] = []
@@ -353,8 +443,17 @@ export default function CustomerDashboard() {
 
         let combinedHistory: any[] = []
 
-        // 1. Buscar TODAS as transações deste cliente (por telefone)
-        const { data: custIds } = await supabase.from('customers').select('id').eq('phone', phone)
+        // 1. Buscar TODAS as transações deste cliente (por telefone normalizado)
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        const { data: custIds } = await supabase
+            .from('customers')
+            .select('id')
+            .in('phone', searchTerms)
         const ids = custIds?.map(c => c.id) || []
 
         if (ids.length > 0) {
@@ -368,7 +467,7 @@ export default function CustomerDashboard() {
                 combinedHistory = [...transactions.map(t => ({
                     ...t,
                     record_type: 'transaction',
-                    company_name: t.profiles?.full_name
+                    company_name: (t.profiles as any)?.full_name
                 }))]
             }
         }
@@ -387,7 +486,7 @@ export default function CustomerDashboard() {
                 const reqs = historicalRequests.map(r => ({
                     ...r,
                     record_type: 'request',
-                    company_name: r.company?.full_name
+                    company_name: (r.company as any)?.full_name
                 }))
                 combinedHistory = [...combinedHistory, ...reqs]
             }
@@ -405,7 +504,7 @@ export default function CustomerDashboard() {
             .select('id, full_name')
             .eq('role', 'company')
 
-        if (profiles) setCompanies(profiles)
+        if (profiles) setCompanies(profiles as Company[])
         setLoading(false)
     }
 
@@ -437,7 +536,7 @@ export default function CustomerDashboard() {
             .select('*')
             .eq('user_id', companyId)
             .eq('is_active', true)
-            .gt('expires_at', new Date().toISOString())
+            // .gt('expires_at', new Date().toISOString()) 
             .order('points_required', { ascending: true })
 
         if (data) setCompanyRewards(data)
@@ -449,15 +548,65 @@ export default function CustomerDashboard() {
         if (!user) return
 
         const phone = userPhoneRef.current
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone || '']
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
 
-        const { data } = await supabase
+        // 1. Encontrar o registro de cliente deste telefone para esta empresa
+        const { data: custRecord } = await supabase
             .from('customers')
-            .select('points_balance')
+            .select('id')
             .eq('user_id', companyId)
-            .eq('phone', phone)
+            .in('phone', searchTerms)
             .maybeSingle()
 
-        setCustomerBalance(data?.points_balance || 0)
+        if (custRecord) {
+            // Buscar saldo real via transações
+            const { data: txs } = await supabase
+                .from('loyalty_transactions')
+                .select('points, type, expires_at')
+                .eq('customer_id', custRecord.id)
+
+            const now = new Date()
+            let bal = txs?.reduce((acc, t) => {
+                const pts = Number(t.points) || 0
+                const isExpired = t.expires_at ? new Date(t.expires_at) < now : false
+
+                if (t.type === 'earn') {
+                    return acc + (isExpired ? 0 : pts)
+                } else {
+                    return acc - pts
+                }
+            }, 0) || 0
+
+            console.log('Balance from loyalty_transactions:', bal)
+
+            // Somar pontos de pedidos via app
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: reqs } = await supabase
+                    .from('purchase_requests')
+                    .select('total_points, type')
+                    .eq('company_id', companyId)
+                    .eq('customer_profile_id', user.id)
+                    .eq('status', 'completed')
+
+                const reqPoints = reqs?.reduce((acc, r) => {
+                    const pts = Number(r.total_points) || 0
+                    if (r.type === 'redeem') return acc - pts
+                    return acc + pts
+                }, 0) || 0
+                console.log('Balance adjustment from purchase_requests:', reqPoints)
+                bal += reqPoints
+            }
+            console.log('Final calculated balance:', bal)
+
+            setCustomerBalance(bal)
+        } else {
+            setCustomerBalance(0)
+        }
     }
 
     const handleAddToCart = (product: Product) => {
@@ -484,7 +633,6 @@ export default function CustomerDashboard() {
     }
 
     const handleUpdateQuantity = (productId: string, delta: number) => {
-        console.log('Atualizando quantidade:', productId, delta)
         setCart(currentCart => currentCart.map(item => {
             if (item.product.id === productId) {
                 const newQty = Math.max(1, item.quantity + delta)
@@ -538,7 +686,7 @@ export default function CustomerDashboard() {
             setIsCartOpen(false)
         } else {
             console.error('Erro detalhado no envio:', error)
-            alert('Falha ao enviar solicitação: ' + (error.message || 'Erro de conexão/tabela'))
+            alert('Falha ao processar resgate: ' + (error.message || 'Tente novamente.'))
         }
     }
 
@@ -553,11 +701,8 @@ export default function CustomerDashboard() {
         if (!confirmRedeem) return
 
         const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user } = {} } = await supabase.auth.getUser()
         if (!user) return
-
-        // Gerar código de 4 dígitos
-        const code = Math.floor(1000 + Math.random() * 9000).toString()
 
         const { error } = await supabase.from('purchase_requests').insert({
             company_id: selectedCompany.id,
@@ -566,18 +711,17 @@ export default function CustomerDashboard() {
             reward_id: reward.id,
             total_points: reward.points_required,
             items: [{ id: reward.id, name: reward.title, points: reward.points_required }],
-            verification_code: code,
             status: 'pending',
             total_amount: 0
         })
 
         if (error) {
             console.error('Erro ao resgatar:', error)
-            alert('Erro ao processar resgate. Tente novamente.')
+            alert('Erro ao processar resgate: ' + (error.message || 'Tente novamente.'))
             return
         }
 
-        alert(`Solicitação de resgate enviada! Mostre o código ${code} ao lojista para retirar seu prêmio.`)
+        alert(`Solicitação de resgate enviada! Aguarde a confirmação do lojista para retirar seu prêmio.`)
         fetchPurchaseRequests(user.id)
         setActiveTab('requests')
     }
@@ -630,7 +774,7 @@ export default function CustomerDashboard() {
                             <p className="text-[11px] font-black text-[#E9592C] uppercase tracking-[3px] italic">Meu Score Total</p>
                             <div className="flex items-center gap-3">
                                 <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter">
-                                    {showScore ? myStores.reduce((acc, s) => acc + (s.points_balance || 0), 0) : '••••'}
+                                    {showScore ? globalScore : '••••'}
                                     <span className="text-xl ml-2 text-slate-400 uppercase tracking-normal font-bold">pts</span>
                                 </h2>
                                 <button
@@ -642,7 +786,13 @@ export default function CustomerDashboard() {
                             </div>
                         </div>
                         <button
-                            onClick={() => setActiveTab('offers')}
+                            onClick={() => {
+                                if (selectedCompany) {
+                                    setActiveTab('rewards')
+                                } else {
+                                    setActiveTab('offers')
+                                }
+                            }}
                             className="h-16 w-16 bg-amber-50 rounded-[20px] flex items-center justify-center text-[#F7AA1C] shadow-lg shadow-amber-200/50 hover:scale-105 transition-transform border border-amber-100/50"
                         >
                             <Gift className="h-8 w-8" />
@@ -908,9 +1058,9 @@ export default function CustomerDashboard() {
                                     </div>
 
                                     {req.status === 'pending' && req.type === 'redeem' && (
-                                        <div className="bg-blue-50 p-4 rounded-2xl text-center border border-blue-100">
-                                            <p className="text-[10px] font-black text-[#297CCB] uppercase italic mb-1">Seu Código de Resgate</p>
-                                            <p className="text-3xl font-black italic text-[#297CCB] tracking-[8px]">{req.verification_code}</p>
+                                        <div className="bg-amber-50 p-4 rounded-2xl text-center border border-amber-100">
+                                            <p className="text-[10px] font-black text-[#F7AA1C] uppercase italic mb-1 italic">Status do Resgate</p>
+                                            <p className="text-sm font-black italic text-[#F7AA1C] uppercase">🚀 Aguardando aprovação do lojista</p>
                                         </div>
                                     )}
 
@@ -951,6 +1101,10 @@ export default function CustomerDashboard() {
                                 const isRequest = item.record_type === 'request'
                                 const status = item.status
                                 const type = item.type // 'earn' or 'redeem'
+                                const expiresAt = item.expires_at ? new Date(item.expires_at) : null
+                                const now = new Date()
+                                // Se não tem validade informada, NÃO é expirado
+                                const isExpired = expiresAt ? (expiresAt < now) : false
 
                                 let displayTitle = ''
                                 let displayIcon = <Award className="h-5 w-5" />
@@ -961,14 +1115,22 @@ export default function CustomerDashboard() {
                                 if (isTransaction) {
                                     displayTitle = type === 'earn' ? 'Pedido Finalizado' : 'Resgate de Prêmio'
                                     displayIcon = type === 'earn' ? <Check className="h-5 w-5" /> : <Gift className="h-5 w-5" />
-                                    iconBg = type === 'earn' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"
-                                    pointsColor = type === 'earn' ? "text-emerald-600" : "text-red-600"
-                                    pointsSign = type === 'earn' ? '+' : '-'
+
+                                    if (type === 'earn') {
+                                        iconBg = isExpired ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        pointsColor = isExpired ? "text-red-600" : "text-emerald-600"
+                                        pointsSign = '+'
+                                    } else {
+                                        iconBg = "bg-red-50 text-red-600 border-red-100"
+                                        pointsColor = "text-red-600"
+                                        pointsSign = '-'
+                                    }
                                 } else if (isRequest) {
                                     if (status === 'completed') {
                                         displayTitle = type === 'redeem' ? 'Resgate Finalizado' : 'Pedido Finalizado'
                                         displayIcon = <Check className="h-5 w-5" />
-                                        iconBg = "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        iconBg = isExpired ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        pointsColor = isExpired ? "text-red-600" : "text-emerald-600"
                                     } else if (status === 'rejected') {
                                         displayTitle = type === 'redeem' ? 'Resgate Recusado' : 'Pedido Recusado'
                                         displayIcon = <X className="h-5 w-5" />
@@ -982,14 +1144,21 @@ export default function CustomerDashboard() {
                                     <div key={item.id} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm space-y-3">
                                         <div className="flex items-center justify-between border-b border-slate-50 pb-2">
                                             <span className="text-[10px] font-black uppercase text-[#297CCB] italic tracking-widest">{item.company_name || 'Loja Parceira'}</span>
-                                            {status && (
-                                                <span className={cn(
-                                                    "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
-                                                    status === 'completed' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-                                                )}>
-                                                    {status === 'completed' ? 'Finalizado' : 'Recusado'}
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {(isTransaction || (isRequest && status === 'completed')) && (
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
+                                                        isExpired ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                                                    )}>
+                                                        {isExpired ? 'Finalizado' : 'Válido'}
+                                                    </span>
+                                                )}
+                                                {isRequest && status === 'rejected' && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-slate-50 text-slate-400">
+                                                        Recusado
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
@@ -1149,73 +1318,112 @@ export default function CustomerDashboard() {
                 </div>
             )}
 
-            {selectedCompany && companyRewards.length > 0 && (
-                <div className="pt-8 space-y-6">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm">
-                            <Award className="h-6 w-6" />
+            {activeTab === 'rewards' && (
+                <div className="animate-in fade-in duration-500 space-y-8 pb-32">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm">
+                            <Gift className="h-6 w-6" />
                         </div>
-                        <h2 className="text-xl font-black text-slate-900 uppercase italic">Prêmios Disponíveis</h2>
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">Prêmios: {selectedCompany?.full_name}</h2>
+                            <p className="text-slate-500 font-bold italic text-sm">Resgate seus pontos por prêmios incríveis!</p>
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {companyRewards.map(reward => {
-                            const progress = Math.min((customerBalance / reward.points_required) * 100, 100)
-                            const isAvailable = customerBalance >= reward.points_required
 
-                            return (
-                                <Card key={reward.id} className={cn(
-                                    "p-6 rounded-[32px] border shadow-xl shadow-slate-100 transition-all flex flex-col gap-4 bg-white",
-                                    isAvailable ? "border-emerald-200" : "border-slate-100"
-                                )}>
-                                    <div className="flex justify-between items-start">
-                                        <div className={cn(
-                                            "p-3 rounded-2xl border",
-                                            isAvailable ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-400 border-slate-100 shadow-inner"
-                                        )}>
-                                            <Gift className="h-5 w-5" />
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase text-slate-400">Objetivo</p>
-                                            <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
-                                        </div>
+                    {!selectedCompany ? (
+                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                            <Store className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-500 font-black italic uppercase text-lg">SELECIONE UMA LOJA PARA VER OS PRÊMIOS.</p>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setActiveTab('my_stores')}
+                                className="mt-4 text-[#297CCB] font-black uppercase italic text-xs"
+                            >
+                                IR PARA MINHAS LOJAS
+                            </Button>
+                        </div>
+                    ) : companyRewards.length === 0 ? (
+                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                            <Gift className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-500 font-black italic uppercase text-lg">ESTA LOJA AINDA NÃO POSSUI PRÊMIOS.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-100/50 flex flex-col md:flex-row items-center justify-between gap-4 border-b-4 border-b-brand-blue/20">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue">
+                                        <Store className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
-                                        <p className="text-xs text-slate-500 italic mt-1">{reward.description}</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">Saldo na {selectedCompany.full_name}</p>
+                                        <p className="text-2xl font-black text-brand-blue italic leading-none">{customerBalance} PTS</p>
                                     </div>
-                                    <div className="space-y-2 mt-auto">
-                                        <div className="flex justify-between items-end">
-                                            <p className="text-[10px] font-black uppercase text-slate-500 italic">Progresso</p>
-                                            <p className="text-[10px] font-black text-[#297CCB] uppercase italic">{customerBalance} / {reward.points_required} pts</p>
-                                        </div>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div
-                                                className={cn(
-                                                    "h-full transition-all duration-1000 ease-out",
-                                                    isAvailable ? "bg-emerald-500" : "bg-[#297CCB]"
-                                                )}
-                                                style={{ width: `${progress}%` }}
-                                            />
-                                        </div>
-                                        <p className={cn(
-                                            "text-[9px] font-black italic uppercase tracking-tighter",
-                                            isAvailable ? "text-emerald-500" : "text-slate-400"
+                                </div>
+                                <div className="text-center md:text-right">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase italic">Válido apenas nesta loja</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {companyRewards.map(reward => {
+                                    const progress = Math.min((customerBalance / reward.points_required) * 100, 100)
+                                    const isAvailable = customerBalance >= reward.points_required
+
+                                    return (
+                                        <Card key={reward.id} className={cn(
+                                            "p-6 rounded-[32px] border shadow-xl shadow-slate-100 transition-all flex flex-col gap-4 bg-white",
+                                            isAvailable ? "border-[#F7AA1C] ring-1 ring-[#F7AA1C]/20" : "border-slate-100"
                                         )}>
-                                            {isAvailable ? "🎉 PRONTO PARA RESGATE!" : `Faltam ${reward.points_required - customerBalance} pontos.`}
-                                        </p>
-                                    </div>
-                                    {isAvailable && (
-                                        <Button
-                                            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-emerald-100 mt-2"
-                                            onClick={() => handleRedeemReward(reward)}
-                                        >
-                                            SOLICITAR RESGATE
-                                        </Button>
-                                    )}
-                                </Card>
-                            )
-                        })}
-                    </div>
+                                            <div className="flex justify-between items-start">
+                                                <div className={cn(
+                                                    "p-3 rounded-2xl border",
+                                                    isAvailable ? "bg-amber-50 text-[#F7AA1C] border-amber-100" : "bg-slate-50 text-slate-400 border-slate-100 shadow-inner"
+                                                )}>
+                                                    <Award className="h-5 w-5" />
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 font-bold">Objetivo</p>
+                                                    <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
+                                                <p className="text-xs text-slate-500 italic mt-1 font-bold">{reward.description}</p>
+                                            </div>
+                                            <div className="space-y-2 mt-auto">
+                                                <div className="flex justify-between items-end">
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 italic font-bold">Resgate</p>
+                                                    <p className="text-[10px] font-black text-brand-blue uppercase italic">{customerBalance} / {reward.points_required} pts</p>
+                                                </div>
+                                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50">
+                                                    <div
+                                                        className={cn(
+                                                            "h-full transition-all duration-1000 ease-out",
+                                                            isAvailable ? "bg-[#F7AA1C]" : "bg-brand-blue"
+                                                        )}
+                                                        style={{ width: `${progress}%` }}
+                                                    />
+                                                </div>
+                                                <p className={cn(
+                                                    "text-[9px] font-black italic uppercase tracking-tighter",
+                                                    isAvailable ? "text-[#F7AA1C]" : "text-slate-400"
+                                                )}>
+                                                    {isAvailable ? "✨ PRONTO PARA O RESGATE!" : `Faltam ${reward.points_required - customerBalance} pontos.`}
+                                                </p>
+                                            </div>
+                                            {isAvailable && (
+                                                <Button
+                                                    className="w-full bg-[#F7AA1C] hover:bg-[#F7AA1C]/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-amber-100 mt-2"
+                                                    onClick={() => handleRedeemReward(reward)}
+                                                >
+                                                    SOLICITAR RESGATE
+                                                </Button>
+                                            )}
+                                        </Card>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
