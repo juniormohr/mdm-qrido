@@ -23,7 +23,9 @@ import {
     EyeOff,
     Store,
     Gift,
-    Heart
+    Heart,
+    Plus,
+    Minus
 } from 'lucide-react'
 
 interface CartItem {
