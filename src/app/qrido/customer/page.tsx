@@ -759,21 +759,20 @@ export default function CustomerDashboard() {
                 </div>
             </div>
 
-            {/* Cartão de Score Principal (Hero) */}
-            <div className="relative group overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#F7AA1C]/10 to-[#297CCB]/10 blur-3xl opacity-50" />
-                <div className="relative bg-white border border-slate-100 rounded-[32px] p-8 shadow-xl shadow-slate-200/50 overflow-hidden">
+            {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
+            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
+                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
                     <div className="flex justify-between items-start mb-4">
                         <div className="space-y-1">
-                            <p className="text-[11px] font-black text-[#E9592C] uppercase tracking-[3px] italic">Meu Score Total</p>
+                            <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
                             <div className="flex items-center gap-3">
-                                <h2 className="text-6xl font-black text-slate-900 italic tracking-tighter">
+                                <h2 className="text-6xl font-black text-white italic tracking-tighter">
                                     {showScore ? globalScore : '••••'}
-                                    <span className="text-xl ml-2 text-slate-400 uppercase tracking-normal font-bold">pts</span>
+                                    <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
                                 </h2>
                                 <button
                                     onClick={() => setShowScore(!showScore)}
-                                    className="p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-400"
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
                                 >
                                     {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                                 </button>
@@ -787,18 +786,18 @@ export default function CustomerDashboard() {
                                     setActiveTab('offers')
                                 }
                             }}
-                            className="h-16 w-16 bg-amber-50 rounded-[20px] flex items-center justify-center text-[#F7AA1C] shadow-lg shadow-amber-200/50 hover:scale-105 transition-transform border border-amber-100/50"
+                            className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
                         >
                             <Gift className="h-8 w-8" />
                         </button>
                     </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-slate-50">
-                        <div className="flex items-center gap-2 text-slate-400">
+                    <div className="flex items-center justify-between pt-6 border-t border-white/10">
+                        <div className="flex items-center gap-2 text-white/60">
                             <Plus className="h-4 w-4" />
                             <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
                         </div>
-                        <ChevronRight className="h-5 w-5 text-slate-300" />
+                        <ChevronRight className="h-5 w-5 text-white/40" />
                     </div>
                 </div>
             </div>
@@ -806,10 +805,10 @@ export default function CustomerDashboard() {
             {/* Grade de Ações Rápidas (Grid Style) */}
             <div className="grid grid-cols-5 gap-2 sm:gap-4">
                 {[
-                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, color: 'bg-amber-50', text: 'text-[#F7AA1C]', border: 'border-amber-100' },
-                    { id: 'my_stores', label: 'Lojas', icon: Store, color: 'bg-blue-50', text: 'text-[#297CCB]', border: 'border-blue-100' },
-                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, color: 'bg-purple-50', text: 'text-purple-600', border: 'border-purple-100' },
-                    { id: 'history', label: 'Extrato', icon: HistoryIcon, color: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
+                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
+                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
+                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -824,7 +823,7 @@ export default function CustomerDashboard() {
                         <div className={cn(
                             "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
                             activeTab === tab.id
-                                ? `${tab.color} ${tab.text} ${tab.border} shadow-lg scale-110`
+                                ? `${tab.activeColor} shadow-lg scale-110`
                                 : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
                         )}>
                             <tab.icon className="h-6 w-6" />

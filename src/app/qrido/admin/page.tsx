@@ -337,56 +337,56 @@ function AdminContent() {
                 <div className="space-y-8 animate-in fade-in duration-500">
                     {/* Metrics Grid */}
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                        <Card className="border-none shadow-xl bg-brand-blue rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Faturamento</CardTitle>
-                                <DollarSign className="h-5 w-5 text-brand-blue" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Total Faturamento</CardTitle>
+                                <DollarSign className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-slate-900">R$ {stats.estimatedRevenue.toLocaleString('pt-br', { minimumFractionDigits: 2 })}</div>
-                                <div className="flex items-center gap-1 mt-2 text-emerald-500 text-xs font-bold">
+                                <div className="text-3xl font-black text-white italic">R$ {stats.estimatedRevenue.toLocaleString('pt-br', { minimumFractionDigits: 2 })}</div>
+                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
                                     <ArrowUpRight className="h-3 w-3" />
-                                    <span>Baseado em assinaturas ativas</span>
+                                    <span>Assinaturas ativas</span>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                        <Card className="border-none shadow-xl bg-brand-orange rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Empresas Parceiras</CardTitle>
-                                <Store className="h-5 w-5 text-brand-orange" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas Parceiras</CardTitle>
+                                <Store className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-slate-900">{stats.totalCompanies}</div>
-                                <div className="flex items-center gap-1 mt-2 text-brand-orange text-xs font-bold">
+                                <div className="text-3xl font-black text-white italic">{stats.totalCompanies}</div>
+                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
                                     <Plus className="h-3 w-3" />
                                     <span>{stats.newCompaniesThisMonth} novas este mês</span>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                        <Card className="border-none shadow-xl bg-brand-green rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Usuários Finais</CardTitle>
-                                <Users className="h-5 w-5 text-emerald-500" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Usuários Finais</CardTitle>
+                                <Users className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-slate-900">{stats.totalCustomers}</div>
-                                <div className="flex items-center gap-1 mt-2 text-emerald-500 text-xs font-bold">
+                                <div className="text-3xl font-black text-white italic">{stats.totalCustomers}</div>
+                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
                                     <Plus className="h-3 w-3" />
                                     <span>{stats.newCustomersThisMonth} novos este mês</span>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none shadow-sm bg-white overflow-hidden group">
+                        <Card className="border-none shadow-xl bg-brand-yellow rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Resgates Totais</CardTitle>
-                                <Wallet className="h-5 w-5 text-brand-yellow" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40">Resgates Totais</CardTitle>
+                                <Wallet className="h-5 w-5 text-brand-dark/20" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-slate-900">{stats.totalRedemptions}</div>
-                                <p className="text-xs text-slate-400 mt-2 font-medium italic">Prêmios resgatados na rede</p>
+                                <div className="text-3xl font-black text-brand-dark italic">{stats.totalRedemptions}</div>
+                                <p className="text-[10px] text-brand-dark/30 mt-2 font-black uppercase italic leading-none">Prêmios resgatados rede</p>
                             </CardContent>
                         </Card>
                     </div>

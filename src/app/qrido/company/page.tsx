@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -342,55 +342,55 @@ export default function CompanyDashboard() {
 
             {/* Grid 2x2 de Métricas Mensais */}
             <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                <div className="bg-brand-blue rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
                     <div>
-                        <div className="p-2 bg-brand-blue/5 rounded-2xl w-fit mb-4">
-                            <Users className="h-6 w-6 text-brand-blue" />
+                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
+                            <Users className="h-6 w-6 text-white" />
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Clientes Fidelizados</p>
+                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Clientes<br />Fidelizados</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.totalLeads}</h2>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Base do mês atual</p>
+                        <h2 className="text-3xl font-black text-white italic">{stats.totalLeads}</h2>
+                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base do mês atual</p>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                <div className="bg-brand-green rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
                     <div>
-                        <div className="p-2 bg-brand-green/5 rounded-2xl w-fit mb-4">
-                            <TrendingUp className="h-6 w-6 text-brand-green" />
+                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
+                            <TrendingUp className="h-6 w-6 text-white" />
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Vendas em R$</p>
+                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Vendas em R$<br />(Mês)</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Feitas pelo QRido</p>
+                        <h2 className="text-3xl font-black text-white italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Feitas pelo QRido</p>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                <div className="bg-brand-orange rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
                     <div>
-                        <div className="p-2 bg-brand-orange/5 rounded-2xl w-fit mb-4">
-                            <Package className="h-6 w-6 text-brand-orange" />
+                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
+                            <Zap className="h-6 w-6 text-white" />
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Pontos Distribuidos</p>
+                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Pontos<br />Distribuidos</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.topSource}</h2>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Através das vendas</p>
+                        <h2 className="text-3xl font-black text-white italic">{stats.topSource}</h2>
+                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Através das vendas</p>
                     </div>
                 </div>
 
-                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                <div className="bg-brand-yellow rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
                     <div>
-                        <div className="p-2 bg-brand-yellow/5 rounded-2xl w-fit mb-4">
-                            <MessageSquareMore className="h-6 w-6 text-brand-yellow" />
+                        <div className="p-2 bg-black/10 rounded-2xl w-fit mb-4">
+                            <MessageSquareMore className="h-6 w-6 text-brand-dark" />
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Resgates Realizados</p>
+                        <p className="text-[10px] font-black text-brand-dark/60 uppercase tracking-widest italic leading-tight">Resgates<br />Realizados</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.redemptions}</h2>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
+                        <h2 className="text-3xl font-black text-brand-dark italic">{stats.redemptions}</h2>
+                        <p className="text-[9px] font-bold text-brand-dark/40 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
                     </div>
                 </div>
             </div>
