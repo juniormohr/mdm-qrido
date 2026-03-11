@@ -330,10 +330,8 @@ export default function CustomerDashboard() {
                 storesMap[companyId].points_balance! += balanceFromTxs
             })
 
-            // Adicionar pontos de solicitações do app (uma vez por loja)
-            Object.keys(storesMap).forEach(companyId => {
-                storesMap[companyId].points_balance! += (Number(reqBalances[companyId]) || 0)
-            })
+            // NOTA: Removido o loop que somava reqBalances (purchase_requests) aqui para evitar duplicação,
+            // pois transações confirmadas já estão em loyalty_transactions.
 
             const finalStoresList = Object.values(storesMap)
             const totalScore = finalStoresList.reduce((acc, s) => acc + (s.points_balance || 0), 0)
@@ -425,7 +423,11 @@ export default function CustomerDashboard() {
                 .order('created_at', { ascending: false })
 
             if (historicalRequests) {
-                const reqs = historicalRequests.map(r => ({ ...r, record_type: 'request' }))
+                // Filtrar apenas pedidos que NÃO estão completos, pois pedidos completos 
+                // já aparecem como 'transaction' via loyalty_transactions
+                const reqs = historicalRequests
+                    .filter(r => r.status !== 'completed')
+                    .map(r => ({ ...r, record_type: 'request' }))
                 combinedHistory = [...combinedHistory, ...reqs]
             }
         }
@@ -488,11 +490,14 @@ export default function CustomerDashboard() {
                 .order('created_at', { ascending: false })
 
             if (historicalRequests) {
-                const reqs = historicalRequests.map(r => ({
-                    ...r,
-                    record_type: 'request',
-                    company_name: (r.company as any)?.full_name
-                }))
+                // Filtrar pedidos que não estão 'completed' para evitar duplicidade com transactions
+                const reqs = historicalRequests
+                    .filter(r => r.status !== 'completed')
+                    .map(r => ({
+                        ...r,
+                        record_type: 'request',
+                        company_name: (r.company as any)?.full_name
+                    }))
                 combinedHistory = [...combinedHistory, ...reqs]
             }
         }
@@ -588,25 +593,9 @@ export default function CustomerDashboard() {
 
             console.log('Balance from loyalty_transactions:', bal)
 
-            // Somar pontos de pedidos via app
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data: reqs } = await supabase
-                    .from('purchase_requests')
-                    .select('total_points, type')
-                    .eq('company_id', companyId)
-                    .eq('customer_profile_id', user.id)
-                    .eq('status', 'completed')
-
-                const reqPoints = reqs?.reduce((acc, r) => {
-                    const pts = Number(r.total_points) || 0
-                    if (r.type === 'redeem') return acc - pts
-                    return acc + pts
-                }, 0) || 0
-                console.log('Balance adjustment from purchase_requests:', reqPoints)
-                bal += reqPoints
-            }
-            console.log('Final calculated balance:', bal)
+            // NOTA: Removido o bloco que somava pontos de purchase_requests para o saldo,
+            // pois quando confirmados, esses pontos já entram em loyalty_transactions.
+            // Solicitamos apenas loyalty_transactions como fonte de verdade para o saldo.
 
             setCustomerBalance(bal)
         } else {
