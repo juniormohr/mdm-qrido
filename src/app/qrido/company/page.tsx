@@ -10,64 +10,71 @@ import { cn } from "@/lib/utils"
 
 export default function CompanyDashboard() {
     const [stats, setStats] = useState({
-        totalLeads: 0,
-        leadsThisMonth: 0,
-        topSource: '-',
-        redemptions: 0,
-        totalPoints: 0
+        totalLeads: 0, // Clientes fidelizados (mês atual)
+        leadsThisMonth: 0, // Vendas em R$ (mês atual)
+        topSource: '0', // Pontos distribuídos (mês atual)
+        redemptions: 0, // Resgates quantidade (mês atual)
+        totalPoints: 0 // Resgates pontos (mês atual)
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
 
     async function fetchStats(userId: string) {
         const supabase = createClient()
+        
+        const startOfMonth = new Date()
+        startOfMonth.setDate(1)
+        startOfMonth.setHours(0, 0, 0, 0)
+        const monthStartIso = startOfMonth.toISOString()
 
-        // 1. Clientes Fidelizados (Unique customers with at least one 'earn' transaction)
+        // 1. Clientes Fidelizados (Unique customers this month)
         const { data: loyalData } = await supabase
             .from('loyalty_transactions')
             .select('customer_id')
             .eq('user_id', userId)
             .eq('type', 'earn')
+            .gte('created_at', monthStartIso)
 
         const uniqueLoyalIds = new Set(loyalData?.map(t => t.customer_id))
         const totalLoyal = uniqueLoyalIds.size
 
-        // 2. Novos este Mês (Customers whose FIRST purchase was this month)
-        const startOfMonth = new Date()
-        startOfMonth.setDate(1)
-        startOfMonth.setHours(0, 0, 0, 0)
-
-        // Subquery: get min(created_at) group by customer_id for this user
-        const { data: firstPurchases } = await supabase
+        // 2. Vendas em R$ feitas pelo qrido (base do mês atual)
+        const { data: salesData } = await supabase
             .from('loyalty_transactions')
-            .select('customer_id, created_at')
+            .select('sale_amount')
             .eq('user_id', userId)
             .eq('type', 'earn')
+            .gte('created_at', monthStartIso)
+        
+        const totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
 
-        // Grouping in JS to find first purchase per customer
-        const customerFirstPurchase: Record<string, string> = {}
-        firstPurchases?.forEach(t => {
-            if (!customerFirstPurchase[t.customer_id] || t.created_at < customerFirstPurchase[t.customer_id]) {
-                customerFirstPurchase[t.customer_id] = t.created_at
-            }
-        })
-
-        const monthStartIso = startOfMonth.toISOString()
-        const newThisMonth = Object.values(customerFirstPurchase).filter(date => date >= monthStartIso).length
-
-        // 3. Resgates Realizados (Total count of redemptions)
-        const { count: redemptionsCount } = await supabase
+        // 3. Pontos distribuídos através das vendas (base do mês atual)
+        const { data: pointsData } = await supabase
             .from('loyalty_transactions')
-            .select('*', { count: 'exact', head: true })
+            .select('points')
+            .eq('user_id', userId)
+            .eq('type', 'earn')
+            .gte('created_at', monthStartIso)
+        
+        const totalPointsDistributed = pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+
+        // 4. Resgates Realizados (quantidade e pontos dentro do mês atual)
+        const { data: redemptionsData } = await supabase
+            .from('loyalty_transactions')
+            .select('points')
             .eq('user_id', userId)
             .eq('type', 'redeem')
+            .gte('created_at', monthStartIso)
+
+        const redemptionsCount = redemptionsData?.length || 0
+        const redemptionsPoints = redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
 
         setStats({
             totalLeads: totalLoyal,
-            leadsThisMonth: newThisMonth,
-            topSource: 'Instagram',
-            redemptions: redemptionsCount || 0,
-            totalPoints: 0 // Not requested but maintained
+            leadsThisMonth: totalSalesAmount, // Reusing leadsThisMonth field for sales amount for simplicity or renaming state
+            topSource: String(totalPointsDistributed), // Reusing topSource for points distributed
+            redemptions: redemptionsCount,
+            totalPoints: redemptionsPoints // Reusing totalPoints for points redeemed
         })
     }
 
@@ -325,73 +332,114 @@ export default function CompanyDashboard() {
 
 
     return (
-        <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO PAINEL</h1>
-                    <p className="text-slate-500 mt-1">Sua plataforma de fidelidade e recorrência.</p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    <Link
-                        href="/qrido/products"
-                        className="btn-orange inline-flex items-center justify-center gap-2 text-sm w-full sm:w-auto"
-                    >
-                        <Package className="h-5 w-5" />
-                        Gerenciar Produtos
-                    </Link>
-                    <Link
-                        href="/qrido/transactions/new"
-                        className="btn-blue inline-flex items-center justify-center gap-2 w-full sm:w-auto"
-                    >
-                        <Plus className="h-5 w-5 text-[#F7AA1C]" />
-                        Registrar Venda
-                    </Link>
+                    <p className="text-slate-500 mt-1 font-medium">Sua plataforma de fidelidade e recorrência.</p>
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
-                <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80 backdrop-blur-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-bold text-slate-500">Clientes Fidelizados</CardTitle>
-                        <div className="p-2 bg-brand-blue/10 rounded-xl">
-                            <Users className="h-5 w-5 text-brand-blue" />
+            {/* Grid 2x2 de Métricas Mensais */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                    <div>
+                        <div className="p-2 bg-brand-blue/5 rounded-2xl w-fit mb-4">
+                            <Users className="h-6 w-6 text-brand-blue" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-blue">{stats.totalLeads}</div>
-                        <p className="text-xs text-slate-400 mt-2 font-medium">Clientes na sua base ativa</p>
-                    </CardContent>
-                </Card>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Clientes Fidelizados</p>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.totalLeads}</h2>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Base do mês atual</p>
+                    </div>
+                </div>
 
-                <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80 backdrop-blur-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-bold text-slate-500">Novos este Mês</CardTitle>
-                        <div className="p-2 bg-brand-green/10 rounded-xl">
-                            <TrendingUp className="h-5 w-5 text-brand-green" />
+                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                    <div>
+                        <div className="p-2 bg-brand-green/5 rounded-2xl w-fit mb-4">
+                            <TrendingUp className="h-6 w-6 text-brand-green" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-green">+{stats.leadsThisMonth}</div>
-                        <p className="text-xs text-slate-400 mt-2 font-medium">Crescimento mensal</p>
-                    </CardContent>
-                </Card>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Vendas em R$</p>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Feitas pelo QRido</p>
+                    </div>
+                </div>
 
-                <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80 backdrop-blur-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-bold text-slate-500">Resgates Realizados</CardTitle>
-                        <div className="p-2 bg-brand-yellow/10 rounded-xl">
-                            <MessageSquareMore className="h-5 w-5 text-brand-yellow" />
+                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                    <div>
+                        <div className="p-2 bg-brand-orange/5 rounded-2xl w-fit mb-4">
+                            <Package className="h-6 w-6 text-brand-orange" />
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-black text-brand-yellow">{stats.redemptions}</div>
-                        <p className="text-xs text-slate-400 mt-2 font-medium">Prêmios resgatados no total</p>
-                    </CardContent>
-                </Card>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Pontos Distribuidos</p>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.topSource}</h2>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Através das vendas</p>
+                    </div>
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm flex flex-col justify-between min-h-[160px]">
+                    <div>
+                        <div className="p-2 bg-brand-yellow/5 rounded-2xl w-fit mb-4">
+                            <MessageSquareMore className="h-6 w-6 text-brand-yellow" />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Resgates Realizados</p>
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 italic">{stats.redemptions}</h2>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Botões de Ação Inferiores */}
+            <div className="grid grid-cols-2 gap-4">
+                <Link
+                    href="/qrido/products"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                >
+                    <div className="h-12 w-12 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange group-hover:scale-110 transition-transform">
+                        <Package className="h-6 w-6" />
+                    </div>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Produtos</span>
+                </Link>
+
+                <Link
+                    href="/qrido/transactions/new"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                >
+                    <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                        <Plus className="h-6 w-6" />
+                    </div>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">+ Registrar Venda</span>
+                </Link>
+
+                <Link
+                    href="/qrido/customers/new"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                >
+                    <div className="h-12 w-12 bg-brand-green/10 rounded-2xl flex items-center justify-center text-brand-green group-hover:scale-110 transition-transform">
+                        <Users className="h-6 w-6" />
+                    </div>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Cadastrar Cliente</span>
+                </Link>
+
+                <button
+                    onClick={() => document.getElementById('solicitacoes-pendentes')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                >
+                    <div className="h-12 w-12 bg-brand-yellow/10 rounded-2xl flex items-center justify-center text-brand-yellow group-hover:scale-110 transition-transform">
+                        <MessageSquareMore className="h-6 w-6" />
+                    </div>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Solicitações</span>
+                </button>
             </div>
 
             {/* Solicitações Pendentes Section */}
-            <div className="space-y-6">
+            <div id="solicitacoes-pendentes" className="space-y-6 pt-8 border-t border-slate-100">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange">
                         <Plus className="h-6 w-6" />
