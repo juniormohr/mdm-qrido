@@ -106,6 +106,27 @@ export default function CustomerDashboard() {
     }, [])
 
     useEffect(() => {
+        const supabase = createClient()
+        const loadTabData = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const phone = userProfile?.phone || userPhoneRef.current
+
+            if (activeTab === 'offers') {
+                await fetchCompanies()
+            } else if (activeTab === 'my_stores') {
+                await fetchMyStores(phone || undefined, user.id)
+            } else if (activeTab === 'requests') {
+                await fetchPurchaseRequests(user.id)
+            } else if (activeTab === 'history') {
+                await fetchGlobalHistory()
+            }
+        }
+        loadTabData()
+    }, [activeTab, userProfile])
+
+    useEffect(() => {
         let channel: any
 
         async function setupRealtime() {
@@ -194,14 +215,9 @@ export default function CustomerDashboard() {
             console.log('fetchInitialData: Perfil encontrado:', profile.phone)
             setUserProfile(profile)
             userPhoneRef.current = profile.phone
-
-            // Disparar buscas em paralelo
-            await Promise.all([
-                fetchMyStores(profile.phone, user.id),
-                fetchTransactions(user.id, profile.phone),
-                fetchPurchaseRequests(user.id),
-                fetchCompanies()
-            ])
+            
+            // Perfil carregado, o useEffect[activeTab] cuidará de carregar 'offers' (fetchCompanies)
+            // pois activeTab inicia como 'offers'.
         } else {
             console.warn('fetchInitialData: Perfil não encontrado ou sem telefone.')
             await fetchCompanies()
@@ -813,9 +829,6 @@ export default function CustomerDashboard() {
                     <button
                         key={tab.id}
                         onClick={() => {
-                            if (tab.id === 'history') {
-                                fetchGlobalHistory()
-                            }
                             setActiveTab(tab.id as any)
                         }}
                         className="flex flex-col items-center gap-2 group"

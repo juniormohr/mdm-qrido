@@ -24,11 +24,113 @@ export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true)
     const [userRole, setUserRole] = useState<'customer' | 'company'>('customer')
     const [error, setError] = useState<string | null>(null)
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+    
+    // Form fields state
+    const [formData, setLocalFormData] = useState({
+        full_name: '',
+        phone: '',
+        email: '',
+        password: '',
+        confirm_password: ''
+    })
 
-    async function handleSubmit(formData: FormData) {
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '')
+        if (val.length > 11) val = val.substring(0, 11)
+        
+        let masked = val
+        if (val.length > 0) masked = '(' + val
+        if (val.length > 2) masked = '(' + val.substring(0, 2) + ')' + val.substring(2)
+        if (val.length > 7) masked = '(' + val.substring(0, 2) + ')' + val.substring(2, 7) + '-' + val.substring(7)
+        
+        setLocalFormData(prev => ({ ...prev, phone: masked }))
+        setFieldErrors(prev => ({ ...prev, phone: '' }))
+    }
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target
+        setLocalFormData(prev => ({ ...prev, [name]: value }))
+        // Clear field error when user types
+        if (fieldErrors[name]) {
+            setFieldErrors(prev => ({ ...prev, [name]: '' }))
+        }
+    }
+
+    const validateField = (name: string, value: string) => {
+        let error = ''
+        const trimmed = value.trim()
+        
+        if (!trimmed && name !== 'confirm_password') {
+            error = 'Este campo é obrigatório.'
+        } else if (name === 'full_name') {
+            const names = trimmed.split(/\s+/)
+            if (userRole === 'customer' && names.length < 2) {
+                error = 'O nome deve conter ao menos nome e sobrenome.'
+            } else if (value.length > 120) {
+                error = 'O nome não deve ultrapassar 120 caracteres.'
+            }
+        } else if (name === 'phone') {
+            const rawPhone = value.replace(/\D/g, '')
+            if (rawPhone.length < 11) {
+                error = 'WhatsApp inválido. Formato: (00)00000-0000.'
+            }
+        } else if (name === 'email') {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+            if (!emailRegex.test(value)) {
+                error = 'E-mail inválido.'
+            }
+        } else if (name === 'confirm_password') {
+            if (value !== formData.password) {
+                error = 'As senhas não coincidem.'
+            }
+        } else if (name === 'password') {
+            // Also re-validate confirm_password if it's filled
+            if (formData.confirm_password && value !== formData.confirm_password) {
+                setFieldErrors(prev => ({ ...prev, confirm_password: 'As senhas não coincidem.' }))
+            } else if (formData.confirm_password && value === formData.confirm_password) {
+                setFieldErrors(prev => ({ ...prev, confirm_password: '' }))
+            }
+        }
+
+        setFieldErrors(prev => ({ ...prev, [name]: error }))
+    }
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        validateField(e.target.name, e.target.value)
+    }
+
+    async function handleSubmit(rawFormData: FormData) {
         setError(null)
+        
+        if (!isLogin) {
+            const errors: Record<string, string> = {}
+            Object.entries(formData).forEach(([key, val]) => {
+                const trimmed = val.trim()
+                if (!trimmed && key !== 'confirm_password') {
+                    errors[key] = 'Este campo é obrigatório.'
+                } else if (key === 'full_name') {
+                    if (userRole === 'customer' && trimmed.split(/\s+/).length < 2) {
+                        errors.full_name = 'O nome deve conter ao menos nome e sobrenome.'
+                    }
+                } else if (key === 'phone') {
+                    if (val.replace(/\D/g, '').length < 11) errors.phone = 'WhatsApp inválido.'
+                } else if (key === 'email') {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+                    if (!emailRegex.test(val)) errors.email = 'E-mail inválido.'
+                } else if (key === 'confirm_password') {
+                    if (val !== formData.password) errors.confirm_password = 'As senhas não coincidem.'
+                }
+            })
+
+            if (Object.keys(errors).length > 0) {
+                setFieldErrors(errors)
+                return
+            }
+        }
+
         const action = isLogin ? login : signup
-        const result = await action(formData)
+        const result = await action(rawFormData)
 
         if (result?.error) {
             setError(result.error)
@@ -102,9 +204,19 @@ export default function LoginPage() {
                                         name="full_name"
                                         type="text"
                                         required
-                                        className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
+                                        maxLength={120}
+                                        value={formData.full_name}
+                                        onChange={handleChange}
+                                        onBlur={handleBlur}
+                                        className={cn(
+                                            "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                            fieldErrors.full_name 
+                                                ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                                : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                        )}
                                         placeholder={userRole === 'company' ? "Nome da Empresa" : "Como quer ser chamado?"}
                                     />
+                                    {fieldErrors.full_name && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.full_name}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">WhatsApp de Contato</label>
@@ -113,9 +225,18 @@ export default function LoginPage() {
                                         name="phone"
                                         type="tel"
                                         required
-                                        className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
-                                        placeholder="(00) 0 0000-0000"
+                                        value={formData.phone}
+                                        onChange={handlePhoneChange}
+                                        onBlur={handleBlur}
+                                        className={cn(
+                                            "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                            fieldErrors.phone 
+                                                ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                                : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                        )}
+                                        placeholder="(00)00000-0000"
                                     />
+                                    {fieldErrors.phone && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.phone}</p>}
                                 </div>
                             </>
                         )}
@@ -127,9 +248,18 @@ export default function LoginPage() {
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
+                                value={formData.email}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                                className={cn(
+                                    "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                    fieldErrors.email 
+                                        ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                        : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                )}
                                 placeholder="exemplo@email.com"
                             />
+                            {fieldErrors.email && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.email}</p>}
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between ml-1">
@@ -149,10 +279,41 @@ export default function LoginPage() {
                                 type="password"
                                 autoComplete="current-password"
                                 required
-                                className="block w-full h-14 rounded-2xl border-slate-100 bg-slate-50/50 px-5 text-slate-900 font-bold placeholder:text-slate-300 focus:ring-2 focus:ring-brand-blue focus:bg-white transition-all outline-none"
+                                value={formData.password}
+                                onChange={handleChange}
+                                onBlur={handleBlur}
+                                className={cn(
+                                    "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                    fieldErrors.password 
+                                        ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                        : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                )}
                                 placeholder="••••••••"
                             />
+                            {fieldErrors.password && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.password}</p>}
                         </div>
+                        {!isLogin && (
+                            <div className="space-y-2">
+                                <label htmlFor="confirm_password" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Confirmar Senha</label>
+                                <input
+                                    id="confirm_password"
+                                    name="confirm_password"
+                                    type="password"
+                                    required
+                                    value={formData.confirm_password}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    className={cn(
+                                        "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                        fieldErrors.confirm_password 
+                                            ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                            : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                    )}
+                                    placeholder="••••••••"
+                                />
+                                {fieldErrors.confirm_password && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.confirm_password}</p>}
+                            </div>
+                        )}
                     </div>
 
                     <div className="pt-2">
@@ -164,6 +325,14 @@ export default function LoginPage() {
                             onClick={() => {
                                 setIsLogin(!isLogin)
                                 setError(null)
+                                setFieldErrors({})
+                                setLocalFormData({
+                                    full_name: '',
+                                    phone: '',
+                                    email: '',
+                                    password: '',
+                                    confirm_password: ''
+                                })
                             }}
                             className="text-xs font-black uppercase italic tracking-widest text-slate-400 hover:text-brand-blue transition-colors"
                             type="button"

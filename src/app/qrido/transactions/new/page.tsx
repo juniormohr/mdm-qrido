@@ -54,9 +54,13 @@ export default function NewTransactionPage() {
 
         const fetchCustomers = async () => {
             const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
             const { data } = await supabase
                 .from('customers')
                 .select('id, name, points_balance, phone')
+                .eq('user_id', user.id)
                 .or(`phone.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`)
                 .limit(5)
 

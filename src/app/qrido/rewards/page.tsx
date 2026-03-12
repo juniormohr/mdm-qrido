@@ -38,9 +38,17 @@ export default function RewardsPage() {
     async function fetchRewards() {
         setLoading(true)
         const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (!user) {
+            setLoading(false)
+            return
+        }
+
         const { data } = await supabase
             .from('rewards')
             .select('*')
+            .eq('user_id', user.id)
             .order('points_required', { ascending: true })
 
         if (data) setRewards(data)
