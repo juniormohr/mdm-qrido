@@ -36,7 +36,9 @@ import {
     Grid,
     Store,
     Gift,
-    Heart
+    Heart,
+    MapPin,
+    Flame
 } from 'lucide-react'
 
 interface CartItem {
@@ -49,6 +51,8 @@ interface Company {
     full_name: string
     points_balance?: number
     total_spent?: number
+    distance?: number
+    address?: string
 }
 
 interface Product {
@@ -58,6 +62,7 @@ interface Product {
     description: string
     price: number
     points_reward: number
+    is_top_seller?: boolean
 }
 
 export default function CustomerDashboard() {
@@ -65,6 +70,8 @@ export default function CustomerDashboard() {
     const [companies, setCompanies] = useState<Company[]>([])
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
     const selectedCompanyRef = useRef<Company | null>(null)
+    const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null)
+    const [locationError, setLocationError] = useState<string | null>(null)
 
     useEffect(() => {
         selectedCompanyRef.current = selectedCompany
@@ -114,7 +121,11 @@ export default function CustomerDashboard() {
             const phone = userProfile?.phone || userPhoneRef.current
 
             if (activeTab === 'offers') {
-                await fetchCompanies()
+                // The useEffect for userLocation handles fetching offers if location changes.
+                // If it's the first load and we don't have location, we call it here.
+                if (!userLocation) {
+                    await fetchCompanies()
+                }
             } else if (activeTab === 'my_stores') {
                 await fetchMyStores(phone || undefined, user.id)
             } else if (activeTab === 'requests') {
@@ -524,14 +535,69 @@ export default function CustomerDashboard() {
     }
 
     async function fetchCompanies() {
+        setLoading(true)
         const supabase = createClient()
-        const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name')
-            .eq('role', 'company')
+        
+        if (userLocation) {
+            const { data } = await supabase.rpc('get_nearby_companies', {
+                user_lat: userLocation.lat,
+                user_lon: userLocation.lon,
+                radius_km: 100
+            })
+            if (data) {
+                const formatted = data.map((d: any) => ({
+                    id: d.company_id,
+                    full_name: d.company_name,
+                    distance: d.distance_km,
+                    address: d.city ? `${d.city}, ${d.state}` : ''
+                }))
+                setCompanies(formatted)
+            } else {
+                setCompanies([])
+            }
+        } else {
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name')
+                .eq('role', 'company')
 
-        if (profiles) setCompanies(profiles as Company[])
+            if (profiles) setCompanies(profiles as Company[])
+        }
         setLoading(false)
+    }
+
+    useEffect(() => {
+        if (activeTab === 'offers') fetchCompanies()
+    }, [userLocation])
+
+    const requestLocation = () => {
+        if (!navigator.geolocation) {
+           setLocationError('Navegador não suporta geolocalização')
+           return
+        }
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const lat = pos.coords.latitude
+                const lon = pos.coords.longitude
+                setUserLocation({ lat, lon })
+                setLocationError(null)
+                
+                // Salvar localização do cliente no banco
+                const supabase = createClient()
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    const { data: existing } = await supabase.from('addresses').select('id').eq('profile_id', user.id).maybeSingle()
+                    if (existing) {
+                        await supabase.from('addresses').update({ latitude: lat, longitude: lon }).eq('id', existing.id)
+                    } else {
+                        await supabase.from('addresses').insert({ profile_id: user.id, latitude: lat, longitude: lon })
+                    }
+                }
+            },
+            (err) => {
+                setLocationError('Permissão negada ou restrita.')
+            }
+        )
     }
 
     async function fetchProducts(companyId: string) {
@@ -548,6 +614,10 @@ export default function CustomerDashboard() {
     }
 
     const handleSelectCompany = (company: Company) => {
+        if (selectedCompany?.id === company.id) {
+            setSelectedCompany(null)
+            return
+        }
         setSelectedCompany(company)
         fetchProducts(company.id)
         fetchRewards(company.id)
@@ -853,7 +923,6 @@ export default function CustomerDashboard() {
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-10">
-                    {/* Qridos do Dia - Agora dentro de Ofertas */}
                     <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
                         <div className="relative z-10">
                             <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
@@ -876,7 +945,12 @@ export default function CustomerDashboard() {
                                 <CardContent className="pt-0">
                                     <Button
                                         className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
-                                        onClick={() => handleSelectCompany(c)}
+                                        onClick={() => {
+                                            handleSelectCompany(c)
+                                            setTimeout(() => {
+                                              document.getElementById(`loja-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                            }, 100)
+                                        }}
                                     >
                                         Quero Agora
                                     </Button>
@@ -885,64 +959,134 @@ export default function CustomerDashboard() {
                         ))}
                     </div>
 
-                    {selectedCompany && (
-                        <div className="animate-in zoom-in-95 duration-500 space-y-6">
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-100 gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 bg-orange-50 rounded-full flex items-center justify-center">
-                                        <Award className="h-5 w-5 text-[#E9592C]" />
-                                    </div>
-                                    <h2 className="text-lg font-black text-slate-900 uppercase italic">Ofertas: {selectedCompany.full_name}</h2>
-                                </div>
-                                <div className="w-full sm:w-auto text-left sm:text-right bg-slate-50 p-3 sm:py-2 sm:px-4 rounded-2xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-500 uppercase italic mb-0.5">Saldo na Loja</p>
-                                    <p className="text-xs font-black text-[#E9592C] uppercase italic">{customerBalance} pts</p>
-                                </div>
+                    {/* Parceiros do Ecossistema */}
+                    <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                <Store className="h-5 w-5" />
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                {products.map(product => (
-                                    <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white overflow-hidden rounded-[32px] border border-slate-100 hover:border-blue-200 transition-all h-full flex flex-col group">
-                                        <div className="p-5 flex justify-between items-start">
-                                            <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-[#297CCB] transition-colors">
-                                                <ShoppingBag className="h-6 w-6" />
-                                            </div>
-                                            <div className="bg-orange-50 border border-orange-100 text-[#E9592C] text-[10px] font-black px-3 py-1.5 rounded-full italic uppercase shadow-sm">
-                                                +{product.points_reward} PTS
-                                            </div>
-                                        </div>
-                                        <CardHeader className="pb-2 pt-0">
-                                            <CardTitle className="text-xl font-black text-slate-900 uppercase italic leading-tight">
-                                                {product.name}
-                                            </CardTitle>
-                                            <div className="text-[#297CCB] font-black italic text-lg mt-1">R$ {product.price}</div>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4 flex-1 flex flex-col pt-0">
-                                            <p className="text-[11px] text-slate-500 font-medium italic line-clamp-2 leading-relaxed">{product.description}</p>
-                                            <div className="mt-auto pt-4">
-                                                <Button
-                                                    className={cn(
-                                                        "w-full h-12 rounded-2xl font-black italic uppercase text-[10px] shadow-lg transition-all duration-300",
-                                                        lastAddedItem === product.id
-                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                            : "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-200"
-                                                    )}
-                                                    onClick={() => handleAddToCart(product)}
-                                                >
-                                                    {lastAddedItem === product.id ? (
-                                                        <span className="flex items-center gap-2">
-                                                            <CheckCircle2 className="h-4 w-4" />
-                                                            ADICIONADO!
-                                                        </span>
-                                                    ) : "ADICIONAR ITEM"}
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
                             </div>
                         </div>
-                    )}
+
+                        {!userLocation && !locationError && (
+                            <div className="bg-brand-blue/5 p-4 rounded-3xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
+                                        <MapPin className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
+                                        <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
+                                    </div>
+                                </div>
+                                <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 text-[10px] font-black uppercase italic tracking-wider">
+                                    Permitir
+                                </Button>
+                            </div>
+                        )}
+
+                        {companies.length === 0 && !loading ? (
+                            <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                                <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja parceira encontrada na sua região.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-4">
+                                {companies.map((company, index) => {
+                                    const isExpanded = selectedCompany?.id === company.id;
+                                    return (
+                                        <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl cursor-pointer")} style={{ animationDelay: `${index * 50}ms` }} onClick={() => !isExpanded && handleSelectCompany(company)}>
+                                            <CardContent className={cn("p-5", isExpanded ? "bg-slate-50/50" : "")}>
+                                                <div className="flex items-center justify-between cursor-pointer" onClick={(e) => { e.stopPropagation(); isExpanded && handleSelectCompany(company) }}>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
+                                                            <span className="text-lg font-black text-slate-500 italic">{company.full_name.charAt(0)}</span>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-black text-slate-900 uppercase italic tracking-tight">{company.full_name}</h3>
+                                                            {company.distance !== undefined && (
+                                                                <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
+                                                                    {company.address && ` • ${company.address}`}
+                                                                </div>
+                                                            )}
+                                                            {!isExpanded && (
+                                                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        {isExpanded && (
+                                                            <div className="hidden sm:flex flex-col text-right mr-4">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
+                                                                <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
+                                                            </div>
+                                                        )}
+                                                        <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
+                                                            <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expanded Accordion Content: Products */}
+                                                <div className={cn("grid transition-all duration-300 origin-top", isExpanded ? "grid-rows-[1fr] opacity-100 mt-5" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
+                                                    <div className="overflow-hidden">
+                                                        <div className="pt-5 border-t border-slate-200/60">
+                                                            {loading && isExpanded ? (
+                                                                <div className="flex justify-center py-8">
+                                                                    <div className="h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                                                                </div>
+                                                            ) : products.length === 0 && isExpanded ? (
+                                                                <div className="text-center py-8 text-slate-400 font-bold text-sm italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                    {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
+                                                                        <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
+                                                                            {product.is_top_seller && (
+                                                                                <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
+                                                                                    <Flame className="h-3 w-3" /> Top Vendas
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex justify-between items-start mb-3 mt-1">
+                                                                                <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
+                                                                                    <ShoppingBag className="h-5 w-5" />
+                                                                                </div>
+                                                                                <div className="bg-orange-50 border border-orange-100 text-[#E9592C] text-[10px] font-black px-2 py-1 rounded-full italic uppercase shadow-sm">
+                                                                                    +{product.points_reward} PTS
+                                                                                </div>
+                                                                            </div>
+                                                                            <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
+                                                                            <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
+                                                                            <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
+                                                                            <Button
+                                                                                className={cn(
+                                                                                    "w-full h-10 mt-4 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300",
+                                                                                    lastAddedItem === product.id
+                                                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                                                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                                )}
+                                                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                            >
+                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
+                                                                            </Button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             ) : activeTab === 'my_stores' ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6 pb-20">

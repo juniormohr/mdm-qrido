@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -337,6 +337,15 @@ export default function CompanyDashboard() {
                 <div>
                     <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO PAINEL</h1>
                     <p className="text-slate-500 mt-1 font-medium">Sua plataforma de fidelidade e recorrência.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Link
+                        href="/qrido/company/settings"
+                        className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-brand-blue hover:shadow-md transition-all"
+                        title="Configurações da Loja"
+                    >
+                        <Settings className="h-5 w-5" />
+                    </Link>
                 </div>
             </div>
 

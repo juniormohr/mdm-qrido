@@ -29,6 +29,7 @@ export default function LoginPage() {
     // Form fields state
     const [formData, setLocalFormData] = useState({
         full_name: '',
+        document: '',
         phone: '',
         email: '',
         password: '',
@@ -46,6 +47,33 @@ export default function LoginPage() {
         
         setLocalFormData(prev => ({ ...prev, phone: masked }))
         setFieldErrors(prev => ({ ...prev, phone: '' }))
+    }
+
+    const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '')
+        
+        const isCnpjOnly = !isLogin && userRole === 'company';
+        const isCpfOnly = !isLogin && userRole === 'customer';
+        
+        const maxLength = isCpfOnly ? 11 : 14;
+        if (val.length > maxLength) val = val.substring(0, maxLength);
+
+        let masked = val;
+        if (isCnpjOnly || (val.length > 11 && !isCpfOnly)) {
+            // CNPJ
+            if (val.length > 12) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5')
+            else if (val.length > 8) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4')
+            else if (val.length > 5) masked = val.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3')
+            else if (val.length > 2) masked = val.replace(/(\d{2})(\d{1,3})/, '$1.$2')
+        } else {
+            // CPF
+            if (val.length > 9) masked = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+            else if (val.length > 6) masked = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+            else if (val.length > 3) masked = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
+        }
+        
+        setLocalFormData(prev => ({ ...prev, document: masked }))
+        setFieldErrors(prev => ({ ...prev, document: '' }))
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -74,6 +102,17 @@ export default function LoginPage() {
             const rawPhone = value.replace(/\D/g, '')
             if (rawPhone.length < 11) {
                 error = 'WhatsApp inválido. Formato: (00)00000-0000.'
+            }
+        } else if (name === 'document') {
+            const rawDoc = value.replace(/\D/g, '')
+            const isCnpjOnly = !isLogin && userRole === 'company';
+            const isCpfOnly = !isLogin && userRole === 'customer';
+            if (isCpfOnly && rawDoc.length < 11) {
+                error = 'CPF inválido. Faltam números.'
+            } else if (isCnpjOnly && rawDoc.length < 14) {
+                error = 'CNPJ inválido. Faltam números.'
+            } else if (isLogin && rawDoc.length < 11) {
+                error = 'Forneça um documento válido.'
             }
         } else if (name === 'email') {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -113,6 +152,10 @@ export default function LoginPage() {
                     if (userRole === 'customer' && trimmed.split(/\s+/).length < 2) {
                         errors.full_name = 'O nome deve conter ao menos nome e sobrenome.'
                     }
+                } else if (key === 'document') {
+                    const rawDoc = val.replace(/\D/g, '')
+                    if (userRole === 'customer' && rawDoc.length < 11) errors.document = 'CPF inválido.'
+                    if (userRole === 'company' && rawDoc.length < 14) errors.document = 'CNPJ inválido.'
                 } else if (key === 'phone') {
                     if (val.replace(/\D/g, '').length < 11) errors.phone = 'WhatsApp inválido.'
                 } else if (key === 'email') {
@@ -240,26 +283,52 @@ export default function LoginPage() {
                                 </div>
                             </>
                         )}
+                        {!isLogin && (
+                            <div className="space-y-2">
+                                <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                    E-mail <span className="text-[9px] lowercase italic font-medium">(para recuperação)</span>
+                                </label>
+                                <input
+                                    id="email-address"
+                                    name="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    className={cn(
+                                        "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                        fieldErrors.email 
+                                            ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                            : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                    )}
+                                    placeholder="exemplo@email.com"
+                                />
+                                {fieldErrors.email && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.email}</p>}
+                            </div>
+                        )}
                         <div className="space-y-2">
-                            <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">E-mail de Acesso</label>
+                            <label htmlFor="document-field" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                {!isLogin ? (userRole === 'customer' ? 'Seu CPF' : 'CNPJ da Empresa') : 'CPF ou CNPJ'}
+                            </label>
                             <input
-                                id="email-address"
-                                name="email"
-                                type="email"
-                                autoComplete="email"
+                                id="document-field"
+                                name="document"
+                                type="tel"
                                 required
-                                value={formData.email}
-                                onChange={handleChange}
+                                value={formData.document}
+                                onChange={handleDocumentChange}
                                 onBlur={handleBlur}
                                 className={cn(
                                     "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
-                                    fieldErrors.email 
+                                    fieldErrors.document 
                                         ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
                                         : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
                                 )}
-                                placeholder="exemplo@email.com"
+                                placeholder={!isLogin && userRole === 'company' ? "00.000.000/0000-00" : "000.000.000-00"}
                             />
-                            {fieldErrors.email && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.email}</p>}
+                            {fieldErrors.document && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.document}</p>}
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between ml-1">
@@ -328,6 +397,7 @@ export default function LoginPage() {
                                 setFieldErrors({})
                                 setLocalFormData({
                                     full_name: '',
+                                    document: '',
                                     phone: '',
                                     email: '',
                                     password: '',
