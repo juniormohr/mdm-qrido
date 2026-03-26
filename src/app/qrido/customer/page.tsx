@@ -1003,10 +1003,10 @@ export default function CustomerDashboard() {
                                                 <div className="flex items-center justify-between cursor-pointer" onClick={(e) => { e.stopPropagation(); isExpanded && handleSelectCompany(company) }}>
                                                     <div className="flex items-center gap-4">
                                                         <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
-                                                            <span className="text-lg font-black text-slate-500 italic">{company.full_name.charAt(0)}</span>
+                                                            <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
                                                         </div>
                                                         <div>
-                                                            <h3 className="font-black text-slate-900 uppercase italic tracking-tight">{company.full_name}</h3>
+                                                            <h3 className="font-black text-slate-900 uppercase italic tracking-tight">{company.full_name || 'Empresa Parceira'}</h3>
                                                             {company.distance !== undefined && (
                                                                 <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
                                                                     <MapPin className="h-3 w-3" />
