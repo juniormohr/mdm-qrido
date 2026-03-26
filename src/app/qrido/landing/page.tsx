@@ -15,7 +15,8 @@ import {
     MessageSquareMore,
     Smartphone,
     MousePointer2,
-    HeartPulse
+    HeartPulse,
+    Settings
 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
