@@ -166,7 +166,7 @@ function AdminContent() {
 
         if (companyMetrics) setCompanies(companyMetrics)
 
-        // 2. Fetch All Customers
+        // 2. Fetch All Customers (Links for the table)
         const { data: customers } = await supabase
             .from('customers')
             .select('*, profiles(full_name)')
@@ -179,6 +179,12 @@ function AdminContent() {
             }))
             setAllCustomers(formatted)
         }
+
+        // 2.1 Fetch End User Profiles for the Metric
+        const { data: endUserProfiles } = await supabase
+            .from('profiles')
+            .select('id, created_at')
+            .eq('role', 'customer')
 
         // 3. Fetch All Transactions
         const { data: transactions } = await supabase
@@ -194,7 +200,7 @@ function AdminContent() {
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
-        const newCusts = customers?.filter(c => c.created_at >= firstDayOfMonth).length || 0
+        const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
 
         const revenue = profiles?.reduce((acc, p) => {
             const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
@@ -207,7 +213,7 @@ function AdminContent() {
         setStats({
             totalCompanies: profiles?.length || 0,
             newCompaniesThisMonth: newComps,
-            totalCustomers: customers?.length || 0,
+            totalCustomers: endUserProfiles?.length || 0,
             newCustomersThisMonth: newCusts,
             totalPoints,
             totalRedemptions,

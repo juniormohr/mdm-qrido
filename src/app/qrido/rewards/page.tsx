@@ -57,25 +57,39 @@ export default function RewardsPage() {
 
     async function handleAddReward(e: React.FormEvent) {
         e.preventDefault()
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
+        try {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
 
-        if (!user) return
+            if (!user) return
 
-        const { error } = await supabase.from('rewards').insert({
-            user_id: user.id,
-            ...newReward
-        })
+            let newId = typeof crypto !== 'undefined' && crypto.randomUUID 
+                ? crypto.randomUUID() 
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
 
-        if (!error) {
-            setShowNewForm(false)
-            setNewReward({
-                title: '',
-                description: '',
-                points_required: 100,
-                expires_at: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const { error } = await supabase.from('rewards').insert({
+                id: newId,
+                user_id: user.id,
+                ...newReward
             })
-            fetchRewards()
+
+            if (error) {
+                alert(`Erro ao criar prêmio do Banco: ${error.message}`)
+            } else {
+                setShowNewForm(false)
+                setNewReward({
+                    title: '',
+                    description: '',
+                    points_required: 100,
+                    expires_at: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                })
+                fetchRewards()
+            }
+        } catch (err: any) {
+            alert(`Erro na Aplicação: ${err.message}`)
         }
     }
 
@@ -157,7 +171,7 @@ export default function RewardsPage() {
                                     type="number"
                                     required
                                     value={newReward.points_required}
-                                    onChange={e => setNewReward({ ...newReward, points_required: parseInt(e.target.value) })}
+                                    onChange={e => setNewReward({ ...newReward, points_required: parseInt(e.target.value) || 0 })}
                                     className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange"
                                 />
                             </div>

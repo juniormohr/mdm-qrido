@@ -12,11 +12,14 @@ import { BackButton } from '@/components/ui/back-button'
 export default function LoyaltySettings() {
     const [config, setConfig] = useState({
         points_per_real: 1.0,
-        min_points_to_redeem: 100
+        min_points_to_redeem: 100,
+        double_points_active: false
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+
+    const [existingId, setExistingId] = useState<string | null>(null)
 
     useEffect(() => {
         fetchConfig()
@@ -34,9 +37,11 @@ export default function LoyaltySettings() {
             .single()
 
         if (data) {
+            setExistingId(data.id)
             setConfig({
                 points_per_real: Number(data.points_per_real),
-                min_points_to_redeem: data.min_points_to_redeem
+                min_points_to_redeem: data.min_points_to_redeem,
+                double_points_active: data.double_points_active || false
             })
         }
         setLoading(false)
@@ -50,16 +55,38 @@ export default function LoyaltySettings() {
 
         if (!user) return
 
-        const { error } = await supabase
-            .from('loyalty_configs')
-            .upsert({
-                user_id: user.id,
-                points_per_real: config.points_per_real,
-                min_points_to_redeem: config.min_points_to_redeem
-            })
+        let error
+
+        if (existingId) {
+            const { error: updateError } = await supabase
+                .from('loyalty_configs')
+                .update({
+                    points_per_real: config.points_per_real,
+                    min_points_to_redeem: config.min_points_to_redeem,
+                    double_points_active: config.double_points_active
+                })
+                .eq('id', existingId)
+            error = updateError
+        } else {
+            const { error: insertError } = await supabase
+                .from('loyalty_configs')
+                .insert({
+                    id: crypto.randomUUID(),
+                    user_id: user.id,
+                    points_per_real: config.points_per_real,
+                    min_points_to_redeem: config.min_points_to_redeem,
+                    double_points_active: config.double_points_active
+                })
+            error = insertError
+            
+            // Re-fetch to get the id if inserted successfully
+            if (!error) {
+                fetchConfig()
+            }
+        }
 
         if (error) {
-            setMessage({ type: 'error', text: 'Erro ao salvar configurações.' })
+            setMessage({ type: 'error', text: `Erro: ${error.message}` })
         } else {
             setMessage({ type: 'success', text: 'Regras atualizadas com sucesso!' })
         }
@@ -103,7 +130,7 @@ export default function LoyaltySettings() {
                                     type="number"
                                     step="0.1"
                                     value={config.points_per_real}
-                                    onChange={(e) => setConfig({ ...config, points_per_real: parseFloat(e.target.value) })}
+                                    onChange={(e) => setConfig({ ...config, points_per_real: parseFloat(e.target.value) || 0 })}
                                     className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
                                 />
                             </div>
@@ -118,11 +145,33 @@ export default function LoyaltySettings() {
                                     id="min_points"
                                     type="number"
                                     value={config.min_points_to_redeem}
-                                    onChange={(e) => setConfig({ ...config, min_points_to_redeem: parseInt(e.target.value) })}
+                                    onChange={(e) => setConfig({ ...config, min_points_to_redeem: parseInt(e.target.value) || 0 })}
                                     className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 font-medium ml-1">Quantidade mínima de pontos que o cliente deve ter para trocar.</p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex items-center justify-between p-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-3xl border border-orange-100">
+                                <div className="space-y-1">
+                                    <h3 className="text-lg font-black italic uppercase text-[#E9592C] flex items-center gap-2">
+                                        Pontos em Dobro 🔥
+                                    </h3>
+                                    <p className="text-xs text-orange-800/60 font-medium max-w-sm">
+                                        Ative para dobrar a pontuação de todos os itens e ganhar destaque instantâneo no app dos clientes.
+                                    </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={config.double_points_active}
+                                        onChange={(e) => setConfig({ ...config, double_points_active: e.target.checked })}
+                                    />
+                                    <div className="w-14 h-7 bg-orange-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#E9592C]"></div>
+                                </label>
+                            </div>
                         </div>
                     </div>
 

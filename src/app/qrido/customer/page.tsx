@@ -120,14 +120,15 @@ export default function CustomerDashboard() {
 
             const phone = userProfile?.phone || userPhoneRef.current
 
+            // Always fetch to keep the global score updated regardless of the active tab
+            if (phone) {
+                fetchMyStores(phone, user.id)
+            }
+
             if (activeTab === 'offers') {
-                // The useEffect for userLocation handles fetching offers if location changes.
-                // If it's the first load and we don't have location, we call it here.
                 if (!userLocation) {
                     await fetchCompanies()
                 }
-            } else if (activeTab === 'my_stores') {
-                await fetchMyStores(phone || undefined, user.id)
             } else if (activeTab === 'requests') {
                 await fetchPurchaseRequests(user.id)
             } else if (activeTab === 'history') {
@@ -145,7 +146,6 @@ export default function CustomerDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // 1. Ouvir mudanças em Pedidos
             channel = supabase
                 .channel('customer_realtime')
                 .on('postgres_changes', {
@@ -165,13 +165,26 @@ export default function CustomerDashboard() {
                         console.log('Realtime: Pedido finalizado! Atualizando saldos...')
                         fetchMyStores(phone || undefined, user.id)
                         fetchTransactions(user.id, phone || undefined)
+                        fetchGlobalHistory() // Update history if open
 
                         if (selectedCompanyRef.current?.id === newReq.company_id) {
                             fetchCustomerBalance(newReq.company_id)
                         }
                     }
                 })
-                // 2. Ouvir mudanças diretas na tabela de clientes (pontos)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'loyalty_transactions'
+                }, (payload) => {
+                    console.log('Realtime: Nova transação! Atualizando saldos...')
+                    const phone = userPhoneRef.current
+                    if (phone) {
+                        fetchMyStores(phone, user.id)
+                        fetchTransactions(user.id, phone)
+                        fetchGlobalHistory() // Update history if open
+                    }
+                })
                 .on('postgres_changes', {
                     event: 'UPDATE',
                     schema: 'public',
@@ -202,6 +215,17 @@ export default function CustomerDashboard() {
     async function fetchInitialData() {
         setLoading(true)
         const supabase = createClient()
+
+        // Fetch configs globally
+        const { data: configsData } = await supabase.from('loyalty_configs').select('*')
+        if (configsData) {
+            const map = configsData.reduce((acc: any, curr: any) => {
+                acc[curr.user_id] = curr
+                return acc
+            }, {})
+            setLoyaltyConfigs(map)
+        }
+
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) {
@@ -218,6 +242,13 @@ export default function CustomerDashboard() {
             .eq('id', user.id)
             .single()
 
+        // Fetch saved location
+        const { data: address } = await supabase
+            .from('addresses')
+            .select('latitude, longitude')
+            .eq('profile_id', user.id)
+            .maybeSingle()
+
         if (profileError) {
             console.error('fetchInitialData: Erro ao buscar perfil:', profileError)
         }
@@ -227,11 +258,18 @@ export default function CustomerDashboard() {
             setUserProfile(profile)
             userPhoneRef.current = profile.phone
             
-            // Perfil carregado, o useEffect[activeTab] cuidará de carregar 'offers' (fetchCompanies)
-            // pois activeTab inicia como 'offers'.
+            if (address?.latitude && address?.longitude) {
+                setUserLocation({ lat: address.latitude, lon: address.longitude })
+            } else {
+                await fetchCompanies()
+            }
         } else {
             console.warn('fetchInitialData: Perfil não encontrado ou sem telefone.')
-            await fetchCompanies()
+            if (address?.latitude && address?.longitude) {
+                setUserLocation({ lat: address.latitude, lon: address.longitude })
+            } else {
+                await fetchCompanies()
+            }
         }
 
         setLoading(false)
@@ -736,15 +774,16 @@ export default function CustomerDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
+        const pointsMultiplier = loyaltyConfigs[selectedCompany.id]?.double_points_active ? 2 : 1
         const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-        const totalPoints = cart.reduce((acc, item) => acc + (item.product.points_reward * item.quantity), 0)
+        const totalPoints = cart.reduce((acc, item) => acc + (item.product.points_reward * pointsMultiplier * item.quantity), 0)
 
         const items = cart.map(item => ({
             id: item.product.id,
             name: item.product.name,
             qty: item.quantity,
             price: item.product.price,
-            points: item.product.points_reward
+            points: item.product.points_reward * pointsMultiplier
         }))
 
         const payload = {
@@ -806,6 +845,9 @@ export default function CustomerDashboard() {
         setActiveTab('requests')
     }
 
+
+    const promotedCompanies = companies.filter(c => loyaltyConfigs[c.id]?.double_points_active).slice(0, 4)
+    const cartPointsMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active) ? 2 : 1
 
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
@@ -923,52 +965,64 @@ export default function CustomerDashboard() {
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-10">
-                    <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
-                        <div className="relative z-10">
-                            <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
-                            <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
-                        </div>
-                        <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
-                    </div>
+                    {promotedCompanies.length > 0 && (
+                        <>
+                            <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
+                                    <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
+                                </div>
+                                <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
+                            </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {companies.slice(0, 4).map((c) => (
-                            <Card key={c.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group">
-                                <CardHeader className="flex-1">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <TrendingUp className="h-3 w-3 text-[#E9592C]" />
-                                        <span className="text-[9px] font-black text-[#E9592C] uppercase italic tracking-widest">Destaque QRido</span>
-                                    </div>
-                                    <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
-                                    <p className="text-[10px] font-bold text-slate-500 italic">Cupom de Pontos em Dobro ativado!</p>
-                                </CardHeader>
-                                <CardContent className="pt-0">
-                                    <Button
-                                        className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
-                                        onClick={() => {
-                                            handleSelectCompany(c)
-                                            setTimeout(() => {
-                                              document.getElementById(`loja-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                            }, 100)
-                                        }}
-                                    >
-                                        Quero Agora
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {promotedCompanies.map((c) => (
+                                    <Card key={c.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group">
+                                        <CardHeader className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <TrendingUp className="h-3 w-3 text-[#E9592C]" />
+                                                <span className="text-[9px] font-black text-[#E9592C] uppercase italic tracking-widest">Destaque QRido</span>
+                                            </div>
+                                            <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
+                                            <p className="text-[10px] font-bold text-slate-500 italic">Cupom de Pontos em Dobro ativado!</p>
+                                        </CardHeader>
+                                        <CardContent className="pt-0">
+                                            <Button
+                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
+                                                onClick={() => {
+                                                    handleSelectCompany(c)
+                                                    setTimeout(() => {
+                                                      document.getElementById(`loja-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                                    }, 100)
+                                                }}
+                                            >
+                                                Quero Agora
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </>
+                    )}
 
                     {/* Parceiros do Ecossistema */}
                     <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                <Store className="h-5 w-5" />
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                    <Store className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
+                                </div>
                             </div>
-                            <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
-                            </div>
+                            {userLocation && (
+                                <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 sm:h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
+                                    <MapPin className="h-3 w-3 mr-1" />
+                                    Atualizar Localização
+                                </Button>
+                            )}
                         </div>
 
                         {!userLocation && !locationError && (
@@ -997,10 +1051,11 @@ export default function CustomerDashboard() {
                             <div className="flex flex-col gap-4">
                                 {companies.map((company, index) => {
                                     const isExpanded = selectedCompany?.id === company.id;
+                                    const pointsMultiplier = loyaltyConfigs[company.id]?.double_points_active ? 2 : 1;
                                     return (
-                                        <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl cursor-pointer")} style={{ animationDelay: `${index * 50}ms` }} onClick={() => !isExpanded && handleSelectCompany(company)}>
-                                            <CardContent className={cn("p-5", isExpanded ? "bg-slate-50/50" : "")}>
-                                                <div className="flex items-center justify-between cursor-pointer" onClick={(e) => { e.stopPropagation(); isExpanded && handleSelectCompany(company) }}>
+                                        <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl")} style={{ animationDelay: `${index * 50}ms` }}>
+                                            <CardContent className="p-0">
+                                                <div className={cn("flex items-center justify-between cursor-pointer p-5 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
                                                     <div className="flex items-center gap-4">
                                                         <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
                                                             <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
@@ -1033,7 +1088,7 @@ export default function CustomerDashboard() {
                                                 </div>
 
                                                 {/* Expanded Accordion Content: Products */}
-                                                <div className={cn("grid transition-all duration-300 origin-top", isExpanded ? "grid-rows-[1fr] opacity-100 mt-5" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
+                                                <div className={cn("grid transition-all duration-300 origin-top px-5 pb-5", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
                                                     <div className="overflow-hidden">
                                                         <div className="pt-5 border-t border-slate-200/60">
                                                             {loading && isExpanded ? (
@@ -1055,8 +1110,8 @@ export default function CustomerDashboard() {
                                                                                 <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
                                                                                     <ShoppingBag className="h-5 w-5" />
                                                                                 </div>
-                                                                                <div className="bg-orange-50 border border-orange-100 text-[#E9592C] text-[10px] font-black px-2 py-1 rounded-full italic uppercase shadow-sm">
-                                                                                    +{product.points_reward} PTS
+                                                                                <div className={cn("border text-[10px] font-black px-2 py-1 rounded-full italic uppercase shadow-sm", pointsMultiplier > 1 ? "bg-orange-50 border-orange-100 text-[#E9592C] animate-pulse" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
+                                                                                    +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🔥'}
                                                                                 </div>
                                                                             </div>
                                                                             <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
@@ -1447,7 +1502,7 @@ export default function CustomerDashboard() {
                                         <p className="text-xs font-black text-[#E9592C] uppercase tracking-widest italic">Total de Pontos</p>
                                         <div className="flex items-center gap-2">
                                             <Award className="h-5 w-5 text-[#E9592C]" />
-                                            <p className="text-2xl font-black italic text-[#E9592C]">+{cart.reduce((acc, i) => acc + (i.product.points_reward * i.quantity), 0)} PTS</p>
+                                            <p className={cn("text-2xl font-black italic", cartPointsMultiplier > 1 ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => acc + (i.product.points_reward * cartPointsMultiplier * i.quantity), 0)} PTS {cartPointsMultiplier > 1 && '🔥'}</p>
                                         </div>
                                     </div>
                                 </div>
