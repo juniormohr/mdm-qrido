@@ -282,9 +282,7 @@ export default function CustomerDashboard() {
     async function fetchAllRewards() {
         setRewardsLoading(true)
         const supabase = createClient()
-        
-        const eligibleStores = myStores.filter(store => (store.points_balance || 0) > 0)
-        
+        const eligibleStores = myStores
         if (eligibleStores.length === 0) {
             setAllRewards([])
             setRewardsLoading(false)
@@ -939,76 +937,76 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
-            {activeTab !== 'rewards' && (
-                <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300 animate-in fade-in slide-in-from-top-4">
-                    <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="space-y-1">
-                                <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
-                                <div className="flex items-center gap-3">
-                                    <h2 className="text-6xl font-black text-white italic tracking-tighter">
-                                        {showScore ? globalScore : '••••'}
-                                        <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
-                                    </h2>
-                                    <button
-                                        onClick={() => setShowScore(!showScore)}
-                                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
-                                    >
-                                        {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                                    </button>
-                                </div>
+            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
+                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="space-y-1">
+                            <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                            <div className="flex items-center gap-3">
+                                <h2 className="text-6xl font-black text-white italic tracking-tighter">
+                                    {showScore ? globalScore : '••••'}
+                                    <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                </h2>
+                                <button
+                                    onClick={() => setShowScore(!showScore)}
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                >
+                                    {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                </button>
                             </div>
-                            <button
-                                onClick={() => setActiveTab('rewards')}
-                                className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
-                            >
-                                <Gift className="h-8 w-8" />
-                            </button>
                         </div>
+                        <button
+                            onClick={() => setActiveTab('rewards')}
+                            className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
+                        >
+                            <Gift className="h-8 w-8" />
+                        </button>
+                    </div>
 
-                        <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                            <div className="flex items-center gap-2 text-white/60">
-                                <Plus className="h-4 w-4" />
-                                <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
-                            </div>
-                            <ChevronRight className="h-5 w-5 text-white/40" />
+                    <div className="flex items-center justify-between pt-6 border-t border-white/10">
+                        <div className="flex items-center gap-2 text-white/60">
+                            <Plus className="h-4 w-4" />
+                            <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
                         </div>
+                        <ChevronRight className="h-5 w-5 text-white/40" />
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Grade de Ações Rápidas (Grid Style) */}
-            <div className="grid grid-cols-5 gap-2 sm:gap-4">
-                {[
-                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
-                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
-                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
-                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
-                ].map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => {
-                            setActiveTab(tab.id as any)
-                        }}
-                        className="flex flex-col items-center gap-2 group"
-                    >
-                        <div className={cn(
-                            "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
-                            activeTab === tab.id
-                                ? `${tab.activeColor} shadow-lg scale-110`
-                                : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
-                        )}>
-                            <tab.icon className="h-6 w-6" />
-                        </div>
-                        <span className={cn(
-                            "text-[10px] font-black uppercase italic tracking-wider transition-colors",
-                            activeTab === tab.id ? "text-slate-900" : "text-slate-500"
-                        )}>
-                            {tab.label}
-                        </span>
-                    </button>
-                ))}
-            </div>
+            {activeTab !== 'rewards' && (
+                <div className="grid grid-cols-5 gap-2 sm:gap-4">
+                    {[
+                        { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
+                        { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
+                        { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
+                        { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                setActiveTab(tab.id as any)
+                            }}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className={cn(
+                                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
+                                activeTab === tab.id
+                                    ? `${tab.activeColor} shadow-lg scale-110`
+                                    : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
+                            )}>
+                                <tab.icon className="h-6 w-6" />
+                            </div>
+                            <span className={cn(
+                                "text-[10px] font-black uppercase italic tracking-wider transition-colors",
+                                activeTab === tab.id ? "text-slate-900" : "text-slate-500"
+                            )}>
+                                {tab.label}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-10">
