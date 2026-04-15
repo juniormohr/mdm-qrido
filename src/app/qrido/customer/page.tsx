@@ -974,39 +974,37 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Grade de Ações Rápidas (Grid Style) */}
-            {activeTab !== 'rewards' && (
-                <div className="grid grid-cols-5 gap-2 sm:gap-4">
-                    {[
-                        { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
-                        { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
-                        { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
-                        { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
-                    ].map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => {
-                                setActiveTab(tab.id as any)
-                            }}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className={cn(
-                                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
-                                activeTab === tab.id
-                                    ? `${tab.activeColor} shadow-lg scale-110`
-                                    : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
-                            )}>
-                                <tab.icon className="h-6 w-6" />
-                            </div>
-                            <span className={cn(
-                                "text-[10px] font-black uppercase italic tracking-wider transition-colors",
-                                activeTab === tab.id ? "text-slate-900" : "text-slate-500"
-                            )}>
-                                {tab.label}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            )}
+            <div className="grid grid-cols-5 gap-2 sm:gap-4">
+                {[
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
+                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
+                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
+                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => {
+                            setActiveTab(tab.id as any)
+                        }}
+                        className="flex flex-col items-center gap-2 group"
+                    >
+                        <div className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
+                            activeTab === tab.id
+                                ? `${tab.activeColor} shadow-lg scale-110`
+                                : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
+                        )}>
+                            <tab.icon className="h-6 w-6" />
+                        </div>
+                        <span className={cn(
+                            "text-[10px] font-black uppercase italic tracking-wider transition-colors",
+                            activeTab === tab.id ? "text-slate-900" : "text-slate-500"
+                        )}>
+                            {tab.label}
+                        </span>
+                    </button>
+                ))}
+            </div>
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-10">
