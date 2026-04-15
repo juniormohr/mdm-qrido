@@ -135,12 +135,16 @@ export default function CustomerDashboard() {
                 await fetchPurchaseRequests(user.id)
             } else if (activeTab === 'history') {
                 await fetchGlobalHistory()
-            } else if (activeTab === 'rewards') {
-                await fetchAllRewards()
             }
         }
         loadTabData()
-    }, [activeTab, userProfile, myStores])
+    }, [activeTab, userProfile])
+
+    useEffect(() => {
+        if (activeTab === 'rewards') {
+            fetchAllRewards()
+        }
+    }, [activeTab, myStores])
 
     useEffect(() => {
         let channel: any
@@ -1320,7 +1324,7 @@ export default function CustomerDashboard() {
                         )}
                     </div>
                 </div>
-            ) : (
+            ) : activeTab === 'history' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-32">
                     <div className="flex items-center gap-4">
                         <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 border border-emerald-100 shadow-sm">
@@ -1435,7 +1439,7 @@ export default function CustomerDashboard() {
                         </div>
                     )}
                 </div>
-            )}
+            ) : null}
 
             {/* Rodapé do Carrinho Minimalista */}
             {cart.length > 0 && !isCartOpen && (
