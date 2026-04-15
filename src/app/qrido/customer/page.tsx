@@ -95,6 +95,8 @@ export default function CustomerDashboard() {
     const [myStores, setMyStores] = useState<Company[]>([])
     const [loyaltyConfigs, setLoyaltyConfigs] = useState<Record<string, any>>({})
     const [companyRewards, setCompanyRewards] = useState<any[]>([])
+    const [allRewards, setAllRewards] = useState<any[]>([])
+    const [rewardsLoading, setRewardsLoading] = useState(false)
     const [cart, setCart] = useState<CartItem[]>([])
     const [isCartOpen, setIsCartOpen] = useState(false)
     const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
@@ -133,10 +135,12 @@ export default function CustomerDashboard() {
                 await fetchPurchaseRequests(user.id)
             } else if (activeTab === 'history') {
                 await fetchGlobalHistory()
+            } else if (activeTab === 'rewards') {
+                await fetchAllRewards()
             }
         }
         loadTabData()
-    }, [activeTab, userProfile])
+    }, [activeTab, userProfile, myStores])
 
     useEffect(() => {
         let channel: any
@@ -273,6 +277,50 @@ export default function CustomerDashboard() {
         }
 
         setLoading(false)
+    }
+
+    async function fetchAllRewards() {
+        setRewardsLoading(true)
+        const supabase = createClient()
+        
+        const eligibleStores = myStores.filter(store => (store.points_balance || 0) > 0)
+        
+        if (eligibleStores.length === 0) {
+            setAllRewards([])
+            setRewardsLoading(false)
+            return
+        }
+
+        const companyIds = eligibleStores.map(store => store.id)
+
+        const { data } = await supabase
+            .from('rewards')
+            .select('*, profiles:user_id(full_name)')
+            .in('user_id', companyIds)
+            .eq('is_active', true)
+
+        if (data) {
+             const formattedRewards = data.map(r => ({
+                 ...r,
+                 company_name: r.profiles?.full_name || 'Empresa Parceira',
+                 user_balance: eligibleStores.find(s => s.id === r.user_id)?.points_balance || 0
+             }))
+             
+             formattedRewards.sort((a, b) => {
+                 const aAvailable = a.user_balance >= a.points_required ? 1 : 0
+                 const bAvailable = b.user_balance >= b.points_required ? 1 : 0
+                 if (aAvailable !== bAvailable) return bAvailable - aAvailable 
+                 
+                 const aProgress = Math.min(a.user_balance / a.points_required, 1)
+                 const bProgress = Math.min(b.user_balance / b.points_required, 1)
+                 if (aProgress !== bProgress) return bProgress - aProgress 
+                 
+                 return a.points_required - b.points_required 
+             })
+
+             setAllRewards(formattedRewards)
+        }
+        setRewardsLoading(false)
     }
 
     async function fetchPurchaseRequests(userId: string) {
@@ -810,8 +858,11 @@ export default function CustomerDashboard() {
     }
 
     const handleRedeemReward = async (reward: any) => {
-        if (!selectedCompany) return
-        if (customerBalance < reward.points_required) {
+        const companyId = reward.user_id || selectedCompany?.id
+        const balance = reward.user_balance !== undefined ? reward.user_balance : customerBalance
+
+        if (!companyId) return
+        if (balance < reward.points_required) {
             alert('Saldo insuficiente para resgatar este prêmio.')
             return
         }
@@ -824,7 +875,7 @@ export default function CustomerDashboard() {
         if (!user) return
 
         const { error } = await supabase.from('purchase_requests').insert({
-            company_id: selectedCompany.id,
+            company_id: companyId,
             customer_profile_id: user.id,
             type: 'redeem',
             reward_id: reward.id,
@@ -888,47 +939,43 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
-            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
-                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="space-y-1">
-                            <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-6xl font-black text-white italic tracking-tighter">
-                                    {showScore ? globalScore : '••••'}
-                                    <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
-                                </h2>
-                                <button
-                                    onClick={() => setShowScore(!showScore)}
-                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
-                                >
-                                    {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                                </button>
+            {activeTab !== 'rewards' && (
+                <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300 animate-in fade-in slide-in-from-top-4">
+                    <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="space-y-1">
+                                <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-6xl font-black text-white italic tracking-tighter">
+                                        {showScore ? globalScore : '••••'}
+                                        <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                    </h2>
+                                    <button
+                                        onClick={() => setShowScore(!showScore)}
+                                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                    >
+                                        {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                    </button>
+                                </div>
                             </div>
+                            <button
+                                onClick={() => setActiveTab('rewards')}
+                                className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
+                            >
+                                <Gift className="h-8 w-8" />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => {
-                                if (selectedCompany) {
-                                    setActiveTab('rewards')
-                                } else {
-                                    setActiveTab('offers')
-                                }
-                            }}
-                            className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
-                        >
-                            <Gift className="h-8 w-8" />
-                        </button>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                        <div className="flex items-center gap-2 text-white/60">
-                            <Plus className="h-4 w-4" />
-                            <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
+                        <div className="flex items-center justify-between pt-6 border-t border-white/10">
+                            <div className="flex items-center gap-2 text-white/60">
+                                <Plus className="h-4 w-4" />
+                                <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-white/40" />
                         </div>
-                        <ChevronRight className="h-5 w-5 text-white/40" />
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Grade de Ações Rápidas (Grid Style) */}
             <div className="grid grid-cols-5 gap-2 sm:gap-4">
@@ -1525,108 +1572,103 @@ export default function CustomerDashboard() {
 
             {activeTab === 'rewards' && (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-32">
-                    <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm">
-                            <Gift className="h-6 w-6" />
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm shadow-orange-100/50">
+                                <Gift className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">Prêmios nas suas Lojas</h2>
+                                <p className="text-slate-500 font-bold italic text-sm">Confira os prêmios das lojas onde você tem pontos.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">Prêmios: {selectedCompany?.full_name}</h2>
-                            <p className="text-slate-500 font-bold italic text-sm">Resgate seus pontos por prêmios incríveis!</p>
-                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setActiveTab('offers')}
+                            className="h-10 w-10 text-slate-400 hover:text-slate-900 bg-white shadow-sm border border-slate-100 rounded-full"
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
                     </div>
 
-                    {!selectedCompany ? (
-                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
-                            <Store className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-500 font-black italic uppercase text-lg">SELECIONE UMA LOJA PARA VER OS PRÊMIOS.</p>
-                            <Button
-                                variant="ghost"
-                                onClick={() => setActiveTab('my_stores')}
-                                className="mt-4 text-[#297CCB] font-black uppercase italic text-xs"
-                            >
-                                IR PARA MINHAS LOJAS
-                            </Button>
+                    {rewardsLoading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="h-10 w-10 border-4 border-[#E9592C] border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-slate-400 font-black italic uppercase text-xs">Carregando prêmios...</p>
                         </div>
-                    ) : companyRewards.length === 0 ? (
+                    ) : allRewards.length === 0 ? (
                         <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
                             <Gift className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                            <p className="text-slate-500 font-black italic uppercase text-lg">ESTA LOJA AINDA NÃO POSSUI PRÊMIOS.</p>
+                            <p className="text-slate-500 font-black italic uppercase text-lg">NENHUM PRÊMIO DISPONÍVEL NO MOMENTO.</p>
+                            <p className="text-slate-400 text-xs font-bold italic mt-2">Você ainda não possui pontos ativos ou as lojas não cadastraram prêmios.</p>
                         </div>
                     ) : (
-                        <div className="space-y-6">
-                            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-xl shadow-slate-100/50 flex flex-col md:flex-row items-center justify-between gap-4 border-b-4 border-b-brand-blue/20">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue">
-                                        <Store className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">Saldo na {selectedCompany.full_name}</p>
-                                        <p className="text-2xl font-black text-brand-blue italic leading-none">{customerBalance} PTS</p>
-                                    </div>
-                                </div>
-                                <div className="text-center md:text-right">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase italic">Válido apenas nesta loja</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {companyRewards.map(reward => {
-                                    const progress = Math.min((customerBalance / reward.points_required) * 100, 100)
-                                    const isAvailable = customerBalance >= reward.points_required
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {allRewards.map((reward, i) => {
+                                const balance = reward.user_balance || 0
+                                const progress = Math.min((balance / reward.points_required) * 100, 100)
+                                const isAvailable = balance >= reward.points_required
 
-                                    return (
-                                        <Card key={reward.id} className={cn(
-                                            "p-6 rounded-[32px] border shadow-xl shadow-slate-100 transition-all flex flex-col gap-4 bg-white",
-                                            isAvailable ? "border-[#F7AA1C] ring-1 ring-[#F7AA1C]/20" : "border-slate-100"
-                                        )}>
-                                            <div className="flex justify-between items-start">
+                                return (
+                                    <Card key={`${reward.id}-${i}`} className={cn(
+                                        "p-6 rounded-[32px] border shadow-xl shadow-slate-100/50 transition-all flex flex-col gap-4 bg-white hover:scale-[1.02] duration-300",
+                                        isAvailable ? "border-[#F7AA1C] ring-1 ring-[#F7AA1C]/20 shadow-orange-100/50" : "border-slate-100"
+                                    )}>
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
                                                 <div className={cn(
                                                     "p-3 rounded-2xl border",
                                                     isAvailable ? "bg-amber-50 text-[#F7AA1C] border-amber-100" : "bg-slate-50 text-slate-400 border-slate-100 shadow-inner"
                                                 )}>
                                                     <Award className="h-5 w-5" />
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black uppercase text-slate-400 font-bold">Objetivo</p>
-                                                    <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{reward.company_name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">Saldo: {balance} pts</p>
                                                 </div>
                                             </div>
-                                            <div>
-                                                <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
-                                                <p className="text-xs text-slate-500 italic mt-1 font-bold">{reward.description}</p>
+                                            <div className="text-right whitespace-nowrap ml-2">
+                                                <p className="text-[10px] font-black uppercase text-slate-400 font-bold">Objetivo</p>
+                                                <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
                                             </div>
-                                            <div className="space-y-2 mt-auto">
-                                                <div className="flex justify-between items-end">
-                                                    <p className="text-[10px] font-black uppercase text-slate-500 italic font-bold">Resgate</p>
-                                                    <p className="text-[10px] font-black text-brand-blue uppercase italic">{customerBalance} / {reward.points_required} pts</p>
-                                                </div>
-                                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50">
-                                                    <div
-                                                        className={cn(
-                                                            "h-full transition-all duration-1000 ease-out",
-                                                            isAvailable ? "bg-[#F7AA1C]" : "bg-brand-blue"
-                                                        )}
-                                                        style={{ width: `${progress}%` }}
-                                                    />
-                                                </div>
-                                                <p className={cn(
-                                                    "text-[9px] font-black italic uppercase tracking-tighter",
-                                                    isAvailable ? "text-[#F7AA1C]" : "text-slate-400"
-                                                )}>
-                                                    {isAvailable ? "✨ PRONTO PARA O RESGATE!" : `Faltam ${reward.points_required - customerBalance} pontos.`}
-                                                </p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
+                                            <p className="text-xs text-slate-500 italic mt-1 font-bold line-clamp-2">{reward.description}</p>
+                                        </div>
+                                        <div className="space-y-2 mt-auto pt-4 relative">
+                                            <div className="flex justify-between items-end">
+                                                <p className="text-[10px] font-black uppercase text-slate-500 italic font-bold">Progresso</p>
+                                                <p className="text-[10px] font-black text-brand-blue uppercase italic">{balance} / {reward.points_required} pts</p>
                                             </div>
-                                            {isAvailable && (
-                                                <Button
-                                                    className="w-full bg-[#F7AA1C] hover:bg-[#F7AA1C]/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-amber-100 mt-2"
-                                                    onClick={() => handleRedeemReward(reward)}
-                                                >
-                                                    SOLICITAR RESGATE
-                                                </Button>
-                                            )}
-                                        </Card>
-                                    )
-                                })}
-                            </div>
+                                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50 shadow-inner relative">
+                                                <div
+                                                    className={cn(
+                                                        "h-full transition-all duration-1000 ease-out",
+                                                        isAvailable ? "bg-[#F7AA1C]" : "bg-gradient-to-r from-brand-blue to-teal-400"
+                                                    )}
+                                                    style={{ width: `${progress}%` }}
+                                                />
+                                            </div>
+                                            <p className={cn(
+                                                "text-[9px] font-black italic uppercase tracking-tighter",
+                                                isAvailable ? "text-[#F7AA1C]" : "text-slate-400"
+                                            )}>
+                                                {isAvailable ? "✨ PRONTO PARA O RESGATE!" : `Faltam ${reward.points_required - balance} pontos.`}
+                                            </p>
+                                        </div>
+                                        {isAvailable && (
+                                            <Button
+                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-orange-200 mt-2 hover:scale-[1.02] transition-transform"
+                                                onClick={() => handleRedeemReward(reward)}
+                                            >
+                                                SOLICITAR RESGATE
+                                            </Button>
+                                        )}
+                                    </Card>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
