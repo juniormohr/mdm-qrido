@@ -38,7 +38,8 @@ export async function updateSession(request: NextRequest) {
     const isPublicRoute =
         request.nextUrl.pathname.startsWith('/login') ||
         request.nextUrl.pathname.startsWith('/auth') ||
-        request.nextUrl.pathname === '/' // Maybe landing page is public? Let's assume dashboard is protected.
+        request.nextUrl.pathname.startsWith('/qrido/auth') ||
+        request.nextUrl.pathname === '/' // Landing page is public
 
     // If we want to force login for everything except login page:
     if (!user && !isPublicRoute) {
