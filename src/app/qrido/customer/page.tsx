@@ -295,18 +295,25 @@ export default function CustomerDashboard() {
 
         const companyIds = eligibleStores.map(store => store.id)
 
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('rewards')
-            .select('*, profiles:user_id(full_name)')
+            .select('*')
             .in('user_id', companyIds)
             .eq('is_active', true)
 
+        if (error) {
+            console.error('Erro ao buscar recompensas:', error)
+        }
+
         if (data) {
-             const formattedRewards = data.map(r => ({
-                 ...r,
-                 company_name: r.profiles?.full_name || 'Empresa Parceira',
-                 user_balance: eligibleStores.find(s => s.id === r.user_id)?.points_balance || 0
-             }))
+             const formattedRewards = data.map(r => {
+                 const store = eligibleStores.find(s => s.id === r.user_id)
+                 return {
+                     ...r,
+                     company_name: store?.full_name || 'Empresa Parceira',
+                     user_balance: store?.points_balance || 0
+                 }
+             })
              
              formattedRewards.sort((a, b) => {
                  const aAvailable = a.user_balance >= a.points_required ? 1 : 0
