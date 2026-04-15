@@ -67,7 +67,7 @@ export default function LandingPage() {
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                            <Link href="/qrido/auth/register?type=company" className="w-full sm:w-auto">
+                            <Link href="/login?mode=register&role=company" className="w-full sm:w-auto">
                                 <Button className="w-full sm:w-auto h-16 px-10 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-[24px] shadow-2xl shadow-brand-orange/30 text-lg font-black italic uppercase group">
                                     Começar Agora
                                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
@@ -84,8 +84,8 @@ export default function LandingPage() {
                     {/* Dashboard Preview Mockup */}
                     <div className="mt-20 relative px-4 md:px-0">
                         <div className="absolute inset-0 bg-gradient-to-t from-[#FAF9F6] via-transparent to-transparent z-10 h-32 bottom-0 pointer-events-none" />
-                        <div className="bg-slate-900 rounded-[40px] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] border-[8px] border-slate-800 scale-[1.02] md:scale-100 transition-transform duration-700 hover:scale-[1.01]">
-                            <div className="bg-white rounded-[30px] overflow-hidden aspect-[16/9] md:aspect-[21/9] flex relative">
+                        <div className="bg-slate-900 rounded-[40px] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] border-[4px] md:border-[8px] border-slate-800 scale-[1.02] md:scale-100 transition-transform duration-700 hover:scale-[1.01]">
+                            <div className="bg-white rounded-[32px] overflow-hidden aspect-[4/3] md:aspect-[21/9] flex relative">
                                 {/* Sidebar Fake */}
                                 <div className="hidden md:flex flex-col w-48 lg:w-64 bg-slate-50 border-r border-slate-100 p-6 pointer-events-none">
                                     <div className="flex items-center gap-2 mb-10">
@@ -110,44 +110,43 @@ export default function LandingPage() {
                                     </div>
                                 </div>
                                 {/* Main Content Fake */}
-                                <div className="flex-1 p-6 md:p-8 flex flex-col gap-6 md:gap-8 bg-[#FAF9F6] pointer-events-none">
+                                <div className="flex-1 p-4 md:p-8 flex flex-col gap-4 md:gap-8 bg-[#FAF9F6] pointer-events-none">
                                     <div className="flex justify-between items-center">
-                                        <div className="space-y-3">
-                                            <div className="h-3 w-32 bg-slate-200 rounded-full" />
-                                            <div className="h-8 w-56 bg-slate-800 rounded-full" />
+                                        <div className="space-y-2 md:space-y-3">
+                                            <div className="h-2 md:h-3 w-16 md:w-32 bg-slate-200 rounded-full" />
+                                            <div className="h-6 md:h-8 w-32 md:w-56 bg-slate-800 rounded-full" />
                                         </div>
-                                        <div className="flex gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-white shadow-sm border border-slate-100 hidden sm:block" />
-                                            <div className="h-10 w-10 rounded-full bg-brand-orange border-2 border-white shadow-sm" />
+                                        <div className="flex gap-2.5 md:gap-3">
+                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-white shadow-sm border border-slate-100 hidden sm:block" />
+                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-brand-orange border-2 border-white shadow-sm" />
                                         </div>
                                     </div>
                                     {/* Stats */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
                                         {[
-                                            { color: 'bg-brand-blue', val: 'w-16' },
-                                            { color: 'bg-brand-green', val: 'w-20' },
-                                            { color: 'bg-[url(/brand-orange)] bg-brand-orange', val: 'w-12' },
-                                            { color: 'bg-[#F7AA1C]', val: 'w-24' },
+                                            { color: 'bg-brand-blue', val: 'w-10 md:w-16' },
+                                            { color: 'bg-brand-green', val: 'w-12 md:w-20' },
+                                            { color: 'bg-[url(/brand-orange)] bg-brand-orange', val: 'w-8 md:w-12' },
+                                            { color: 'bg-[#F7AA1C]', val: 'w-14 md:w-24' },
                                         ].map((card, i) => (
-                                            <div key={i} className="bg-white p-5 rounded-[24px] shadow-sm border border-slate-100 flex flex-col h-28 lg:h-32 justify-between">
-                                                <div className={`h-10 w-10 rounded-[14px] ${card.color} bg-opacity-10 flex items-center justify-center`}>
-                                                    <div className={`h-4 w-4 rounded-full ${card.color.split(' ')[card.color.split(' ').length - 1]}`} />
+                                            <div key={i} className="bg-white p-3 md:p-5 rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 flex flex-col h-20 md:h-28 lg:h-32 justify-between">
+                                                <div className={`h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-[14px] ${card.color} bg-opacity-10 flex items-center justify-center`}>
+                                                    <div className={`h-3 w-3 md:h-4 md:w-4 rounded-full ${card.color.split(' ')[card.color.split(' ').length - 1]}`} />
                                                 </div>
-                                                <div className="space-y-2.5 mt-auto">
-                                                    <div className="h-2 w-10 bg-slate-100 rounded-full" />
-                                                    <div className={`h-4 ${card.val} ${card.color.split(' ')[card.color.split(' ').length - 1]} rounded-full`} />
+                                                <div className="space-y-1.5 md:space-y-2.5 mt-auto">
+                                                    <div className="h-1.5 md:h-2 w-6 md:w-10 bg-slate-100 rounded-full" />
+                                                    <div className={`h-2.5 md:h-4 ${card.val} ${card.color.split(' ')[card.color.split(' ').length - 1]} rounded-full`} />
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                     {/* Chart & Table Area */}
                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
-                                        <div className="col-span-2 bg-white rounded-[24px] shadow-sm border border-slate-100 p-6 flex flex-col">
-                                            <div className="h-3 w-40 bg-slate-200 rounded-full mb-8" />
-                                            <div className="flex-1 flex items-end gap-3 lg:gap-6 justify-between mt-auto h-32">
+                                        <div className="col-span-1 md:col-span-2 bg-white rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col items-center justify-end">
+                                            <div className="flex-1 flex items-end gap-2 md:gap-3 lg:gap-6 justify-between mt-auto w-full max-h-[80px] md:max-h-full">
                                                 {[40, 70, 45, 90, 65, 80, 55, 75, 45].map((h, i) => (
-                                                    <div key={i} className="w-full bg-brand-blue/10 rounded-t-md relative flex items-end" style={{ height: `${h}%` }}>
-                                                        <div className="w-full bg-brand-blue rounded-t-md transition-all absolute bottom-0 left-0" style={{ height: `${h - 15}%` }} />
+                                                    <div key={i} className="w-full bg-brand-blue/10 rounded-t-sm md:rounded-t-md relative flex items-end" style={{ height: `${h}%` }}>
+                                                        <div className="w-full bg-brand-blue rounded-t-sm md:rounded-t-md transition-all absolute bottom-0 left-0" style={{ height: `${h - 15}%` }} />
                                                     </div>
                                                 ))}
                                             </div>
@@ -421,9 +420,9 @@ export default function LandingPage() {
                                     </div>
                                 </div>
                                 <div className="p-10 pt-4 mt-auto">
-                                    <Link href={`/qrido/auth/register?type=company&plan=${plan.id}`} className="group block">
+                                    <Link href={`/login?mode=register&role=company&plan=${plan.id}`} className="group block">
                                         <Button className={cn(
-                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-sm shadow-xl transition-all",
+                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-[10px] md:text-sm shadow-xl transition-all whitespace-normal px-2",
                                             plan.popular ? "bg-[#F7AA1C] hover:bg-[#e09917] text-white shadow-[#F7AA1C]/30" : "bg-slate-900 hover:bg-slate-800 text-white"
                                         )}>
                                             Assinar {plan.name.split(' ')[1]}
@@ -449,9 +448,9 @@ export default function LandingPage() {
                         <p className="text-xl text-white/70 font-medium max-w-2xl mx-auto italic">
                             Junte-se a centenas de lojistas que já estão lucrando mais com clientes fiéis.
                         </p>
-                        <Link href="/qrido/auth/register?type=company" className="inline-block">
-                            <Button className="h-16 px-12 bg-white text-brand-blue hover:bg-slate-100 rounded-[24px] text-lg font-black italic uppercase transition-all hover:scale-105">
-                                Quero Me Cadastrar Agora
+                        <Link href="/login?mode=register&role=company" className="inline-block w-full max-w-[280px] md:max-w-sm">
+                            <Button className="h-auto py-4 md:h-16 px-6 md:px-12 w-full bg-white text-brand-blue hover:bg-slate-100 rounded-[24px] text-sm md:text-lg font-black italic uppercase transition-all hover:scale-105 whitespace-normal">
+                                Criar Conta Agora
                             </Button>
                         </Link>
                     </div>

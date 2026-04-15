@@ -2,7 +2,7 @@
 
 import { login, signup } from './actions'
 import { useFormStatus } from 'react-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +25,16 @@ export default function LoginPage() {
     const [userRole, setUserRole] = useState<'customer' | 'company'>('customer')
     const [error, setError] = useState<string | null>(null)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+    const [selectedPlan, setSelectedPlan] = useState<string>('')
+    
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('mode') === 'register') setIsLogin(false)
+        if (params.get('role') === 'company' || params.get('role') === 'customer') {
+            setUserRole(params.get('role') as 'customer' | 'company')
+        }
+        if (params.get('plan')) setSelectedPlan(params.get('plan') || '')
+    }, [])
     
     // Form fields state
     const [formData, setLocalFormData] = useState({
@@ -209,6 +219,7 @@ export default function LoginPage() {
                 )}
 
                 <form className="mt-8 space-y-6" action={handleSubmit}>
+                    <input type="hidden" name="plan" value={selectedPlan} />
                     <div className="space-y-4">
                         {!isLogin && (
                             <div className="flex bg-slate-100 p-1 rounded-2xl mb-6">

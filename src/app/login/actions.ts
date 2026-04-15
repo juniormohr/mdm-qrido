@@ -92,7 +92,12 @@ export async function signup(formData: FormData) {
 
     // Role-based redirection
     if (role === 'company') {
-        redirect('/qrido/select-plan')
+        const plan = formData.get('plan') as string
+        if (plan) {
+            redirect(`/qrido/pricing?plan=${plan}`)
+        } else {
+            redirect('/qrido/pricing')
+        }
     } else {
         redirect('/qrido/customer')
     }

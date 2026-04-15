@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Check, Zap, Rocket, Crown, ArrowLeft, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -65,6 +65,21 @@ const PLANS = [
 
 export default function PricingPage() {
     const [loading, setLoading] = useState<string | null>(null)
+    const hasAutoSubscribed = useRef(false)
+
+    useEffect(() => {
+        if (hasAutoSubscribed.current) return
+        
+        const params = new URLSearchParams(window.location.search)
+        const planId = params.get('plan')
+        if (planId) {
+            const plan = PLANS.find(p => p.id === planId)
+            if (plan) {
+                hasAutoSubscribed.current = true
+                handleSubscribe(plan.id, plan.priceId)
+            }
+        }
+    }, [])
 
     const handleSubscribe = async (planId: string, priceId: string) => {
         setLoading(planId)
