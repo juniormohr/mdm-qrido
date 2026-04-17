@@ -6,14 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Settings2, Save, CheckCircle2, TrendingUp, Wallet } from 'lucide-react'
+import { Settings2, Save, CheckCircle2, TrendingUp, Wallet, MessageCircle } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 
 export default function LoyaltySettings() {
     const [config, setConfig] = useState({
         points_per_real: 1.0,
         min_points_to_redeem: 100,
-        double_points_active: false
+        double_points_active: false,
+        whatsapp_template: 'Olá {nome}, vimos que você tem {pontos} pontos no nosso programa de fidelidade! 🎁'
     })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -41,7 +42,8 @@ export default function LoyaltySettings() {
             setConfig({
                 points_per_real: Number(data.points_per_real),
                 min_points_to_redeem: data.min_points_to_redeem,
-                double_points_active: data.double_points_active || false
+                double_points_active: data.double_points_active || false,
+                whatsapp_template: data.whatsapp_template || 'Olá {nome}, vimos que você tem {pontos} pontos no nosso programa de fidelidade! 🎁'
             })
         }
         setLoading(false)
@@ -63,7 +65,8 @@ export default function LoyaltySettings() {
                 .update({
                     points_per_real: config.points_per_real,
                     min_points_to_redeem: config.min_points_to_redeem,
-                    double_points_active: config.double_points_active
+                    double_points_active: config.double_points_active,
+                    whatsapp_template: config.whatsapp_template
                 })
                 .eq('id', existingId)
             error = updateError
@@ -75,7 +78,8 @@ export default function LoyaltySettings() {
                     user_id: user.id,
                     points_per_real: config.points_per_real,
                     min_points_to_redeem: config.min_points_to_redeem,
-                    double_points_active: config.double_points_active
+                    double_points_active: config.double_points_active,
+                    whatsapp_template: config.whatsapp_template
                 })
             error = insertError
             
@@ -150,6 +154,26 @@ export default function LoyaltySettings() {
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 font-medium ml-1">Quantidade mínima de pontos que o cliente deve ter para trocar.</p>
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t border-slate-100">
+                            <Label htmlFor="whatsapp_template" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Template de Mensagem (WhatsApp)</Label>
+                            <div className="relative">
+                                <MessageCircle className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
+                                <textarea
+                                    id="whatsapp_template"
+                                    value={config.whatsapp_template}
+                                    onChange={(e) => setConfig({ ...config, whatsapp_template: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3 min-h-[100px] rounded-2xl border border-slate-100 focus:border-brand-blue focus:ring-1 focus:ring-brand-blue bg-white text-sm outline-none transition-all shadow-sm"
+                                    placeholder="Olá {nome}, vimos que você tem {pontos} pontos no nosso programa de fidelidade! 🎁"
+                                />
+                            </div>
+                            <div className="bg-brand-blue/5 border border-brand-blue/10 p-3 rounded-xl mt-2">
+                                <p className="text-[10px] text-slate-500 font-black mb-1 uppercase tracking-wider text-brand-blue italic">Variáveis Mágicas:</p>
+                                <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                                    Use <strong className="text-brand-blue">{"{nome}"}</strong> para o nome do cliente e <strong className="text-brand-blue">{"{pontos}"}</strong> para o saldo atual dele na sua loja. O sistema fará a substituição automática no momento do clique.
+                                </p>
+                            </div>
                         </div>
 
                         <div className="pt-4 border-t border-slate-100">

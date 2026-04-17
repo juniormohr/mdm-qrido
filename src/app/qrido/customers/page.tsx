@@ -30,6 +30,7 @@ export default function CustomersPage() {
     const [customers, setCustomers] = useState<Customer[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
+    const [waTemplate, setWaTemplate] = useState('Olá {nome}, vimos que você tem {pontos} pontos no nosso programa de fidelidade! 🎁')
 
     useEffect(() => {
         fetchCustomers()
@@ -53,6 +54,15 @@ export default function CustomersPage() {
         if (!error && data) {
             setCustomers(data)
         }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: config } = await supabase.from('loyalty_configs').select('whatsapp_template').eq('user_id', user.id).single()
+            if (config?.whatsapp_template) {
+                setWaTemplate(config.whatsapp_template)
+            }
+        }
+
         setLoading(false)
     }
 
@@ -70,7 +80,8 @@ export default function CustomersPage() {
         if (!customer.phone) return
 
         const phone = customer.phone.replace(/\D/g, '')
-        const message = encodeURIComponent(`Olá ${customer.name}, vimos que você tem ${customer.points_balance} pontos no nosso programa de fidelidade! 🎁`)
+        const rawMessage = waTemplate.replace(/{nome}/gi, customer.name).replace(/{pontos}/gi, customer.points_balance.toString())
+        const message = encodeURIComponent(rawMessage)
 
         window.open(`https://wa.me/${phone}?text=${message}`, '_blank')
     }
