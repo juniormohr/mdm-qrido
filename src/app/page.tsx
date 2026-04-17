@@ -58,12 +58,12 @@ export default function LandingPage() {
                         </div>
                         
                         <h1 className="text-5xl md:text-7xl lg:text-8xl font-black italic uppercase tracking-tight text-slate-900 leading-[0.9]">
-                            Transforme <span className="text-brand-orange">Clientes</span> ocasionais em fãs <span className="text-brand-blue underline decoration-brand-blue/20">Apaixonados</span>.
+                            Transforme <span className="text-brand-orange">Clientes</span> em <span className="text-brand-blue underline decoration-brand-blue/20">Fãs</span>.
                         </h1>
                         
                         <p className="text-lg md:text-xl text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-                            O QRido é a ferramenta de fidelização que coloca o seu negócio no bolso do cliente. 
-                            Aumente a recorrência e venda mais sem precisar gastar uma fortuna em anúncios.
+                            O Qrido é o cartão de fidelidade digital, que coloca seu negócio no bolso do cliente. 
+                            Aumente a recorrência e a venda, sem precisar investir uma fortuna em anúncios.
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -182,10 +182,10 @@ export default function LandingPage() {
                         <HeartPulse className="h-8 w-8 text-brand-orange animate-pulse" />
                     </div>
                     <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none max-w-4xl mx-auto">
-                        O custo de adquirir um novo cliente é <span className="text-brand-orange italic">7X MAIOR</span> do que manter um atual.
+                        Sabe quanto custa trazer um cliente novo? <span className="text-brand-orange italic">7X MAIS</span> do que manter um cliente que já é seu.
                     </h2>
                     <p className="text-xl text-slate-400 font-medium max-w-2xl mx-auto leading-relaxed">
-                        Você está deixando dinheiro na mesa todos os dias. O QRido automatiza a sua recorrência para que você foque no que realmente importa: o seu produto.
+                        Ou seja, pra você fazer a mesma venda pra um cliente novo, que ainda não te conhece, é 7x mais caro do que vender pra um cliente que já te conhece e já comprou de você. O Qrido te ajuda nisso: fidelizar.
                     </p>
                 </div>
             </section>
@@ -194,8 +194,8 @@ export default function LandingPage() {
             <section className="py-32 px-6">
                 <div className="max-w-7xl mx-auto space-y-20">
                     <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Por que o QRido?</h2>
-                        <p className="text-slate-500 font-medium max-w-xl mx-auto">Simplicidade que gera lucro. Ferramentas poderosas em uma interface vibrante.</p>
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Por que o Qrido?</h2>
+                        <p className="text-slate-500 font-medium max-w-xl mx-auto">Ele é simples. E o simples funciona.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
@@ -341,9 +341,9 @@ export default function LandingPage() {
                              <Crown className="h-4 w-4 fill-current" />
                              <span className="text-[10px] font-black uppercase tracking-[2px] italic">Nossos Planos</span>
                         </div>
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Assinaturas que <span className="text-brand-orange">Escalam</span> com Você</h2>
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Plano perfeito pro <span className="text-brand-orange">tamanho</span> do seu negócio</h2>
                         <p className="text-slate-500 font-medium max-w-xl mx-auto">
-                            Invista na fidelização dos seus clientes hoje e veja seu faturamento multiplicar. Escolha o plano ideal para a sua empresa crescer.
+                            Invista na fidelização dos seus clientes hoje e veja seu faturamento aumentar. Escolha o plano ideal pra sua empresa.
                         </p>
                     </div>
 
@@ -351,37 +351,37 @@ export default function LandingPage() {
                         {[
                             {
                                 id: 'start',
-                                name: 'Plano Start',
-                                price: 'R$ 29,00',
+                                name: 'Plano Qridinho',
+                                price: 'R$ 49,99',
                                 period: '/mês',
-                                description: 'Ideal para quem está focado em dar o primeiro passo na fidelização.',
+                                description: 'Ideal para quem está focando em fidelizar do zero.',
                                 icon: Zap,
                                 iconColor: 'text-brand-blue',
                                 borderFocus: 'hover:ring-brand-blue',
-                                features: ['Até 10 Produtos no Catálogo', 'Até 50 Clientes Ativos', 'Métricas Básicas', 'Suporte via Chat']
+                                features: ['Até 10 produtos', '100 clientes', 'Métricas básicas', 'Suporte via chat']
                             },
                             {
                                 id: 'pro',
-                                name: 'Plano Pro',
-                                price: 'R$ 49,00',
+                                name: 'Plano Qrido',
+                                price: 'R$ 89,99',
                                 period: '/mês',
                                 popular: true,
-                                description: 'Para lojas que já entendem o poder da recorrência e querem escalar rápido.',
+                                description: 'Para lojas que querem escalar rápido.',
                                 icon: Rocket,
                                 iconColor: 'text-[#F7AA1C]',
                                 borderFocus: 'ring-[#F7AA1C]',
-                                features: ['Até 20 Produtos no Catálogo', 'Até 100 Clientes Ativos', 'Dashboard Avançado de Vendas', 'Relatórios Mensais', 'Prioridade de Atendimento']
+                                features: ['Até 20 produtos', '300 clientes', 'Dashboard avançado', 'Relatórios mensais', 'Prioridade no atendimento']
                             },
                             {
                                 id: 'master',
-                                name: 'Plano Master',
-                                price: 'R$ 199,00',
+                                name: 'Plano Qridão',
+                                price: 'R$ 199,99',
                                 period: '/mês',
-                                description: 'O ecossistema completo para você dominar total a sua região.',
+                                description: 'O ecossistema completo para você dominar sua região.',
                                 icon: Crown,
                                 iconColor: 'text-[#E9592C]',
                                 borderFocus: 'hover:ring-[#E9592C]',
-                                features: ['Até 100 Produtos no Catálogo', 'Até 1000 Clientes Ativos', 'Gerente de Conta Personalizado', 'Suporte Exclusivo WhatsApp', 'Consultoria de Marketing', 'Automação Full']
+                                features: ['Até 100 produtos', 'Até 1000 clientes', 'Botão pontos em dobro para ações relâmpago', 'Gerente de conta personalizado', 'Material gráfico para sua empresa']
                             }
                         ].map((plan) => (
                             <Card key={plan.id} className={cn(
@@ -443,10 +443,10 @@ export default function LandingPage() {
                     
                     <div className="relative z-10 space-y-8">
                         <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">
-                            Pronto para ser a loja mais <span className="text-brand-yellow">"QRIDA"</span> do seu bairro?
+                            Bora fazer a sua loja ser a mais <span className="text-brand-yellow">QRIDA</span> do seu bairro?
                         </h2>
                         <p className="text-xl text-white/70 font-medium max-w-2xl mx-auto italic">
-                            Junte-se a centenas de lojistas que já estão lucrando mais com clientes fiéis.
+                            Otimize seu investimento naquilo que dá certo: fazer seus clientes virarem fãs.
                         </p>
                         <Link href="/login?mode=register&role=company" className="inline-block w-full max-w-[280px] md:max-w-sm">
                             <Button className="h-auto py-4 md:h-16 px-6 md:px-12 w-full bg-white text-brand-blue hover:bg-slate-100 rounded-[24px] text-sm md:text-lg font-black italic uppercase transition-all hover:scale-105 whitespace-normal">

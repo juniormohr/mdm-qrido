@@ -10,16 +10,16 @@ import { cn } from '@/lib/utils'
 
 const PLANS = [
     {
-        id: 'basic',
-        name: 'Plano Basic',
-        price: 'R$ 29,90',
+        id: 'start',
+        name: 'Plano Qridinho',
+        price: 'R$ 49,99',
         period: '/mês',
-        description: 'Ideal para quem está começando o ecossistema.',
+        description: 'Ideal para quem está focando em fidelizar do zero.',
         features: [
-            'Até 50 Produtos',
-            'Até 100 Clientes',
-            'Dashboard Básico',
-            'Suporte via E-mail'
+            'Até 10 produtos',
+            '100 clientes',
+            'Métricas básicas',
+            'Suporte via chat'
         ],
         icon: Zap,
         color: 'text-slate-600',
@@ -28,16 +28,16 @@ const PLANS = [
     },
     {
         id: 'pro',
-        name: 'Plano PRO',
-        price: 'R$ 59,90',
+        name: 'Plano Qrido',
+        price: 'R$ 89,99',
         period: '/mês',
-        description: 'Perfeito para empresas em crescimento acelerado.',
+        description: 'Para lojas que querem escalar rápido.',
         features: [
-            'Até 200 Produtos',
-            'Até 1.000 Clientes',
-            'MDM Insight Básico',
-            'Suporte Prioritário WhatsApp',
-            'Regras de Pontos Customizadas'
+            'Até 20 produtos',
+            '300 clientes',
+            'Dashboard avançado',
+            'Relatórios mensais',
+            'Prioridade no atendimento'
         ],
         icon: Rocket,
         color: 'text-brand-blue',
@@ -47,17 +47,16 @@ const PLANS = [
     },
     {
         id: 'master',
-        name: 'Plano MASTER',
-        price: 'R$ 199,90',
+        name: 'Plano Qridão',
+        price: 'R$ 199,99',
         period: '/mês',
-        description: 'O poder máximo do marketing para sua loja.',
+        description: 'O ecossistema completo para você dominar sua região.',
         features: [
-            'Produtos Ilimitados',
-            'Clientes Ilimitados',
-            'MDM Insight Completo',
-            'Gerente de Conta Exclusivo',
-            'Exportação CSV Avançada',
-            'Acesso Antecipado a Recursos'
+            'Até 100 produtos',
+            'Até 1000 clientes',
+            'Botão pontos em dobro para ações relâmpago',
+            'Gerente de conta personalizado',
+            'Material gráfico para sua empresa'
         ],
         icon: Star,
         color: 'text-brand-orange',

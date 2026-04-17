@@ -10,55 +10,53 @@ import Link from 'next/link'
 const PLANS = [
     {
         id: 'start',
-        name: 'Plano Start',
-        price: 'R$ 29,00',
+        name: 'Plano Qridinho',
+        price: 'R$ 49,99',
         period: '/mês',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_START || 'price_start_placeholder', // User needs to replace with actual Stripe Price ID
-        description: 'Ideal para quem está começando o programa de fidelidade.',
+        description: 'Ideal para quem está focando em fidelizar do zero.',
         icon: <Zap className="h-6 w-6 text-[#297CCB]" />,
         color: 'brand-blue',
         features: [
-            'Até 10 Produtos',
-            'Até 50 Clientes (Qridos)',
-            'Métricas Básicas',
-            'Suporte via Chat'
+            'Até 10 produtos',
+            '100 clientes',
+            'Métricas básicas',
+            'Suporte via chat'
         ]
     },
     {
         id: 'pro',
-        name: 'Plano Pro',
-        price: 'R$ 49,00',
+        name: 'Plano Qrido',
+        price: 'R$ 89,99',
         period: '/mês',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || 'price_pro_placeholder',
-        description: 'Perfeito para lojas que buscam crescimento e análise.',
+        description: 'Para lojas que querem escalar rápido.',
         icon: <Rocket className="h-6 w-6 text-[#F7AA1C]" />,
         color: '[#F7AA1C]',
         popular: true,
         features: [
-            'Até 20 Produtos',
-            'Até 100 Clientes (Qridos)',
-            'Dashboard Personalizado',
-            'Métricas Avançadas',
-            'Relatórios Mensais',
-            'Prioridade no Suporte'
+            'Até 20 produtos',
+            '300 clientes',
+            'Dashboard avançado',
+            'Relatórios mensais',
+            'Prioridade no atendimento'
         ]
     },
     {
         id: 'master',
-        name: 'Plano Master',
-        price: 'R$ 199,00',
+        name: 'Plano Qridão',
+        price: 'R$ 199,99',
         period: '/mês',
         priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_MASTER || 'price_master_placeholder',
-        description: 'O ecossistema completo para grandes resultados.',
+        description: 'O ecossistema completo para você dominar sua região.',
         icon: <Crown className="h-6 w-6 text-[#E9592C]" />,
         color: '[#E9592C]',
         features: [
-            'Até 100 Produtos',
-            'Até 1000 Clientes (Qridos)',
-            'Dashboard Personalizado',
-            'Suporte via WhatsApp',
-            'Consultoria de Marketing',
-            'Automação de Recompensas'
+            'Até 100 produtos',
+            'Até 1000 clientes',
+            'Botão pontos em dobro para ações relâmpago',
+            'Gerente de conta personalizado',
+            'Material gráfico para sua empresa'
         ]
     }
 ]
@@ -166,7 +164,7 @@ export default function PricingPage() {
                                     {loading === plan.id ? (
                                         <Loader2 className="h-5 w-5 animate-spin" />
                                     ) : (
-                                        `ASSINAR ${plan.id !== 'start' ? plan.id.toUpperCase() : 'START'}`
+                                        `ASSINAR ${plan.name.split(' ')[1]}`
                                     )}
                                 </Button>
                             </CardFooter>
