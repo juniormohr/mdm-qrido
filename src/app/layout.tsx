@@ -16,7 +16,8 @@ export const metadata: Metadata = {
   title: "Qrido - fidelize seus clientes",
   description: "transforme seus clientes em fãs",
   icons: {
-    apple: "/apple-touch-icon.png",
+    icon: "/favicon.ico?v=2",
+    apple: "/apple-touch-icon.png?v=2",
   },
 };
 
