@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Qrido - fidelize seus clientes",
   description: "transforme seus clientes em fãs",
+  openGraph: {
+    title: "Qrido - fidelize seus clientes",
+    description: "transforme seus clientes em fãs",
+    url: "https://www.qridoapp.com.br",
+    siteName: "Qrido",
+    locale: "pt_BR",
+    type: "website",
+  },
   icons: {
     icon: "/favicon.ico?v=2",
     apple: "/apple-touch-icon.png?v=2",
