@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MDM - Ecossistema de Marketing",
-  description: "Plataforma de gestão de marketing e leads.",
+  title: "Qrido - fidelize seus clientes",
+  description: "transforme seus clientes em fãs",
   icons: {
     apple: "/apple-touch-icon.png",
   },
