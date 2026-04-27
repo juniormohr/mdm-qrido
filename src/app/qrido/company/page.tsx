@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -18,6 +18,7 @@ export default function CompanyDashboard() {
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
+    const [tier, setTier] = useState<string>('start')
 
     async function fetchStats(userId: string) {
         const supabase = createClient()
@@ -117,6 +118,9 @@ export default function CompanyDashboard() {
             fetchStats(user.id)
             fetchPendingRequests(user.id)
             subscribeToRequests(user.id)
+
+            const { data: profile } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+            if (profile) setTier(profile.subscription_tier || 'start')
         }
 
         fetchInitialData()
@@ -568,18 +572,41 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* Upsell Trigger */}
+            {tier === 'start' && (
+                <Card className="border-none bg-gradient-to-br from-[#F7AA1C] to-amber-600 p-1 shadow-2xl">
+                    <div className="bg-white/10 backdrop-blur-md rounded-[inherit] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+                        <Crown className="absolute -right-8 -top-8 h-40 w-40 text-white/10" />
+                        <div className="space-y-2 relative z-10">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="bg-white/20 text-white text-[10px] font-black italic uppercase px-3 py-1 rounded-full border border-white/20 shadow-sm leading-none flex items-center h-6">RECOMENDADO</div>
+                            </div>
+                            <h3 className="text-2xl font-black text-white italic tracking-tight">VÁ PARA O PRÓXIMO NÍVEL</h3>
+                            <p className="text-amber-50 font-medium max-w-xl text-sm leading-relaxed">
+                                O seu negócio está crescendo! Faça um upgrade para o <strong className="font-black italic text-white underline decoration-white/30">Plano QRIDO</strong> e libere acesso a 300 clientes, 20 produtos, relatórios avançados e muito mais.
+                            </p>
+                        </div>
+                        <Link
+                            href="/qrido/pricing"
+                            className="bg-white text-[#F7AA1C] h-12 px-8 flex items-center justify-center rounded-2xl font-black italic uppercase text-sm shadow-xl hover:bg-slate-50 transition-transform hover:scale-105 active:scale-95 duration-200 w-full md:w-auto shrink-0 relative z-10"
+                        >
+                            VER BENEFÍCIOS
+                        </Link>
+                    </div>
+                </Card>
+            )}
+
+            {/* Upsell Trigger CRM */}
             <Card className="border-none bg-gradient-to-br from-brand-blue to-blue-700 p-1">
                 <div className="bg-white/10 backdrop-blur-md rounded-[inherit] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                     <div className="space-y-2">
                         <h3 className="text-2xl font-black text-white italic">IMPULSIONE SEUS RESULTADOS</h3>
-                        <p className="text-blue-50 font-bold">Acesse análises avançadas com o MDM Insight e automatize suas recompensas.</p>
+                        <p className="text-blue-50 font-bold">Acesse análises avançadas com o MDM CRM. Segmente clientes e faça campanhas automáticas no WhatsApp para quem está sumido.</p>
                     </div>
                     <Link
-                        href="/insight"
-                        className="btn-white w-full md:w-auto"
+                        href="/crm"
+                        className="btn-white w-full md:w-auto text-brand-blue"
                     >
-                        CONHECER INSIGHT &rarr;
+                        CONHECER CRM &rarr;
                     </Link>
                 </div>
             </Card>

@@ -59,7 +59,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const globalNav = [
-        { name: 'MDM Insight', href: '/qrido/insight', icon: BarChart3 },
+        { name: 'MDM CRM', href: '/crm', icon: BarChart3 },
         { name: 'Ajustes Conta', href: '/qrido/settings', icon: Settings },
     ]
 

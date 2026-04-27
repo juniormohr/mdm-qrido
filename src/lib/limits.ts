@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/client'
 
 export const TIER_LIMITS = {
-    basic: { max_customers: 50, max_products: 10, price: 29.00 },
-    pro: { max_customers: 100, max_products: 20, price: 49.00 },
-    master: { max_customers: 1000, max_products: 100, price: 199.00 },
+    start: { max_customers: 100, max_products: 10, price: 49.99 },
+    pro: { max_customers: 300, max_products: 20, price: 89.99 },
+    master: { max_customers: 1000, max_products: 100, price: 199.99 },
     partnership: { max_customers: 999999, max_products: 999999, price: 0 }
 }
 
@@ -19,14 +19,14 @@ export async function checkTierLimits(companyId: string, type: 'customers' | 'pr
         .eq('id', companyId)
         .single()
 
-    let tier = (profile?.subscription_tier || 'basic') as Tier
+    let tier = (profile?.subscription_tier || 'start') as Tier
 
     // Check partnership expiry
     if (tier === 'partnership' && profile?.partnership_end_date) {
         const now = new Date()
         const end = new Date(profile.partnership_end_date)
         if (now > end) {
-            tier = 'basic' // Fallback to basic if partnership expired
+            tier = 'start' // Fallback to start if partnership expired
         }
     }
     const limit = type === 'customers' ? TIER_LIMITS[tier].max_customers : TIER_LIMITS[tier].max_products

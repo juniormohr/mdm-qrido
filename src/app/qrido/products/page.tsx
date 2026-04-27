@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
+import { UpsellModal } from '@/components/qrido/upsell-modal'
 
 interface Product {
     id: string
@@ -30,6 +31,8 @@ export default function ProductManagementPage() {
         points_reward: ''
     })
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+    const [showUpsellModal, setShowUpsellModal] = useState(false)
+    const [upsellLimit, setUpsellLimit] = useState(0)
 
     useEffect(() => {
         fetchProducts()
@@ -63,7 +66,8 @@ export default function ProductManagementPage() {
         const { allowed, count, limit } = await checkTierLimits(user.id, 'products')
 
         if (!allowed) {
-            alert(`Limite atingido! Seu plano permite apenas ${limit} produtos. Faça um upgrade para continuar.`)
+            setUpsellLimit(limit)
+            setShowUpsellModal(true)
             return
         }
 
@@ -316,6 +320,13 @@ export default function ProductManagementPage() {
                     ))
                 )}
             </div>
+
+            <UpsellModal 
+                isOpen={showUpsellModal} 
+                onClose={() => setShowUpsellModal(false)} 
+                limitType="products" 
+                currentLimit={upsellLimit} 
+            />
         </div>
     )
 }

@@ -47,9 +47,9 @@ interface AdminStats {
 }
 
 const TIER_PRICES = {
-    basic: 29.90,
-    pro: 59.90,
-    master: 199.90
+    start: 49.99,
+    pro: 89.99,
+    master: 199.99
 }
 
 function AdminContent() {
@@ -95,7 +95,7 @@ function AdminContent() {
         if (currentEntity?.subscription_tier) {
             setSelectedTier(currentEntity.subscription_tier)
         } else {
-            setSelectedTier('basic')
+            setSelectedTier('start')
         }
     }, [currentEntity, showCompanyModal])
 
@@ -203,7 +203,7 @@ function AdminContent() {
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
 
         const revenue = profiles?.reduce((acc, p) => {
-            const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
+            const tier = (p.subscription_tier || 'start') as keyof typeof TIER_PRICES
             return acc + (TIER_PRICES[tier] || 0)
         }, 0) || 0
 
@@ -505,12 +505,12 @@ function AdminContent() {
                                                         comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
                                                             comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
                                                     )}
-                                                    value={comp.subscription_tier || 'basic'}
+                                                    value={comp.subscription_tier || 'start'}
                                                     onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
                                                 >
-                                                    <option value="basic">START</option>
-                                                    <option value="pro">PRO</option>
-                                                    <option value="master">MASTER</option>
+                                                    <option value="start">QRIDINHO</option>
+                                                    <option value="pro">QRIDO</option>
+                                                    <option value="master">QRIDÃO</option>
                                                     <option value="partnership">PARCERIA</option>
                                                 </select>
                                                 {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
@@ -720,9 +720,9 @@ function AdminContent() {
                                         onChange={(e) => setSelectedTier(e.target.value)}
                                         className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
                                     >
-                                        <option value="basic">BASIC (R$ 29,90)</option>
-                                        <option value="pro">PRO (R$ 59,90)</option>
-                                        <option value="master">MASTER (R$ 199,90)</option>
+                                        <option value="start">QRIDINHO (R$ 49,99)</option>
+                                        <option value="pro">QRIDO (R$ 89,99)</option>
+                                        <option value="master">QRIDÃO (R$ 199,99)</option>
                                         <option value="partnership">PARCERIA (GRATUITO)</option>
                                     </select>
                                 </div>

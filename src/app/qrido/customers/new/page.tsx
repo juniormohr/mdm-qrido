@@ -7,10 +7,13 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { UpsellModal } from '@/components/qrido/upsell-modal'
 
 export default function NewCustomerPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
+    const [showUpsellModal, setShowUpsellModal] = useState(false)
+    const [upsellLimit, setUpsellLimit] = useState(0)
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -28,7 +31,8 @@ export default function NewCustomerPage() {
         const { allowed, limit } = await checkTierLimits(user.id, 'customers')
 
         if (!allowed) {
-            alert(`Limite atingido! Seu plano permite apenas ${limit} clientes. Faça um upgrade para continuar.`)
+            setUpsellLimit(limit)
+            setShowUpsellModal(true)
             setLoading(false)
             return
         }
@@ -91,6 +95,13 @@ export default function NewCustomerPage() {
                     </div>
                 </form>
             </Card>
+
+            <UpsellModal 
+                isOpen={showUpsellModal} 
+                onClose={() => setShowUpsellModal(false)} 
+                limitType="customers" 
+                currentLimit={upsellLimit} 
+            />
         </div>
     )
 }

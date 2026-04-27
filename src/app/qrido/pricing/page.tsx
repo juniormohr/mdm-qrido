@@ -13,7 +13,6 @@ const PLANS = [
         name: 'Plano Qridinho',
         price: 'R$ 49,99',
         period: '/mês',
-        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_START || 'price_start_placeholder', // User needs to replace with actual Stripe Price ID
         description: 'Ideal para quem está focando em fidelizar do zero.',
         icon: <Zap className="h-6 w-6 text-[#297CCB]" />,
         color: 'brand-blue',
@@ -29,7 +28,6 @@ const PLANS = [
         name: 'Plano Qrido',
         price: 'R$ 89,99',
         period: '/mês',
-        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO || 'price_pro_placeholder',
         description: 'Para lojas que querem escalar rápido.',
         icon: <Rocket className="h-6 w-6 text-[#F7AA1C]" />,
         color: '[#F7AA1C]',
@@ -47,7 +45,6 @@ const PLANS = [
         name: 'Plano Qridão',
         price: 'R$ 199,99',
         period: '/mês',
-        priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_MASTER || 'price_master_placeholder',
         description: 'O ecossistema completo para você dominar sua região.',
         icon: <Crown className="h-6 w-6 text-[#E9592C]" />,
         color: '[#E9592C]',
@@ -74,18 +71,18 @@ export default function PricingPage() {
             const plan = PLANS.find(p => p.id === planId)
             if (plan) {
                 hasAutoSubscribed.current = true
-                handleSubscribe(plan.id, plan.priceId)
+                handleSubscribe(plan.id)
             }
         }
     }, [])
 
-    const handleSubscribe = async (planId: string, priceId: string) => {
+    const handleSubscribe = async (planId: string) => {
         setLoading(planId)
         try {
-            const res = await fetch('/api/stripe/checkout', {
+            const res = await fetch('/api/asaas/subscription', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ planId, priceId })
+                body: JSON.stringify({ planId })
             })
             const data = await res.json()
             if (data.url) {
@@ -152,12 +149,12 @@ export default function PricingPage() {
                             </CardContent>
                             <CardFooter className="p-10 pt-4">
                                 <Button
-                                    onClick={() => handleSubscribe(plan.id, plan.priceId)}
+                                    onClick={() => handleSubscribe(plan.id)}
                                     disabled={loading !== null}
                                     className={cn(
                                         "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-sm shadow-xl transition-all",
                                         plan.id === 'start' ? "bg-brand-blue hover:bg-brand-blue/90" :
-                                            plan.id === 'pro' ? "bg-[#F7AA1C] hover:bg-[#F7AA1C]/90 shadow-amber-200" :
+                                            plan.id === 'pro' ? "bg-orange-600 hover:bg-orange-700 shadow-orange-500/30 text-white" :
                                                 "bg-slate-900 hover:bg-slate-800"
                                     )}
                                 >
