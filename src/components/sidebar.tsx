@@ -50,6 +50,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Nossos Produtos', href: '/qrido/products', icon: Package },
         { name: 'Meus Clientes', href: '/qrido/customers', icon: Users },
         { name: 'Catálogo Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Equipe', href: '/qrido/company/users', icon: Users },
         { name: 'Regras de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
     ]
 

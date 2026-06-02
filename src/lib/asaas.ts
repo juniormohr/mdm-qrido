@@ -69,3 +69,26 @@ export async function getSubscriptionFirstPayment(subscriptionId: string) {
     
     return result.data[0] // Return the first payment generated
 }
+
+interface AsaasPayment {
+    customer: string
+    billingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX'
+    value: number
+    dueDate: string
+    description: string
+}
+
+export async function createAsaasPayment(data: AsaasPayment) {
+    const res = await fetch(`${ASAAS_API_URL}/payments`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data)
+    })
+    
+    const result = await res.json()
+    if (!res.ok) {
+        throw new Error(result.errors?.[0]?.description || 'Failed to create Asaas payment')
+    }
+    
+    return result
+}

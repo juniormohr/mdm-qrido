@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Edit2, Save, ShoppingBag, Calendar, Check, X, Tag } from 'lucide-react'
+import { ArrowLeft, Edit2, Save, ShoppingBag, Calendar, Check, X, Tag, Star } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 

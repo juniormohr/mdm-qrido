@@ -109,17 +109,22 @@ export default function CompanyDashboard() {
             .subscribe()
     }
 
+    const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
+
     useEffect(() => {
         async function fetchInitialData() {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            fetchStats(user.id)
-            fetchPendingRequests(user.id)
-            subscribeToRequests(user.id)
+            const { data: profile } = await supabase.from('profiles').select('company_id, role, subscription_tier').eq('id', user.id).single()
+            const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+            setActiveCompanyId(companyId)
 
-            const { data: profile } = await supabase.from('profiles').select('subscription_tier').eq('id', user.id).single()
+            fetchStats(companyId)
+            fetchPendingRequests(companyId)
+            subscribeToRequests(companyId)
+
             if (profile) setTier(profile.subscription_tier || 'start')
         }
 
@@ -127,6 +132,7 @@ export default function CompanyDashboard() {
     }, [])
 
     async function handleConfirmRedemption(requestId: string) {
+        if (!activeCompanyId) return
         const supabase = createClient()
 
         // 1. Buscar a solicitação
@@ -192,11 +198,12 @@ export default function CompanyDashboard() {
         }
 
         await supabase.from('loyalty_transactions').insert({
-            user_id: user.id,
+            user_id: activeCompanyId,
             customer_id: customer.id,
             type: 'redeem',
             points: request.total_points,
-            reward_id: request.reward_id
+            reward_id: request.reward_id,
+            created_by: user.id
         })
 
         await supabase.from('purchase_requests').update({
@@ -210,12 +217,13 @@ export default function CompanyDashboard() {
                 delete newItems[requestId]
                 return newItems
             })
-            fetchPendingRequests(user.id)
-            fetchStats(user.id)
+            fetchPendingRequests(activeCompanyId)
+            fetchStats(activeCompanyId)
         }, 3000)
     }
 
     async function handleConfirmRequest(requestId: string) {
+        if (!activeCompanyId) return
         const supabase = createClient()
 
         // 1. Buscar detalhes da solicitação
@@ -262,12 +270,13 @@ export default function CompanyDashboard() {
 
         // 3. Registrar Transação
         await supabase.from('loyalty_transactions').insert({
-            user_id: user.id,
+            user_id: activeCompanyId,
             customer_id: customerId,
             type: 'earn',
             points: request.total_points,
             sale_amount: request.total_amount,
-            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            created_by: user.id
         })
 
         // 4. Finalizar Solicitação
@@ -291,13 +300,14 @@ export default function CompanyDashboard() {
                     delete newState[requestId]
                     return newState
                 })
-                fetchPendingRequests(user.id)
-                fetchStats(user.id)
+                fetchPendingRequests(activeCompanyId)
+                fetchStats(activeCompanyId)
             }, 3000)
         }
     }
 
     async function handleRejectRequest(requestId: string) {
+        if (!activeCompanyId) return
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
@@ -330,7 +340,7 @@ export default function CompanyDashboard() {
                 delete newState[requestId]
                 return newState
             })
-            fetchPendingRequests(user.id)
+            fetchPendingRequests(activeCompanyId)
         }, 3000)
     }
 
