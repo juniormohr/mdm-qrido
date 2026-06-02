@@ -78,7 +78,7 @@ export default function UsersPage() {
                 window.open(data.url, '_blank')
             }
         } catch (error: any) {
-            toast({ title: 'Erro', description: error.message, variant: 'destructive' })
+            alert(`Erro: ${error.message}`)
         } finally {
             setIsBuying(false)
         }
