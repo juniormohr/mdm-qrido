@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     try {
         const { quantity } = await req.json()
         const supabase = await createClient()
+        const supabaseAdmin = createAdminClient()
 
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -42,7 +43,6 @@ export async function POST(req: Request) {
             const customer = await createAsaasCustomer(customerData)
             asaasCustomerId = customer.id
 
-            const supabaseAdmin = createAdminClient()
             await supabaseAdmin
                 .from('profiles')
                 .update({ asaas_customer_id: asaasCustomerId })
