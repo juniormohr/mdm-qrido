@@ -56,16 +56,16 @@ CREATE POLICY "Companies can manage their own products" ON public.products
 -- LOYALTY TRANSACTIONS
 DROP POLICY IF EXISTS "Companies can insert loyalty_transactions" ON public.loyalty_transactions;
 CREATE POLICY "Companies can insert loyalty_transactions" ON public.loyalty_transactions
-    FOR INSERT WITH CHECK (company_id = public.get_my_company_id());
+    FOR INSERT WITH CHECK (user_id = public.get_my_company_id());
 
 DROP POLICY IF EXISTS "Companies can update own transactions" ON public.loyalty_transactions;
 CREATE POLICY "Companies can update own transactions" ON public.loyalty_transactions
-    FOR UPDATE USING (company_id = public.get_my_company_id());
+    FOR UPDATE USING (user_id = public.get_my_company_id());
 
 -- (Deixaremos a visualização de loyalty_transactions como está se já usar auth.uid(), precisaremos atualizar no código frontend ou na policy)
 DROP POLICY IF EXISTS "Companies can view own transactions" ON public.loyalty_transactions;
 CREATE POLICY "Companies can view own transactions" ON public.loyalty_transactions
-    FOR SELECT USING (company_id = public.get_my_company_id());
+    FOR SELECT USING (user_id = public.get_my_company_id());
 
 -- PURCHASE REQUESTS
 DROP POLICY IF EXISTS "Companies can view their own requests" ON public.purchase_requests;
