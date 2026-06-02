@@ -8,11 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 
 export default function UsersPage() {
     const supabase = createClient()
-    const { toast } = useToast()
     
     const [staffs, setStaffs] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
@@ -67,14 +65,11 @@ export default function UsersPage() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error)
 
-            toast({
-                title: 'Cobrança Gerada',
-                description: 'Complete o pagamento para liberar os usuários.',
-            })
+            alert('Cobrança Gerada: Complete o pagamento para liberar os usuários.')
 
             // Dev auto-approval logic is currently inside the API for testing
             if (data.autoApproved) {
-                 toast({ title: 'Aprovado (Modo Teste)', description: 'Licenças liberadas instantaneamente.' })
+                 alert('Aprovado (Modo Teste): Licenças liberadas instantaneamente.')
                  setIsBuyModalOpen(false)
                  fetchData()
             }
@@ -91,7 +86,7 @@ export default function UsersPage() {
 
     async function handleCreateUser() {
         if (!newStaff.name || !newStaff.email || !newStaff.cpf) {
-             toast({ title: 'Atenção', description: 'Preencha todos os campos.', variant: 'destructive' })
+             alert('Atenção: Preencha todos os campos.')
              return
         }
         setIsCreating(true)
@@ -108,15 +103,12 @@ export default function UsersPage() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error)
 
-            toast({
-                title: 'Usuário Criado',
-                description: 'O funcionário já pode fazer login com a senha padrão 123456.',
-            })
+            alert('Usuário Criado: O funcionário já pode fazer login com a senha padrão 123456.')
             setIsCreateModalOpen(false)
             setNewStaff({ name: '', email: '', cpf: '' })
             fetchData()
         } catch (error: any) {
-             toast({ title: 'Erro', description: error.message, variant: 'destructive' })
+             alert(`Erro: ${error.message}`)
         } finally {
             setIsCreating(false)
         }
