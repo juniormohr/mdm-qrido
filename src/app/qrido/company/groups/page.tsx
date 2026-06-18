@@ -126,7 +126,7 @@ export default function GroupsPage() {
                 <BackButton />
                 <div className="text-center space-y-2">
                     <h2 className="text-4xl font-black tracking-tight text-slate-900 uppercase italic">
-                        {companyType === 'mall' ? 'Gerenciar Lojas' : 'Meus Shoppings'}
+                        {companyType === 'mall' ? 'Gerenciar Lojas' : 'Meus Grupos'}
                     </h2>
                     <p className="text-slate-500 font-medium">
                         {companyType === 'mall' 
@@ -208,7 +208,7 @@ export default function GroupsPage() {
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
-                                                {companyType === 'mall' ? 'Loja Parceira' : 'Shopping / Rede'}
+                                                {companyType === 'mall' ? 'Loja Parceira' : 'Grupo / Rede'}
                                             </p>
                                             <p className="font-black text-slate-800 text-lg leading-tight">{party?.full_name || 'Desconhecido'}</p>
                                             <div className="flex items-center gap-2 mt-1">

@@ -17,8 +17,10 @@ export default function CompanyDashboard() {
         totalPoints: 0 // Resgates pontos (mês atual)
     })
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
+    const [pendingInvites, setPendingInvites] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
     const [tier, setTier] = useState<string>('start')
+    const [companyType, setCompanyType] = useState<'store' | 'mall'>('store')
 
     async function fetchStats(userId: string) {
         const supabase = createClient()
@@ -92,6 +94,65 @@ export default function CompanyDashboard() {
         if (data) setPendingRequests(data)
     }
 
+    async function fetchPendingInvites(userId: string) {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('company_groups')
+            .select('id, status, created_at, mall_id')
+            .eq('store_id', userId)
+            .eq('status', 'pending')
+
+        if (data && data.length > 0) {
+            const mallIds = data.map(i => i.mall_id)
+            const { data: profilesData } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', mallIds)
+
+            const mapped = data.map(invite => ({
+                ...invite,
+                isInvite: true,
+                mall: profilesData?.find(p => p.id === invite.mall_id)
+            }))
+            setPendingInvites(mapped)
+        } else {
+            setPendingInvites([])
+        }
+    }
+
+    async function handleRespondInvite(inviteId: string, status: 'accepted' | 'rejected') {
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('company_groups')
+            .update({ status })
+            .eq('id', inviteId)
+
+        if (error) {
+            alert('Erro ao responder: ' + error.message)
+        } else {
+            alert(status === 'accepted' ? 'Parceria aceita!' : 'Parceria recusada!')
+            if (activeCompanyId) {
+                fetchPendingInvites(activeCompanyId)
+            }
+        }
+    }
+
+    function subscribeToInvites(userId: string) {
+        const supabase = createClient()
+        return supabase
+            .channel('company_groups_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'company_groups',
+                filter: `store_id=eq.${userId}`
+            }, () => {
+                console.log('Realtime: mudança detectada em company_groups!')
+                fetchPendingInvites(userId)
+            })
+            .subscribe()
+    }
+
     function subscribeToRequests(userId: string) {
         const supabase = createClient()
         return supabase
@@ -117,15 +178,20 @@ export default function CompanyDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            const { data: profile } = await supabase.from('profiles').select('company_id, role, subscription_tier').eq('id', user.id).single()
+            const { data: profile } = await supabase.from('profiles').select('company_id, role, subscription_tier, company_type').eq('id', user.id).single()
             const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
             setActiveCompanyId(companyId)
 
             fetchStats(companyId)
             fetchPendingRequests(companyId)
+            fetchPendingInvites(companyId)
             subscribeToRequests(companyId)
+            subscribeToInvites(companyId)
 
-            if (profile) setTier(profile.subscription_tier || 'start')
+            if (profile) {
+                setTier(profile.subscription_tier || 'start')
+                setCompanyType(profile.company_type || 'store')
+            }
         }
 
         fetchInitialData()
@@ -460,15 +526,17 @@ export default function CompanyDashboard() {
                     <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Aprovações</span>
                 </button>
 
-                <Link
-                    href="/qrido/company/groups"
-                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
-                >
-                    <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
-                        <CheckCircle2 className="h-6 w-6" />
-                    </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Shoppings / Lojas</span>
-                </Link>
+                {companyType === 'mall' && (
+                    <Link
+                        href="/qrido/company/groups"
+                        className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
+                    >
+                        <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                            <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Lojas do Grupo</span>
+                    </Link>
+                )}
             </div>
 
             {/* Solicitações Pendentes Section */}
@@ -487,7 +555,10 @@ export default function CompanyDashboard() {
                         Object.keys(transitioningItems).forEach(id => {
                             allRequestsMap[id] = transitioningItems[id]
                         })
-                        const displayRequests = Object.values(allRequestsMap).sort((a: any, b: any) =>
+                        const displayRequests = [
+                            ...Object.values(allRequestsMap),
+                            ...pendingInvites
+                        ].sort((a: any, b: any) =>
                             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                         )
 
@@ -500,6 +571,43 @@ export default function CompanyDashboard() {
                         }
 
                         return displayRequests.map((req: any) => {
+                            if (req.isInvite) {
+                                return (
+                                    <Card key={req.id} className="border-none shadow-2xl rounded-[40px] overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 text-white animate-in zoom-in-95 duration-200 p-6 flex flex-col justify-between min-h-[260px]">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className="p-2 bg-white/20 rounded-2xl w-fit">
+                                                    <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
+                                                </div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Novo Convite de Grupo</span>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-xl font-black italic uppercase leading-tight">{req.mall?.full_name || 'Grupo Desconhecido'}</h3>
+                                                <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.mall?.phone || 'Sem telefone'}</p>
+                                                <p className="text-xs font-bold text-white/90 leading-relaxed mt-3">
+                                                    Este grupo deseja te associar para que compras na sua loja gerem pontos também para os clientes deste grupo.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
+                                            <Button
+                                                onClick={() => handleRespondInvite(req.id, 'accepted')}
+                                                className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
+                                            >
+                                                Aceitar
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => handleRespondInvite(req.id, 'rejected')}
+                                                className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
+                                            >
+                                                Recusar
+                                            </Button>
+                                        </div>
+                                    </Card>
+                                )
+                            }
+
                             const isRedeem = req.type === 'redeem'
                             return (
                                 <Card key={req.id} className={cn(
