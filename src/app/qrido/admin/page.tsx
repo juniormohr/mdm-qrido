@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createCompanyAction } from './actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -670,34 +671,54 @@ function AdminContent() {
                             e.preventDefault()
                             const formData = new FormData(e.currentTarget)
                             const supabase = createClient()
-                            const id = currentEntity?.id || crypto.randomUUID() // fallback for new
-
+                            
                             const tier = formData.get('tier') as string
                             const months = parseInt(formData.get('partnership_months') as string || '0')
+                            const company_type = formData.get('company_type') as string
 
-                            let partnership_end_date = null
-                            if (tier === 'partnership' && months > 0) {
-                                const end = new Date()
-                                end.setMonth(end.getMonth() + months)
-                                partnership_end_date = end.toISOString()
-                            }
+                            if (!currentEntity) {
+                                // Cadastro de nova empresa
+                                const result = await createCompanyAction({
+                                    email: formData.get('email') as string,
+                                    fullName: formData.get('full_name') as string,
+                                    phone: formData.get('phone') as string,
+                                    companyType: company_type,
+                                    subscriptionTier: tier,
+                                    partnershipMonths: months,
+                                    cpfCnpj: formData.get('cpf_cnpj') as string
+                                })
 
-                                const { error } = await supabase.from('profiles').upsert({
-                                    id: id,
+                                if (result.error) {
+                                    alert('Erro ao cadastrar empresa: ' + result.error)
+                                } else {
+                                    alert('Empresa cadastrada com sucesso! Senha padrão de acesso: 123456')
+                                    setShowCompanyModal(false)
+                                    fetchAllData()
+                                }
+                            } else {
+                                // Edição de empresa existente
+                                let partnership_end_date = null
+                                if (tier === 'partnership' && months > 0) {
+                                    const end = new Date()
+                                    end.setMonth(end.getMonth() + months)
+                                    partnership_end_date = end.toISOString()
+                                }
+
+                                const { error } = await supabase.from('profiles').update({
                                     full_name: formData.get('full_name'),
                                     phone: formData.get('phone'),
                                     email: formData.get('email'),
                                     subscription_tier: tier,
                                     partnership_months: tier === 'partnership' ? months : null,
                                     partnership_end_date: partnership_end_date,
-                                    company_type: formData.get('company_type'),
-                                    role: 'company'
-                                })
+                                    company_type: company_type
+                                }).eq('id', currentEntity.id)
 
-                            if (error) alert('Erro ao salvar empresa: ' + error.message)
-                            else {
-                                setShowCompanyModal(false)
-                                fetchAllData()
+                                if (error) alert('Erro ao salvar empresa: ' + error.message)
+                                else {
+                                    setShowCompanyModal(false)
+                                    fetchAllData()
+                                }
                             }
                         }}>
                             <CardContent className="p-8 space-y-4">
@@ -709,6 +730,12 @@ function AdminContent() {
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail da Empresa</Label>
                                     <Input name="email" type="email" defaultValue={currentEntity?.email} placeholder="email@empresa.com" required className="rounded-xl border-slate-100 h-12" />
                                 </div>
+                                {!currentEntity && (
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">CNPJ ou CPF (Apenas números)</Label>
+                                        <Input name="cpf_cnpj" placeholder="Ex: 00000000000100" required className="rounded-xl border-slate-100 h-12" />
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone / WhatsApp</Label>
                                     <Input name="phone" defaultValue={currentEntity?.phone} placeholder="(00) 0 0000-0000" className="rounded-xl border-slate-100 h-12" />
