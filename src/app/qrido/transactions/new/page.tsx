@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Search, Calculator, CheckCircle2, ShoppingBag, Plus, Minus, Trash2, X, AlertCircle } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 import { cn } from '@/lib/utils'
+import { processTransactionAction } from '../actions'
 
 interface Customer {
     id: string
@@ -121,37 +122,17 @@ export default function NewTransactionPage() {
         if (!selectedCustomer || selectedItems.length === 0) return
 
         setLoading(true)
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!user) return
-
-        // 1. Registrar a transação
-        const { error: txError } = await supabase.from('loyalty_transactions').insert({
-            user_id: user.id,
-            customer_id: selectedCustomer.id,
-            type: 'earn',
-            points: totalPoints,
-            sale_amount: totalAmount,
-            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        const result = await processTransactionAction({
+            customerId: selectedCustomer.id,
+            totalPoints,
+            totalAmount
         })
-
-        if (txError) {
-            alert('Erro ao registrar pontos: ' + txError.message)
-            setLoading(false)
-            return
-        }
-
-        // 2. Atualizar saldo do cliente
-        const { error: custError } = await supabase
-            .from('customers')
-            .update({ points_balance: selectedCustomer.points_balance + totalPoints })
-            .eq('id', selectedCustomer.id)
 
         setLoading(false)
 
-        if (custError) {
-            alert('Erro ao atualizar saldo: ' + custError.message)
+        if (result.error) {
+            alert(result.error)
         } else {
             router.push('/qrido/company')
             router.refresh()

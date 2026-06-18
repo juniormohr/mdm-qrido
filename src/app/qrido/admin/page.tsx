@@ -682,16 +682,17 @@ function AdminContent() {
                                 partnership_end_date = end.toISOString()
                             }
 
-                            const { error } = await supabase.from('profiles').upsert({
-                                id: id,
-                                full_name: formData.get('full_name'),
-                                phone: formData.get('phone'),
-                                email: formData.get('email'),
-                                subscription_tier: tier,
-                                partnership_months: tier === 'partnership' ? months : null,
-                                partnership_end_date: partnership_end_date,
-                                role: 'company'
-                            })
+                                const { error } = await supabase.from('profiles').upsert({
+                                    id: id,
+                                    full_name: formData.get('full_name'),
+                                    phone: formData.get('phone'),
+                                    email: formData.get('email'),
+                                    subscription_tier: tier,
+                                    partnership_months: tier === 'partnership' ? months : null,
+                                    partnership_end_date: partnership_end_date,
+                                    company_type: formData.get('company_type'),
+                                    role: 'company'
+                                })
 
                             if (error) alert('Erro ao salvar empresa: ' + error.message)
                             else {
@@ -711,6 +712,17 @@ function AdminContent() {
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone / WhatsApp</Label>
                                     <Input name="phone" defaultValue={currentEntity?.phone} placeholder="(00) 0 0000-0000" className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Empresa</Label>
+                                    <select
+                                        name="company_type"
+                                        defaultValue={currentEntity?.company_type || 'store'}
+                                        className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
+                                    >
+                                        <option value="store">Loja Padrão</option>
+                                        <option value="mall">Shopping / Grupo (Pode Convidar Lojas)</option>
+                                    </select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Plano de Assinatura</Label>

@@ -419,7 +419,7 @@ export default function CompanyDashboard() {
             </div>
 
             {/* Botões de Ação Inferiores */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <Link
                     href="/qrido/products"
                     className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
@@ -427,7 +427,7 @@ export default function CompanyDashboard() {
                     <div className="h-12 w-12 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange group-hover:scale-110 transition-transform">
                         <Package className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Produtos</span>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Produtos</span>
                 </Link>
 
                 <Link
@@ -437,7 +437,7 @@ export default function CompanyDashboard() {
                     <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
                         <Plus className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">+ Registrar Venda</span>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">+ Venda</span>
                 </Link>
 
                 <Link
@@ -447,7 +447,7 @@ export default function CompanyDashboard() {
                     <div className="h-12 w-12 bg-brand-green/10 rounded-2xl flex items-center justify-center text-brand-green group-hover:scale-110 transition-transform">
                         <Users className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Cadastrar Cliente</span>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Cliente</span>
                 </Link>
 
                 <button
@@ -457,8 +457,18 @@ export default function CompanyDashboard() {
                     <div className="h-12 w-12 bg-brand-yellow/10 rounded-2xl flex items-center justify-center text-brand-yellow group-hover:scale-110 transition-transform">
                         <MessageSquareMore className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic">Solicitações</span>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Aprovações</span>
                 </button>
+
+                <Link
+                    href="/qrido/company/groups"
+                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
+                >
+                    <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                        <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Shoppings / Lojas</span>
+                </Link>
             </div>
 
             {/* Solicitações Pendentes Section */}
