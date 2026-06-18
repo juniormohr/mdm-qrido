@@ -40,17 +40,32 @@ export default function GroupsPage() {
 
         // Buscar grupos onde eu sou store (se for store) ou mall (se for mall)
         const roleColumn = type === 'mall' ? 'mall_id' : 'store_id'
-        const otherColumn = type === 'mall' ? 'store_id' : 'mall_id'
         
         const { data: groupsData } = await supabase
             .from('company_groups')
-            .select(`
-                id, status, created_at,
-                other_party:profiles!company_groups_${otherColumn}_fkey(id, full_name, phone)
-            `)
+            .select('id, status, created_at, mall_id, store_id')
             .eq(roleColumn, user.id)
 
-        if (groupsData) setGroups(groupsData)
+        if (groupsData && groupsData.length > 0) {
+            const otherIds = groupsData.map(g => type === 'mall' ? g.store_id : g.mall_id)
+            
+            const { data: profilesData } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', otherIds)
+
+            const mappedGroups = groupsData.map(g => {
+                const otherId = type === 'mall' ? g.store_id : g.mall_id
+                const otherProfile = profilesData?.find(p => p.id === otherId)
+                return {
+                    ...g,
+                    other_party: otherProfile || null
+                }
+            })
+            setGroups(mappedGroups)
+        } else {
+            setGroups([])
+        }
         setLoading(false)
     }
 
