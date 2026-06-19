@@ -32,13 +32,34 @@ export async function createAsaasCustomer(data: AsaasCustomer) {
     return result
 }
 
+interface CreditCard {
+    holderName: string
+    number: string
+    expiryMonth: string
+    expiryYear: string
+    ccv: string
+}
+
+interface CreditCardHolderInfo {
+    name: string
+    email: string
+    cpfCnpj: string
+    postalCode: string
+    addressNumber: string
+    addressComplement?: string
+    phone: string
+}
+
 interface AsaasSubscription {
     customer: string
     billingType: 'UNDEFINED' | 'BOLETO' | 'CREDIT_CARD' | 'PIX'
     value: number
     nextDueDate: string
-    cycle: 'MONTHLY'
+    cycle: 'MONTHLY' | 'YEARLY'
     description: string
+    creditCard?: CreditCard
+    creditCardHolderInfo?: CreditCardHolderInfo
+    remoteIp?: string
 }
 
 export async function createAsaasSubscription(data: AsaasSubscription) {

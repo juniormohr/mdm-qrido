@@ -2,94 +2,97 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Check, Zap, Rocket, Star, ShieldCheck } from 'lucide-react'
+import { Check, Zap, Rocket, Crown, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const PLANS = [
+    // Opções Mensais
     {
-        id: 'start',
-        name: 'Plano Qridinho',
+        id: 'qridinho_mensal',
+        name: 'Plano Qridinho Mensal',
         price: 'R$ 49,99',
         period: '/mês',
         description: 'Ideal para quem está focando em fidelizar do zero.',
-        features: [
-            'Até 10 produtos',
-            '100 clientes',
-            'Métricas básicas',
-            'Suporte via chat'
-        ],
         icon: Zap,
         color: 'text-slate-600',
         bgColor: 'bg-slate-50',
-        btnClass: 'btn-blue'
+        btnClass: 'btn-blue',
+        type: 'monthly'
     },
     {
-        id: 'pro',
-        name: 'Plano Qrido',
+        id: 'qrido_mensal',
+        name: 'Plano Qrido Mensal',
         price: 'R$ 89,99',
         period: '/mês',
         description: 'Para lojas que querem escalar rápido.',
-        features: [
-            'Até 20 produtos',
-            '300 clientes',
-            'Dashboard avançado',
-            'Relatórios mensais',
-            'Prioridade no atendimento'
-        ],
         icon: Rocket,
         color: 'text-brand-blue',
         bgColor: 'bg-brand-blue/5',
         btnClass: 'btn-blue',
-        popular: true
+        popular: true,
+        type: 'monthly'
     },
     {
-        id: 'master',
-        name: 'Plano Qridão',
+        id: 'qridao_mensal',
+        name: 'Plano Qridão Mensal',
         price: 'R$ 199,99',
         period: '/mês',
         description: 'O ecossistema completo para você dominar sua região.',
-        features: [
-            'Até 100 produtos',
-            'Até 1000 clientes',
-            'Botão pontos em dobro para ações relâmpago',
-            'Gerente de conta personalizado',
-            'Material gráfico para sua empresa'
-        ],
-        icon: Star,
+        icon: Crown,
         color: 'text-brand-orange',
         bgColor: 'bg-brand-orange/5',
-        btnClass: 'bg-brand-orange hover:bg-brand-orange/90 text-white'
+        btnClass: 'bg-brand-orange hover:bg-brand-orange/90 text-white',
+        type: 'monthly'
+    },
+    // Opções Anuais
+    {
+        id: 'qridinho_anual',
+        name: 'Plano Qridinho Anual',
+        price: 'R$ 39,99',
+        period: '/mês',
+        description: 'Fidelidade de 12 meses. O melhor custo-benefício para iniciantes.',
+        icon: Zap,
+        color: 'text-slate-600',
+        bgColor: 'bg-slate-50',
+        btnClass: 'btn-blue',
+        type: 'yearly'
+    },
+    {
+        id: 'qrido_anual',
+        name: 'Plano Qrido Anual',
+        price: 'R$ 71,99',
+        period: '/mês',
+        description: 'Fidelidade de 12 meses. Escalar com o menor preço.',
+        icon: Rocket,
+        color: 'text-brand-blue',
+        bgColor: 'bg-brand-blue/5',
+        btnClass: 'btn-blue',
+        type: 'yearly'
+    },
+    {
+        id: 'qridao_anual',
+        name: 'Plano Qridão Anual',
+        price: 'R$ 159,99',
+        period: '/mês',
+        description: 'Fidelidade de 12 meses. A potência completa com desconto massivo.',
+        icon: Crown,
+        color: 'text-brand-orange',
+        bgColor: 'bg-brand-orange/5',
+        btnClass: 'bg-brand-orange hover:bg-brand-orange/90 text-white',
+        type: 'yearly'
     }
 ]
 
 export default function SelectPlanPage() {
     const router = useRouter()
-    const [loading, setLoading] = useState<string | null>(null)
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
-    const handleSelectPlan = async (planId: string) => {
-        setLoading(planId)
-        const supabase = createClient()
+    const filteredPlans = PLANS.filter(plan => plan.type === billingCycle)
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-            router.push('/login')
-            return
-        }
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ subscription_tier: planId })
-            .eq('id', user.id)
-
-        if (error) {
-            alert('Erro ao selecionar plano: ' + error.message)
-            setLoading(null)
-        } else {
-            router.push('/qrido/company')
-        }
+    const handleSelectPlan = (planId: string) => {
+        router.push(`/qrido/checkout?plan=${planId}`)
     }
 
     return (
@@ -106,14 +109,39 @@ export default function SelectPlanPage() {
                     <p className="text-lg font-medium text-slate-500 italic max-w-2xl mx-auto">
                         Selecione a melhor opção para impulsionar o seu ecossistema de marketing.
                     </p>
+
+                    {/* Alternador de ciclo de faturamento */}
+                    <div className="flex items-center justify-center pt-2">
+                        <div className="bg-white p-1 rounded-2xl inline-flex gap-1 border border-slate-100 shadow-sm">
+                            <button
+                                onClick={() => setBillingCycle('monthly')}
+                                className={cn(
+                                    "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all",
+                                    billingCycle === 'monthly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                )}
+                            >
+                                Mensal
+                            </button>
+                            <button
+                                onClick={() => setBillingCycle('yearly')}
+                                className={cn(
+                                    "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all flex items-center gap-2",
+                                    billingCycle === 'yearly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                )}
+                            >
+                                Anual (12m)
+                                <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black">20% OFF</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="grid md:grid-cols-3 gap-8">
-                    {PLANS.map((plan) => (
+                    {filteredPlans.map((plan) => (
                         <Card
                             key={plan.id}
                             className={cn(
-                                "relative border-none shadow-2xl rounded-[40px] overflow-hidden transition-all duration-300 hover:scale-[1.02]",
+                                "relative border-none shadow-2xl rounded-[40px] overflow-hidden transition-all duration-300 hover:scale-[1.02] bg-white",
                                 plan.popular ? "ring-2 ring-brand-blue ring-offset-4 ring-offset-[#FDF5ED]" : ""
                             )}
                         >
@@ -141,26 +169,28 @@ export default function SelectPlanPage() {
 
                             <CardContent className="p-8 space-y-8 bg-white">
                                 <ul className="space-y-4">
-                                    {plan.features.map((feature) => (
-                                        <li key={feature} className="flex items-center gap-3 text-sm font-bold text-slate-600">
-                                            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
-                                                <Check className="h-3 w-3 text-emerald-500" />
-                                            </div>
-                                            {feature}
-                                        </li>
-                                    ))}
+                                    {/* Features genéricas mantidas */}
+                                    <li className="flex items-center gap-3 text-sm font-bold text-slate-600">
+                                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                                            <Check className="h-3 w-3 text-emerald-500" />
+                                        </div>
+                                        Suporte via chat integrado
+                                    </li>
+                                    <li className="flex items-center gap-3 text-sm font-bold text-slate-600">
+                                        <div className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                                            <Check className="h-3 w-3 text-emerald-500" />
+                                        </div>
+                                        Dashboard de Métricas
+                                    </li>
                                 </ul>
 
                                 <Button
                                     onClick={() => handleSelectPlan(plan.id)}
-                                    disabled={loading !== null}
                                     className={cn(
-                                        "w-full h-14 rounded-2xl text-base font-black italic uppercase tracking-widest transition-all shadow-xl",
-                                        plan.btnClass,
-                                        loading === plan.id ? "opacity-75" : "shadow-brand-blue/20"
+                                        "w-full h-14 rounded-2xl text-base font-black italic uppercase tracking-widest transition-all shadow-xl text-white bg-brand-blue hover:bg-brand-blue/90"
                                     )}
                                 >
-                                    {loading === plan.id ? 'ATIVANDO...' : 'SELECIONAR PLANO'}
+                                    SELECIONAR PLANO
                                 </Button>
                             </CardContent>
                         </Card>
