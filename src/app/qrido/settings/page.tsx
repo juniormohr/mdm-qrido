@@ -222,7 +222,13 @@ export default function QRidoSettings() {
                                 Meu Plano e Limites
                             </CardTitle>
                             <div className="px-4 py-1.5 rounded-full bg-brand-orange/10 text-brand-orange text-[10px] font-black uppercase tracking-widest flex items-center justify-center min-w-[124px]">
-                                Plano {profile.subscription_tier}
+                                Plano {
+                                    profile.subscription_tier === 'start' || profile.subscription_tier === 'basic' || profile.subscription_tier?.includes('qridinho') ? 'Qridinho' :
+                                    profile.subscription_tier === 'pro' || profile.subscription_tier?.includes('qrido') ? 'Qrido' :
+                                    profile.subscription_tier === 'master' || profile.subscription_tier?.includes('qridao') ? 'Qridão' :
+                                    profile.subscription_tier === 'partnership' ? 'Parceria' :
+                                    profile.subscription_tier
+                                }
                             </div>
                         </CardHeader>
                         <CardContent className="p-8 space-y-8">

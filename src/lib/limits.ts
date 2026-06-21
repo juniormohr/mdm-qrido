@@ -19,7 +19,18 @@ export async function checkTierLimits(companyId: string, type: 'customers' | 'pr
         .eq('id', companyId)
         .single()
 
-    let tier = (profile?.subscription_tier || 'start') as Tier
+    let tier = (profile?.subscription_tier || 'basic') as Tier
+
+    // Normalizar nomenclatura (ex: 'basic' mapeia para 'start', etc.) se necessário
+    if (tier === 'basic' || (tier as string) === 'start' || (tier as string) === 'qridinho_mensal' || (tier as string) === 'qridinho_anual') {
+        tier = 'start'
+    } else if ((tier as string) === 'qrido_mensal' || (tier as string) === 'qrido_anual') {
+        tier = 'pro'
+    } else if ((tier as string) === 'qridao_mensal' || (tier as string) === 'qridao_anual') {
+        tier = 'master'
+    }
+
+
 
     // Check partnership expiry
     if (tier === 'partnership' && profile?.partnership_end_date) {
