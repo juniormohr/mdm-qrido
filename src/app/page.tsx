@@ -65,6 +65,28 @@ interface Product {
     is_top_seller?: boolean
 }
 
+const GoldCoinsIcon = () => (
+    <span className="inline-flex items-center gap-0.5 shrink-0 select-none">
+        <svg className="w-4 h-4 text-amber-400 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="10" fill="url(#goldGradient)" stroke="#D97706" strokeWidth="1" />
+            <circle cx="12" cy="12" r="7" fill="none" stroke="#FBBF24" strokeWidth="1" strokeDasharray="4 2" />
+            <text x="12" y="15.5" fontSize="10" fontWeight="black" fill="#B45309" textAnchor="middle" fontFamily="sans-serif">$</text>
+            <defs>
+                <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FDE047" />
+                    <stop offset="50%" stopColor="#EAB308" />
+                    <stop offset="100%" stopColor="#CA8A04" />
+                </linearGradient>
+            </defs>
+        </svg>
+        <svg className="w-4 h-4 text-amber-400 -ml-1.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="10" fill="url(#goldGradient)" stroke="#D97706" strokeWidth="1" />
+            <circle cx="12" cy="12" r="7" fill="none" stroke="#FBBF24" strokeWidth="1" strokeDasharray="4 2" />
+            <text x="12" y="15.5" fontSize="10" fontWeight="black" fill="#B45309" textAnchor="middle" fontFamily="sans-serif">$</text>
+        </svg>
+    </span>
+)
+
 export default function CustomerDashboard() {
     const router = useRouter()
     const [companies, setCompanies] = useState<Company[]>([])
@@ -113,35 +135,40 @@ export default function CustomerDashboard() {
 
     const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
 
-    const fetchFeaturedProducts = async (companyIds: string[]) => {
-        if (!companyIds || companyIds.length === 0) {
-            setFeaturedProducts([])
-            return
-        }
+    const fetchFeaturedProducts = async () => {
         setFeaturedProductsLoading(true)
         const supabase = createClient()
         const { data, error } = await supabase
             .from('products')
             .select('*')
-            .in('company_id', companyIds)
             .eq('is_active', true)
         
         if (error) {
             console.error('Erro ao buscar produtos em destaque:', error)
         } else if (data) {
-            setFeaturedProducts(data)
+            const promotedCompanyIds = companies
+                .filter(c => loyaltyConfigs[c.id]?.double_points_active)
+                .map(c => c.id)
+
+            const sorted = [...data].sort((a, b) => {
+                const aDouble = promotedCompanyIds.includes(a.company_id) ? 1 : 0
+                const bDouble = promotedCompanyIds.includes(b.company_id) ? 1 : 0
+                
+                if (aDouble !== bDouble) {
+                    return bDouble - aDouble
+                }
+                
+                return b.points_reward - a.points_reward
+            })
+
+            setFeaturedProducts(sorted.slice(0, 20))
         }
         setFeaturedProductsLoading(false)
     }
 
     useEffect(() => {
-        const promotedCompanyIds = companies
-            .filter(c => loyaltyConfigs[c.id]?.double_points_active)
-            .map(c => c.id)
-        if (promotedCompanyIds.length > 0) {
-            fetchFeaturedProducts(promotedCompanyIds)
-        } else {
-            setFeaturedProducts([])
+        if (companies.length > 0) {
+            fetchFeaturedProducts()
         }
     }, [companies, loyaltyConfigs])
 
@@ -827,10 +854,6 @@ export default function CustomerDashboard() {
     }
 
     const handleAddToCart = (product: Product) => {
-        if (!userProfile) {
-            setShowLoginPromptModal(true)
-            return
-        }
         setCart(currentCart => {
             const existingIndex = currentCart.findIndex(item => item.product.id === product.id)
             if (existingIndex > -1) {
@@ -1077,7 +1100,7 @@ export default function CustomerDashboard() {
                     <button
                         key={tab.id}
                         onClick={() => {
-                            if (tab.id !== 'offers' && !userProfile) {
+                            if (tab.id !== 'offers' && tab.id !== 'my_stores' && !userProfile) {
                                 setShowLoginPromptModal(true)
                                 return
                             }
@@ -1104,13 +1127,16 @@ export default function CustomerDashboard() {
             </div>
 
             {activeTab === 'offers' ? (
-                <div className="animate-in fade-in duration-500 space-y-8 pb-10">
-                    <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
-                        <div className="relative z-10">
-                            <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
-                            <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
+                <div className="animate-in fade-in duration-500 space-y-6 pb-10">
+                    <div className="bg-gradient-to-r from-amber-500 to-[#E9592C] p-5 rounded-3xl text-white shadow-lg relative overflow-hidden flex items-center justify-between">
+                        <div className="relative z-10 flex items-center gap-3">
+                            <GoldCoinsIcon />
+                            <div>
+                                <h3 className="text-lg font-black italic uppercase tracking-wide leading-none">Hoje tem ponto em dobro no Qrido!</h3>
+                                <p className="text-white/90 font-medium italic text-[11px] mt-1">Aproveite para pontuar em dobro nos produtos sinalizados abaixo.</p>
+                            </div>
                         </div>
-                        <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
+                        <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-1/3" />
                     </div>
 
                     {featuredProductsLoading ? (
@@ -1132,7 +1158,7 @@ export default function CustomerDashboard() {
                                     <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
                                         {pointsMultiplier > 1 && (
                                             <div className="absolute top-3 left-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
-                                                <span>🪙🪙</span>
+                                                <GoldCoinsIcon />
                                                 <span>Pontos em Dobro</span>
                                             </div>
                                         )}
@@ -1152,16 +1178,16 @@ export default function CustomerDashboard() {
                                             <p className="text-brand-blue font-black italic text-sm">R$ {product.price}</p>
                                             <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
                                         </CardHeader>
-                                        <CardContent className="pt-0 pb-6 flex flex-col gap-3">
+                                        <CardContent className="pt-0 pb-6 flex flex-row items-center gap-2">
                                             <div className={cn(
-                                                "border text-[10px] font-black px-3 py-1.5 rounded-xl italic uppercase shadow-inner text-center",
+                                                "border text-[10px] font-black px-2 py-3 rounded-xl italic uppercase shadow-inner text-center w-20 shrink-0 flex items-center justify-center h-11",
                                                 pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
                                             )}>
-                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🪙🪙'}
+                                                +{product.points_reward * pointsMultiplier} PTS
                                             </div>
                                             <Button
                                                 className={cn(
-                                                    "w-full h-11 rounded-2xl font-black italic uppercase text-[10px] shadow-md transition-all duration-300",
+                                                    "flex-1 h-11 rounded-2xl font-black italic uppercase text-[10px] shadow-md transition-all duration-300 px-2 truncate",
                                                     lastAddedItem === product.id
                                                         ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
                                                         : "bg-[#E9592C] hover:bg-[#E9592C]/90 text-white shadow-orange-100"
@@ -1240,7 +1266,7 @@ export default function CustomerDashboard() {
                                                             {company.full_name || 'Empresa Parceira'}
                                                             {pointsMultiplier > 1 && (
                                                                 <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-1 shadow-sm">
-                                                                    🪙🪙 Pontos em Dobro
+                                                                    <GoldCoinsIcon /> Pontos em Dobro
                                                                 </span>
                                                             )}
                                                             {balance > 0 && (
@@ -1298,23 +1324,31 @@ export default function CustomerDashboard() {
                                                                                 <ShoppingBag className="h-5 w-5" />
                                                                             </div>
                                                                             <div className={cn("border text-[10px] font-black px-2.5 py-1 rounded-full italic uppercase shadow-sm flex items-center gap-1", pointsMultiplier > 1 ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white border-amber-300" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
-                                                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🪙🪙 Pontos em Dobro!'}
+                                                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && <><GoldCoinsIcon /> Pontos em Dobro!</>}
                                                                             </div>
                                                                         </div>
                                                                         <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
                                                                         <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
                                                                         <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
-                                                                        <Button
-                                                                            className={cn(
-                                                                                "w-full h-10 mt-4 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300",
-                                                                                lastAddedItem === product.id
-                                                                                    ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                                                    : "bg-slate-900 hover:bg-slate-800 text-white"
-                                                                            )}
-                                                                            onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                                                        >
-                                                                            {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
-                                                                        </Button>
+                                                                        <div className="flex items-center gap-2 mt-4">
+                                                                            <div className={cn(
+                                                                                "border text-[10px] font-black px-2 py-3 rounded-xl italic uppercase shadow-inner text-center w-20 shrink-0 flex items-center justify-center h-10",
+                                                                                pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
+                                                                            )}>
+                                                                                +{product.points_reward * pointsMultiplier} PTS
+                                                                            </div>
+                                                                            <Button
+                                                                                className={cn(
+                                                                                    "flex-1 h-10 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300 px-2 truncate",
+                                                                                    lastAddedItem === product.id
+                                                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                                                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                                )}
+                                                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                            >
+                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
+                                                                            </Button>
+                                                                        </div>
                                                                     </div>
                                                                 ))}
                                                             </div>
