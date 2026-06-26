@@ -22,7 +22,7 @@ export async function checkTierLimits(companyId: string, type: 'customers' | 'pr
     let tier = (profile?.subscription_tier || 'basic') as Tier
 
     // Normalizar nomenclatura (ex: 'basic' mapeia para 'start', etc.) se necessário
-    if (tier === 'basic' || (tier as string) === 'start' || (tier as string) === 'qridinho_mensal' || (tier as string) === 'qridinho_anual') {
+    if ((tier as string) === 'basic' || (tier as string) === 'start' || (tier as string) === 'qridinho_mensal' || (tier as string) === 'qridinho_anual') {
         tier = 'start'
     } else if ((tier as string) === 'qrido_mensal' || (tier as string) === 'qrido_anual') {
         tier = 'pro'
