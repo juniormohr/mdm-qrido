@@ -702,6 +702,8 @@ export default function CustomerDashboard() {
         setLoading(true)
         const supabase = createClient()
         
+        let rawCompanies: Company[] = []
+
         if (userLocation) {
             const { data } = await supabase.rpc('get_nearby_companies', {
                 user_lat: userLocation.lat,
@@ -709,15 +711,12 @@ export default function CustomerDashboard() {
                 radius_km: 100
             })
             if (data) {
-                const formatted = data.map((d: any) => ({
+                rawCompanies = data.map((d: any) => ({
                     id: d.company_id,
                     full_name: d.company_name,
                     distance: d.distance_km,
                     address: d.city ? `${d.city}, ${d.state}` : ''
                 }))
-                setCompanies(formatted)
-            } else {
-                setCompanies([])
             }
         } else {
             const { data: profiles } = await supabase
@@ -725,8 +724,19 @@ export default function CustomerDashboard() {
                 .select('id, full_name')
                 .eq('role', 'company')
 
-            if (profiles) setCompanies(profiles as Company[])
+            if (profiles) {
+                rawCompanies = profiles as Company[]
+            }
         }
+
+        // Ordenar: as empresas com pontos em dobro ativos vão para o topo
+        const sorted = [...rawCompanies].sort((a, b) => {
+            const aDouble = loyaltyConfigs[a.id]?.double_points_active ? 1 : 0
+            const bDouble = loyaltyConfigs[b.id]?.double_points_active ? 1 : 0
+            return bDouble - aDouble
+        })
+
+        setCompanies(sorted)
         setLoading(false)
     }
 
@@ -786,7 +796,6 @@ export default function CustomerDashboard() {
         fetchProducts(company.id)
         fetchRewards(company.id)
         fetchCustomerBalance(company.id)
-        setActiveTab('offers')
     }
 
     async function fetchRewards(companyId: string) {
