@@ -99,7 +99,7 @@ export async function signup(formData: FormData) {
             redirect('/qrido/pricing')
         }
     } else {
-        redirect('/qrido/customer')
+        redirect('/')
     }
 }
 

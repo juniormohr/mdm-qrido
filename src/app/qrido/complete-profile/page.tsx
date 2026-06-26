@@ -136,7 +136,7 @@ export default function CompleteProfilePage() {
             setError(updateError.message)
             setSaving(false)
         } else {
-            router.replace('/qrido/customer')
+            router.replace('/')
         }
     }
 

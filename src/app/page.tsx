@@ -1,478 +1,1770 @@
 'use client'
 
-import React from 'react'
-import Link from 'next/link'
-import { 
-    Users, 
-    Zap, 
-    TrendingUp, 
-    CheckCircle2, 
-    ArrowRight, 
-    ChevronRight, 
-    Store, 
-    Gift, 
-    Package, 
-    MessageSquareMore,
-    Smartphone,
-    MousePointer2,
-    HeartPulse,
+import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+import {
+    LayoutDashboard,
+    ShoppingBag,
     Settings,
-    Rocket,
-    Crown
+    TrendingUp,
+    Home,
+    LogOut,
+    Search,
+    Star,
+    Award,
+    ChevronRight,
+    ArrowUpRight,
+    BarChart3,
+    Clock,
+    User,
+    ArrowLeft,
+    Plus,
+    Minus,
+    Trash2,
+    CheckCircle2,
+    X,
+    Check,
+    History as HistoryIcon,
+    Bell,
+    Eye,
+    EyeOff,
+    Grid,
+    Store,
+    Gift,
+    Heart,
+    MapPin,
+    Flame
 } from 'lucide-react'
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
 
-export default function LandingPage() {
+interface CartItem {
+    product: Product
+    quantity: number
+}
+
+interface Company {
+    id: string
+    full_name: string
+    points_balance?: number
+    total_spent?: number
+    distance?: number
+    address?: string
+}
+
+interface Product {
+    id: string
+    company_id: string
+    name: string
+    description: string
+    price: number
+    points_reward: number
+    is_top_seller?: boolean
+}
+
+export default function CustomerDashboard() {
+    const router = useRouter()
+    const [companies, setCompanies] = useState<Company[]>([])
+    const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
+    const selectedCompanyRef = useRef<Company | null>(null)
+    const [userLocation, setUserLocation] = useState<{lat: number, lon: number} | null>(null)
+    const [locationError, setLocationError] = useState<string | null>(null)
+
+    useEffect(() => {
+        selectedCompanyRef.current = selectedCompany
+    }, [selectedCompany])
+    const [products, setProducts] = useState<Product[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showVerifyModal, setShowVerifyModal] = useState(false)
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+    const [verificationCode, setVerificationCode] = useState('')
+    const [customerBalance, setCustomerBalance] = useState(0)
+    const [globalScore, setGlobalScore] = useState(0)
+    const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
+    const userPhoneRef = useRef<string | null>(null)
+
+    useEffect(() => {
+        if (userProfile?.phone) {
+            userPhoneRef.current = userProfile.phone
+        }
+    }, [userProfile])
+    const [transactions, setTransactions] = useState<any[]>([])
+    const [myStores, setMyStores] = useState<Company[]>([])
+    const [loyaltyConfigs, setLoyaltyConfigs] = useState<Record<string, any>>({})
+    const [companyRewards, setCompanyRewards] = useState<any[]>([])
+    const [allRewards, setAllRewards] = useState<any[]>([])
+    const [rewardsLoading, setRewardsLoading] = useState(false)
+    const [cart, setCart] = useState<CartItem[]>([])
+    const [isCartOpen, setIsCartOpen] = useState(false)
+    const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
+    const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
+    const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'requests' | 'history' | 'rewards'>('offers')
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+    const [historyData, setHistoryData] = useState<any[]>([])
+    const [historyLoading, setHistoryLoading] = useState(false)
+    const [isGlobalHistory, setIsGlobalHistory] = useState(false)
+    const [showScore, setShowScore] = useState(true)
+    const [showLoginPromptModal, setShowLoginPromptModal] = useState(false)
+
+    const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
+
+    useEffect(() => {
+        fetchInitialData()
+    }, [])
+
+    useEffect(() => {
+        const supabase = createClient()
+        const loadTabData = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            
+            if (!user) {
+                if (activeTab === 'offers' && !userLocation) {
+                    await fetchCompanies()
+                }
+                return
+            }
+
+            const phone = userProfile?.phone || userPhoneRef.current
+
+            // Always fetch to keep the global score updated regardless of the active tab
+            if (phone) {
+                fetchMyStores(phone, user.id)
+            }
+
+            if (activeTab === 'offers') {
+                if (!userLocation) {
+                    await fetchCompanies()
+                }
+            } else if (activeTab === 'requests') {
+                await fetchPurchaseRequests(user.id)
+            } else if (activeTab === 'history') {
+                await fetchGlobalHistory()
+            }
+        }
+        loadTabData()
+    }, [activeTab, userProfile])
+
+    useEffect(() => {
+        if (activeTab === 'rewards') {
+            fetchAllRewards()
+        }
+    }, [activeTab, myStores])
+
+    useEffect(() => {
+        let channel: any
+
+        async function setupRealtime() {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            channel = supabase
+                .channel('customer_realtime')
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'purchase_requests',
+                    filter: `customer_profile_id=eq.${user.id}`
+                }, (payload) => {
+                    console.log('Realtime: mudança em purchase_requests!', payload)
+                    fetchPurchaseRequests(user.id)
+
+                    const newReq = payload.new as any
+                    const status = newReq?.status
+
+                    if (status === 'completed') {
+                        const phone = userPhoneRef.current
+                        console.log('Realtime: Pedido finalizado! Atualizando saldos...')
+                        fetchMyStores(phone || undefined, user.id)
+                        fetchTransactions(user.id, phone || undefined)
+                        fetchGlobalHistory() // Update history if open
+
+                        if (selectedCompanyRef.current?.id === newReq.company_id) {
+                            fetchCustomerBalance(newReq.company_id)
+                        }
+                    }
+                })
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'loyalty_transactions'
+                }, (payload) => {
+                    console.log('Realtime: Nova transação! Atualizando saldos...')
+                    const phone = userPhoneRef.current
+                    if (phone) {
+                        fetchMyStores(phone, user.id)
+                        fetchTransactions(user.id, phone)
+                        fetchGlobalHistory() // Update history if open
+                    }
+                })
+                .on('postgres_changes', {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'customers'
+                }, (payload) => {
+                    const phone = userPhoneRef.current
+                    if (phone && (payload.new as any).phone === phone) {
+                        console.log('Realtime: Saldo de pontos alterado! Atualizando...')
+                        fetchMyStores(phone, user.id)
+                        if (selectedCompanyRef.current?.id === (payload.new as any).user_id) {
+                            setCustomerBalance((payload.new as any).points_balance || 0)
+                        }
+                    }
+                })
+                .subscribe()
+        }
+
+        setupRealtime()
+
+        return () => {
+            if (channel) {
+                const supabase = createClient()
+                supabase.removeChannel(channel)
+            }
+        }
+    }, [])
+
+    async function fetchInitialData() {
+        setLoading(true)
+        const supabase = createClient()
+
+        // Fetch configs globally
+        const { data: configsData } = await supabase.from('loyalty_configs').select('*')
+        if (configsData) {
+            const map = configsData.reduce((acc: any, curr: any) => {
+                acc[curr.user_id] = curr
+                return acc
+            }, {})
+            setLoyaltyConfigs(map)
+        }
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            console.log('fetchInitialData: Usuário não autenticado')
+            await fetchCompanies()
+            setLoading(false)
+            return
+        }
+
+        console.log('fetchInitialData: Buscando perfil para ID:', user.id)
+
+        // Fetch User Profile
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('id', user.id)
+            .single()
+
+        // Fetch saved location
+        const { data: address } = await supabase
+            .from('addresses')
+            .select('latitude, longitude')
+            .eq('profile_id', user.id)
+            .maybeSingle()
+
+        if (profileError) {
+            console.error('fetchInitialData: Erro ao buscar perfil:', profileError)
+        }
+
+        if (profile) {
+            console.log('fetchInitialData: Perfil encontrado:', profile.phone)
+            setUserProfile(profile)
+            userPhoneRef.current = profile.phone
+            
+            if (address?.latitude && address?.longitude) {
+                setUserLocation({ lat: address.latitude, lon: address.longitude })
+            } else {
+                await fetchCompanies()
+            }
+        } else {
+            console.warn('fetchInitialData: Perfil não encontrado ou sem telefone.')
+            if (address?.latitude && address?.longitude) {
+                setUserLocation({ lat: address.latitude, lon: address.longitude })
+            } else {
+                await fetchCompanies()
+            }
+        }
+
+        setLoading(false)
+    }
+
+    async function fetchAllRewards() {
+        setRewardsLoading(true)
+        const supabase = createClient()
+        const eligibleStores = myStores
+        if (eligibleStores.length === 0) {
+            setAllRewards([])
+            setRewardsLoading(false)
+            return
+        }
+
+        const companyIds = eligibleStores.map(store => store.id)
+
+        const { data, error } = await supabase
+            .from('rewards')
+            .select('*')
+            .in('user_id', companyIds)
+            .eq('is_active', true)
+
+        if (error) {
+            console.error('Erro ao buscar recompensas:', error)
+        }
+
+        if (data) {
+             const formattedRewards = data.map(r => {
+                 const store = eligibleStores.find(s => s.id === r.user_id)
+                 return {
+                     ...r,
+                     company_name: store?.full_name || 'Empresa Parceira',
+                     user_balance: store?.points_balance || 0
+                 }
+             })
+             
+             formattedRewards.sort((a, b) => {
+                 const aAvailable = a.user_balance >= a.points_required ? 1 : 0
+                 const bAvailable = b.user_balance >= b.points_required ? 1 : 0
+                 if (aAvailable !== bAvailable) return bAvailable - aAvailable 
+                 
+                 const aProgress = Math.min(a.user_balance / a.points_required, 1)
+                 const bProgress = Math.min(b.user_balance / b.points_required, 1)
+                 if (aProgress !== bProgress) return bProgress - aProgress 
+                 
+                 return a.points_required - b.points_required 
+             })
+
+             setAllRewards(formattedRewards)
+        }
+        setRewardsLoading(false)
+    }
+
+    async function fetchPurchaseRequests(userId: string) {
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('purchase_requests')
+            .select('*, company:company_id(full_name)')
+            .eq('customer_profile_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(10)
+
+        if (error) console.error('Erro ao buscar solicitações:', error)
+        if (data) setPurchaseRequests(data)
+    }
+
+    async function fetchMyStores(phone: string | undefined, profileId?: string) {
+        if (!phone) return
+        const supabase = createClient()
+
+        console.log('fetchMyStores: Buscando para phone:', phone)
+
+        // 1. Normalização agressiva de telefone (BR)
+        const cleanPhone = phone.replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+
+        // Variações comuns no Brasil
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) {
+            searchTerms.push('55' + cleanPhone)
+        } else if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) {
+            searchTerms.push(cleanPhone.substring(2))
+        }
+
+        const { data: myCustRecords, error: custError } = await supabase
+            .from('customers')
+            .select('id, user_id, points_balance, profiles:user_id(full_name)')
+            .in('phone', searchTerms)
+
+        if (custError) {
+            console.error('Erro ao buscar registros de fidelidade:', custError)
+            return
+        }
+
+        if (myCustRecords && myCustRecords.length > 0) {
+            const customerIds = myCustRecords.map(r => r.id)
+
+            // 2. Buscar Transações (Fonte da Verdade)
+            const { data: allTxs } = await supabase
+                .from('loyalty_transactions')
+                .select('customer_id, points, type, expires_at')
+                .in('customer_id', customerIds)
+
+            const now = new Date()
+            const realBalances: Record<string, number> = {}
+            allTxs?.forEach(t => {
+                const pts = Number(t.points) || 0
+                // Se não tem data de expiração, NÃO está expirado (é válido)
+                const isExpired = t.expires_at ? new Date(t.expires_at) < now : false
+
+                if (t.type === 'earn') {
+                    if (!isExpired) {
+                        realBalances[t.customer_id] = (realBalances[t.customer_id] || 0) + pts
+                    }
+                } else {
+                    // Resgates sempre subtraem
+                    realBalances[t.customer_id] = (realBalances[t.customer_id] || 0) - pts
+                }
+            })
+
+            // 2.1 Buscar Pontos de Pedidos (Purchase Requests)
+            let currentUserId = profileId || (await supabase.auth.getUser()).data.user?.id
+            const reqBalances: Record<string, number> = {}
+            if (currentUserId) {
+                const { data: allReqs } = await supabase
+                    .from('purchase_requests')
+                    .select('company_id, total_points, type')
+                    .eq('customer_profile_id', currentUserId)
+                    .eq('status', 'completed')
+
+                allReqs?.forEach(r => {
+                    const pts = Number(r.total_points) || 0
+                    if (r.type === 'redeem') {
+                        reqBalances[r.company_id] = (reqBalances[r.company_id] || 0) - pts
+                    } else {
+                        reqBalances[r.company_id] = (reqBalances[r.company_id] || 0) + pts
+                    }
+                })
+            }
+
+            // 3. Gastos Totais
+            let spentMap: Record<string, number> = {}
+            if (currentUserId) {
+                const { data: totalSpentData } = await supabase
+                    .from('purchase_requests')
+                    .select('company_id, total_amount')
+                    .eq('customer_profile_id', currentUserId)
+                    .eq('status', 'completed')
+
+                spentMap = totalSpentData?.reduce((acc: any, curr: any) => {
+                    acc[curr.company_id] = (acc[curr.company_id] || 0) + (Number(curr.total_amount) || 0)
+                    return acc
+                }, {}) || {}
+            }
+
+            // 4. Agrupar por Empresa (r.user_id)
+            const storesMap: Record<string, Company> = {}
+            myCustRecords.forEach((r: any) => {
+                const companyId = r.user_id
+                if (!companyId) return
+
+                if (!storesMap[companyId]) {
+                    storesMap[companyId] = {
+                        id: companyId,
+                        full_name: (r.profiles as any)?.full_name || 'Loja Parceira',
+                        points_balance: 0,
+                        total_spent: spentMap[companyId] || 0
+                    }
+                }
+                const balanceFromTxs = Number(realBalances[r.id]) || 0
+                storesMap[companyId].points_balance! += balanceFromTxs
+            })
+
+            // NOTA: Removido o loop que somava reqBalances (purchase_requests) aqui para evitar duplicação,
+            // pois transações confirmadas já estão em loyalty_transactions.
+
+            const finalStoresList = Object.values(storesMap)
+            const totalScore = finalStoresList.reduce((acc, s) => acc + (s.points_balance || 0), 0)
+            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore)
+
+            setMyStores(finalStoresList)
+            setGlobalScore(totalScore) // Set global score here
+        } else {
+            console.warn('fetchMyStores: Nenhum registro encontrado para searchTerms:', searchTerms)
+            setMyStores([])
+            setGlobalScore(0) // Reset global score if no records
+        }
+    }
+
+    async function fetchTransactions(userId: string, phone: string | undefined) {
+        if (!phone) return
+        const supabase = createClient()
+
+        const cleanPhone = phone.replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        const { data: custIds } = await supabase
+            .from('customers')
+            .select('id')
+            .in('phone', searchTerms)
+
+        const ids = custIds?.map(c => c.id) || []
+
+        if (ids.length > 0) {
+            const { data } = await supabase
+                .from('loyalty_transactions')
+                .select('*, profiles:user_id(full_name)')
+                .in('customer_id', ids)
+                .order('created_at', { ascending: false })
+                .limit(20)
+            if (data) setTransactions(data)
+        }
+    }
+
+    async function fetchHistoryForCompany(companyId: string) {
+        const phone = userPhoneRef.current
+        if (!phone) return
+
+        setHistoryLoading(true)
+        setIsHistoryOpen(true)
+        const supabase = createClient()
+
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        // 1. Encontrar o registro de cliente deste telefone para esta empresa
+        const { data: custRecord } = await supabase
+            .from('customers')
+            .select('id')
+            .eq('user_id', companyId)
+            .in('phone', searchTerms)
+            .maybeSingle()
+
+        let combinedHistory: any[] = []
+
+        if (custRecord) {
+            // 2. Buscar transações de pontos
+            const { data: transactions } = await supabase
+                .from('loyalty_transactions')
+                .select('*')
+                .eq('customer_id', custRecord.id)
+                .order('created_at', { ascending: false })
+
+            if (transactions) {
+                combinedHistory = [...transactions.map(t => ({ ...t, record_type: 'transaction' }))]
+            }
+        }
+
+        // 3. Buscar solicitações finalizadas ou recusadas (Purchase Requests)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: historicalRequests } = await supabase
+                .from('purchase_requests')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('customer_profile_id', user.id)
+                .in('status', ['completed', 'rejected'])
+                .order('created_at', { ascending: false })
+
+            if (historicalRequests) {
+                // Filtrar apenas pedidos que NÃO estão completos, pois pedidos completos 
+                // já aparecem como 'transaction' via loyalty_transactions
+                const reqs = historicalRequests
+                    .filter(r => r.status !== 'completed')
+                    .map(r => ({ ...r, record_type: 'request' }))
+                combinedHistory = [...combinedHistory, ...reqs]
+            }
+        }
+
+        // Ordenar tudo por data
+        combinedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setHistoryData(combinedHistory)
+        setHistoryLoading(false)
+        setIsGlobalHistory(false)
+    }
+
+    async function fetchGlobalHistory() {
+        const phone = userPhoneRef.current
+        if (!phone) return
+
+        setHistoryLoading(true)
+        setIsHistoryOpen(true)
+        setIsGlobalHistory(true)
+        const supabase = createClient()
+
+        let combinedHistory: any[] = []
+
+        // 1. Buscar TODAS as transações deste cliente (por telefone normalizado)
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone]
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        const { data: custIds } = await supabase
+            .from('customers')
+            .select('id')
+            .in('phone', searchTerms)
+        const ids = custIds?.map(c => c.id) || []
+
+        if (ids.length > 0) {
+            const { data: transactions } = await supabase
+                .from('loyalty_transactions')
+                .select('*, profiles:user_id(full_name)')
+                .in('customer_id', ids)
+                .order('created_at', { ascending: false })
+
+            if (transactions) {
+                combinedHistory = [...transactions.map(t => ({
+                    ...t,
+                    record_type: 'transaction',
+                    company_name: (t.profiles as any)?.full_name
+                }))]
+            }
+        }
+
+        // 2. Buscar TODAS as solicitações históricas do usuário
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: historicalRequests } = await supabase
+                .from('purchase_requests')
+                .select('*, company:company_id(full_name)')
+                .eq('customer_profile_id', user.id)
+                .in('status', ['completed', 'rejected'])
+                .order('created_at', { ascending: false })
+
+            if (historicalRequests) {
+                // Filtrar pedidos que não estão 'completed' para evitar duplicidade com transactions
+                const reqs = historicalRequests
+                    .filter(r => r.status !== 'completed')
+                    .map(r => ({
+                        ...r,
+                        record_type: 'request',
+                        company_name: (r.company as any)?.full_name
+                    }))
+                combinedHistory = [...combinedHistory, ...reqs]
+            }
+        }
+
+        combinedHistory.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        setHistoryData(combinedHistory)
+        setHistoryLoading(false)
+    }
+
+    async function fetchCompanies() {
+        setLoading(true)
+        const supabase = createClient()
+        
+        if (userLocation) {
+            const { data } = await supabase.rpc('get_nearby_companies', {
+                user_lat: userLocation.lat,
+                user_lon: userLocation.lon,
+                radius_km: 100
+            })
+            if (data) {
+                const formatted = data.map((d: any) => ({
+                    id: d.company_id,
+                    full_name: d.company_name,
+                    distance: d.distance_km,
+                    address: d.city ? `${d.city}, ${d.state}` : ''
+                }))
+                setCompanies(formatted)
+            } else {
+                setCompanies([])
+            }
+        } else {
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('id, full_name')
+                .eq('role', 'company')
+
+            if (profiles) setCompanies(profiles as Company[])
+        }
+        setLoading(false)
+    }
+
+    useEffect(() => {
+        if (activeTab === 'offers') fetchCompanies()
+    }, [userLocation])
+
+    const requestLocation = () => {
+        if (!navigator.geolocation) {
+           setLocationError('Navegador não suporta geolocalização')
+           return
+        }
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const lat = pos.coords.latitude
+                const lon = pos.coords.longitude
+                setUserLocation({ lat, lon })
+                setLocationError(null)
+                
+                // Salvar localização do cliente no banco
+                const supabase = createClient()
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user) {
+                    const { data: existing } = await supabase.from('addresses').select('id').eq('profile_id', user.id).maybeSingle()
+                    if (existing) {
+                        await supabase.from('addresses').update({ latitude: lat, longitude: lon }).eq('id', existing.id)
+                    } else {
+                        await supabase.from('addresses').insert({ profile_id: user.id, latitude: lat, longitude: lon })
+                    }
+                }
+            },
+            (err) => {
+                setLocationError('Permissão negada ou restrita.')
+            }
+        )
+    }
+
+    async function fetchProducts(companyId: string) {
+        setLoading(true)
+        const supabase = createClient()
+        const { data } = await supabase
+            .from('products')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+
+        if (data) setProducts(data)
+        setLoading(false)
+    }
+
+    const handleSelectCompany = (company: Company) => {
+        if (selectedCompany?.id === company.id) {
+            setSelectedCompany(null)
+            return
+        }
+        setSelectedCompany(company)
+        fetchProducts(company.id)
+        fetchRewards(company.id)
+        fetchCustomerBalance(company.id)
+        setActiveTab('offers')
+    }
+
+    async function fetchRewards(companyId: string) {
+        const supabase = createClient()
+        const { data } = await supabase
+            .from('rewards')
+            .select('*')
+            .eq('user_id', companyId)
+            .eq('is_active', true)
+            // .gt('expires_at', new Date().toISOString()) 
+            .order('points_required', { ascending: true })
+
+        if (data) setCompanyRewards(data)
+    }
+
+    async function fetchCustomerBalance(companyId: string) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const phone = userPhoneRef.current
+        const cleanPhone = (phone || '').replace(/\D/g, '')
+        const searchTerms = [phone || '']
+        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) searchTerms.push('55' + cleanPhone)
+        if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) searchTerms.push(cleanPhone.substring(2))
+
+        // 1. Encontrar o registro de cliente deste telefone para esta empresa
+        const { data: custRecord } = await supabase
+            .from('customers')
+            .select('id')
+            .eq('user_id', companyId)
+            .in('phone', searchTerms)
+            .maybeSingle()
+
+        if (custRecord) {
+            // Buscar saldo real via transações
+            const { data: txs } = await supabase
+                .from('loyalty_transactions')
+                .select('points, type, expires_at')
+                .eq('customer_id', custRecord.id)
+
+            const now = new Date()
+            let bal = txs?.reduce((acc, t) => {
+                const pts = Number(t.points) || 0
+                const isExpired = t.expires_at ? new Date(t.expires_at) < now : false
+
+                if (t.type === 'earn') {
+                    return acc + (isExpired ? 0 : pts)
+                } else {
+                    return acc - pts
+                }
+            }, 0) || 0
+
+            console.log('Balance from loyalty_transactions:', bal)
+
+            // NOTA: Removido o bloco que somava pontos de purchase_requests para o saldo,
+            // pois quando confirmados, esses pontos já entram em loyalty_transactions.
+            // Solicitamos apenas loyalty_transactions como fonte de verdade para o saldo.
+
+            setCustomerBalance(bal)
+        } else {
+            setCustomerBalance(0)
+        }
+    }
+
+    const handleAddToCart = (product: Product) => {
+        if (!userProfile) {
+            setShowLoginPromptModal(true)
+            return
+        }
+        setCart(currentCart => {
+            const existingIndex = currentCart.findIndex(item => item.product.id === product.id)
+            if (existingIndex > -1) {
+                const newCart = [...currentCart]
+                newCart[existingIndex] = {
+                    ...newCart[existingIndex],
+                    quantity: newCart[existingIndex].quantity + 1
+                }
+                return newCart
+            }
+            return [...currentCart, { product, quantity: 1 }]
+        })
+
+        // Feedback visual
+        setLastAddedItem(product.id)
+        setTimeout(() => setLastAddedItem(null), 2000)
+    }
+
+    const handleRemoveFromCart = (productId: string) => {
+        setCart(prev => prev.filter(item => item.product.id !== productId))
+    }
+
+    const handleUpdateQuantity = (productId: string, delta: number) => {
+        setCart(currentCart => currentCart.map(item => {
+            if (item.product.id === productId) {
+                const newQty = Math.max(1, item.quantity + delta)
+                return { ...item, quantity: newQty }
+            }
+            return item
+        }))
+    }
+
+    const handleSendRequest = async () => {
+        if (cart.length === 0) {
+            alert('Seu carrinho está vazio.')
+            return
+        }
+        if (!selectedCompany) {
+            alert('Selecione uma empresa primeiro.')
+            return
+        }
+
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const pointsMultiplier = loyaltyConfigs[selectedCompany.id]?.double_points_active ? 2 : 1
+        const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+        const totalPoints = cart.reduce((acc, item) => acc + (item.product.points_reward * pointsMultiplier * item.quantity), 0)
+
+        const items = cart.map(item => ({
+            id: item.product.id,
+            name: item.product.name,
+            qty: item.quantity,
+            price: item.product.price,
+            points: item.product.points_reward * pointsMultiplier
+        }))
+
+        const payload = {
+            company_id: selectedCompany.id,
+            customer_profile_id: user.id,
+            items,
+            total_amount: totalAmount,
+            total_points: totalPoints,
+            status: 'pending'
+        }
+
+        const { error } = await supabase.from('purchase_requests').insert(payload)
+
+        if (!error) {
+            alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
+            setCart([])
+            fetchPurchaseRequests(user.id)
+            setActiveTab('requests')
+            setIsCartOpen(false)
+        } else {
+            console.error('Erro detalhado no envio:', error)
+            alert('Falha ao processar resgate: ' + (error.message || 'Tente novamente.'))
+        }
+    }
+
+    const handleRedeemReward = async (reward: any) => {
+        if (!userProfile) {
+            setShowLoginPromptModal(true)
+            return
+        }
+        const companyId = reward.user_id || selectedCompany?.id
+        const balance = reward.user_balance !== undefined ? reward.user_balance : customerBalance
+
+        if (!companyId) return
+        if (balance < reward.points_required) {
+            alert('Saldo insuficiente para resgatar este prêmio.')
+            return
+        }
+
+        const confirmRedeem = confirm(`Deseja resgatar "${reward.title}" por ${reward.points_required} pontos?`)
+        if (!confirmRedeem) return
+
+        const supabase = createClient()
+        const { data: { user } = {} } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { error } = await supabase.from('purchase_requests').insert({
+            company_id: companyId,
+            customer_profile_id: user.id,
+            type: 'redeem',
+            reward_id: reward.id,
+            total_points: reward.points_required,
+            items: [{ id: reward.id, name: reward.title, points: reward.points_required }],
+            status: 'pending',
+            total_amount: 0
+        })
+
+        if (error) {
+            console.error('Erro ao resgatar:', error)
+            alert('Erro ao processar resgate: ' + (error.message || 'Tente novamente.'))
+            return
+        }
+
+        alert(`Solicitação de resgate enviada! Aguarde a confirmação do lojista para retirar seu prêmio.`)
+        fetchPurchaseRequests(user.id)
+        setActiveTab('requests')
+    }
+
+
+    const promotedCompanies = companies.filter(c => loyaltyConfigs[c.id]?.double_points_active).slice(0, 4)
+    const cartPointsMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active) ? 2 : 1
+
     return (
-        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 selection:bg-brand-blue/10">
-            {/* Header / Nav */}
-            <nav className="sticky top-0 z-50 bg-[#FAF9F6]/80 backdrop-blur-md border-b border-slate-100 px-6 py-4">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-blue/20">
-                            <Zap className="h-6 w-6 fill-current" />
-                        </div>
-                        <span className="text-2xl font-black italic uppercase tracking-tighter text-slate-900">QRIDO</span>
+        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
+            {/* Header Estilo App */}
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 bg-brand-blue/10 rounded-full flex items-center justify-center border border-brand-blue/20 overflow-hidden">
+                        {userProfile?.full_name ? (
+                            <div className="text-brand-blue font-black flex items-center justify-center w-full h-full bg-white">
+                                {userProfile.full_name.charAt(0)}
+                            </div>
+                        ) : (
+                            <User className="h-6 w-6 text-brand-blue" />
+                        )}
                     </div>
-                    <Link href="/login">
-                        <Button variant="ghost" className="font-bold italic uppercase text-xs tracking-widest text-slate-500 hover:text-brand-blue">
-                            Login
-                        </Button>
-                    </Link>
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Seja bem-vindo</p>
+                        <h2 className="text-lg font-black text-slate-900 italic uppercase">
+                            {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'Visitante'}
+                        </h2>
+                    </div>
                 </div>
-            </nav>
+                <div className="flex items-center gap-2">
+                    {userProfile ? (
+                        <>
+                            <button
+                                onClick={() => alert(hasNewNotifications ? 'Você tem novos pedidos pendentes!' : 'Você não tem novas notificações no momento.')}
+                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors relative"
+                            >
+                                <Bell className="h-5 w-5" />
+                                {hasNewNotifications && (
+                                    <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-brand-orange rounded-full border-2 border-white" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => router.push('/qrido/settings')}
+                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
+                            >
+                                <Settings className="h-5 w-5" />
+                            </button>
+                        </>
+                    ) : (
+                        <Button
+                            onClick={() => router.push('/login?role=customer')}
+                            className="bg-brand-blue hover:bg-brand-blue/90 text-white font-black italic uppercase tracking-wider text-[10px] px-4 h-10 rounded-xl shadow-sm"
+                        >
+                            Entrar / Criar Conta
+                        </Button>
+                    )}
+                </div>
+            </div>
 
-            {/* Hero Section */}
-            <section className="relative pt-20 pb-32 px-6 overflow-hidden">
-                {/* Background Shapes */}
-                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-brand-orange/5 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[600px] h-[600px] bg-brand-blue/5 rounded-full blur-[120px]" />
-
-                <div className="max-w-7xl mx-auto relative z-10">
-                    <div className="text-center space-y-8 max-w-4xl mx-auto">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/10 rounded-full text-brand-blue mb-4">
-                            <Zap className="h-4 w-4 fill-current" />
-                            <span className="text-[10px] font-black uppercase tracking-[2px] italic">A Revolução da Fidelização</span>
-                        </div>
-                        
-                        <h1 className="text-5xl md:text-7xl lg:text-8xl font-black italic uppercase tracking-tight text-slate-900 leading-[0.9]">
-                            Transforme <span className="text-brand-orange">Clientes</span> em <span className="text-brand-blue underline decoration-brand-blue/20">Fãs</span>.
-                        </h1>
-                        
-                        <p className="text-lg md:text-xl text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-                            O Qrido é o cartão de fidelidade digital, que coloca seu negócio no bolso do cliente. 
-                            Aumente a recorrência e a venda, sem precisar investir uma fortuna em anúncios.
-                        </p>
-
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                            <Link href="/login?mode=register&role=company" className="w-full sm:w-auto">
-                                <Button className="w-full sm:w-auto h-16 px-10 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-[24px] shadow-2xl shadow-brand-orange/30 text-lg font-black italic uppercase group">
-                                    Começar Agora
-                                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                </Button>
-                            </Link>
-                            <Link href="#como-funciona" className="w-full sm:w-auto">
-                                <Button variant="ghost" className="w-full sm:w-auto h-16 px-10 rounded-[24px] text-lg font-black italic uppercase text-slate-500 hover:bg-slate-100">
-                                    Ver Como Funciona
-                                </Button>
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Dashboard Preview Mockup */}
-                    <div className="mt-20 relative px-4 md:px-0">
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#FAF9F6] via-transparent to-transparent z-10 h-32 bottom-0 pointer-events-none" />
-                        <div className="bg-slate-900 rounded-[40px] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] border-[4px] md:border-[8px] border-slate-800 scale-[1.02] md:scale-100 transition-transform duration-700 hover:scale-[1.01]">
-                            <div className="bg-white rounded-[32px] overflow-hidden aspect-[4/3] md:aspect-[21/9] flex relative">
-                                {/* Sidebar Fake */}
-                                <div className="hidden md:flex flex-col w-48 lg:w-64 bg-slate-50 border-r border-slate-100 p-6 pointer-events-none">
-                                    <div className="flex items-center gap-2 mb-10">
-                                        <div className="h-8 w-8 bg-brand-blue rounded-xl flex items-center justify-center">
-                                            <Zap className="h-4 w-4 text-white fill-current" />
-                                        </div>
-                                        <span className="font-black italic text-lg text-slate-900">QRIDO</span>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="h-10 rounded-xl bg-brand-blue/10 flex items-center px-4 gap-3">
-                                            <TrendingUp className="h-5 w-5 text-brand-blue" />
-                                            <div className="h-2 w-20 bg-brand-blue/50 rounded-full" />
-                                        </div>
-                                        <div className="h-10 rounded-xl flex items-center px-4 gap-3">
-                                            <Users className="h-5 w-5 text-slate-400" />
-                                            <div className="h-2 w-24 bg-slate-200 rounded-full" />
-                                        </div>
-                                        <div className="h-10 rounded-xl flex items-center px-4 gap-3">
-                                            <Gift className="h-5 w-5 text-slate-400" />
-                                            <div className="h-2 w-16 bg-slate-200 rounded-full" />
-                                        </div>
+            {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
+            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
+                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
+                    {userProfile ? (
+                        <>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="space-y-1">
+                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-6xl font-black text-white italic tracking-tighter">
+                                            {showScore ? globalScore : '••••'}
+                                            <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                        </h2>
+                                        <button
+                                            onClick={() => setShowScore(!showScore)}
+                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                        >
+                                            {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                        </button>
                                     </div>
                                 </div>
-                                {/* Main Content Fake */}
-                                <div className="flex-1 p-4 md:p-8 flex flex-col gap-4 md:gap-8 bg-[#FAF9F6] pointer-events-none">
-                                    <div className="flex justify-between items-center">
-                                        <div className="space-y-2 md:space-y-3">
-                                            <div className="h-2 md:h-3 w-16 md:w-32 bg-slate-200 rounded-full" />
-                                            <div className="h-6 md:h-8 w-32 md:w-56 bg-slate-800 rounded-full" />
-                                        </div>
-                                        <div className="flex gap-2.5 md:gap-3">
-                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-white shadow-sm border border-slate-100 hidden sm:block" />
-                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-brand-orange border-2 border-white shadow-sm" />
-                                        </div>
-                                    </div>
-                                    {/* Stats */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
-                                        {[
-                                            { color: 'bg-brand-blue', val: 'w-10 md:w-16' },
-                                            { color: 'bg-brand-green', val: 'w-12 md:w-20' },
-                                            { color: 'bg-[url(/brand-orange)] bg-brand-orange', val: 'w-8 md:w-12' },
-                                            { color: 'bg-[#F7AA1C]', val: 'w-14 md:w-24' },
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-white p-3 md:p-5 rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 flex flex-col h-20 md:h-28 lg:h-32 justify-between">
-                                                <div className={`h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-[14px] ${card.color} bg-opacity-10 flex items-center justify-center`}>
-                                                    <div className={`h-3 w-3 md:h-4 md:w-4 rounded-full ${card.color.split(' ')[card.color.split(' ').length - 1]}`} />
-                                                </div>
-                                                <div className="space-y-1.5 md:space-y-2.5 mt-auto">
-                                                    <div className="h-1.5 md:h-2 w-6 md:w-10 bg-slate-100 rounded-full" />
-                                                    <div className={`h-2.5 md:h-4 ${card.val} ${card.color.split(' ')[card.color.split(' ').length - 1]} rounded-full`} />
-                                                </div>
+                                <button
+                                    onClick={() => setActiveTab('rewards')}
+                                    className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
+                                >
+                                    <Gift className="h-8 w-8" />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-6 border-t border-white/10">
+                                <div className="flex items-center gap-2 text-white/60">
+                                    <Plus className="h-4 w-4" />
+                                    <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-white/40" />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                            <div className="space-y-2 text-center sm:text-left">
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight">Acumule pontos em compras!</h3>
+                                <p className="text-xs text-white/80 font-bold italic">
+                                    Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="w-full sm:w-auto bg-white text-brand-blue hover:bg-white/90 font-black italic uppercase tracking-wider text-xs px-6 h-14 rounded-2xl shadow-xl shrink-0"
+                            >
+                                Começar Agora
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Grade de Ações Rápidas (Grid Style) */}
+            <div className="grid grid-cols-5 gap-2 sm:gap-4">
+                {[
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
+                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
+                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
+                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => {
+                            if (tab.id !== 'offers' && !userProfile) {
+                                setShowLoginPromptModal(true)
+                                return
+                            }
+                            setActiveTab(tab.id as any)
+                        }}
+                        className="flex flex-col items-center gap-2 group"
+                    >
+                        <div className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
+                            activeTab === tab.id
+                                ? `${tab.activeColor} shadow-lg scale-110`
+                                : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
+                        )}>
+                            <tab.icon className="h-6 w-6" />
+                        </div>
+                        <span className={cn(
+                            "text-[10px] font-black uppercase italic tracking-wider transition-colors",
+                            activeTab === tab.id ? "text-slate-900" : "text-slate-500"
+                        )}>
+                            {tab.label}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'offers' ? (
+                <div className="animate-in fade-in duration-500 space-y-8 pb-10">
+                    {promotedCompanies.length > 0 && (
+                        <>
+                            <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
+                                    <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
+                                </div>
+                                <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {promotedCompanies.map((c) => (
+                                    <Card key={c.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group">
+                                        <CardHeader className="flex-1">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <TrendingUp className="h-3 w-3 text-[#E9592C]" />
+                                                <span className="text-[9px] font-black text-[#E9592C] uppercase italic tracking-widest">Destaque QRido</span>
                                             </div>
-                                        ))}
+                                            <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
+                                            <p className="text-[10px] font-bold text-slate-500 italic">Cupom de Pontos em Dobro ativado!</p>
+                                        </CardHeader>
+                                        <CardContent className="pt-0">
+                                            <Button
+                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
+                                                onClick={() => {
+                                                    handleSelectCompany(c)
+                                                    setTimeout(() => {
+                                                      document.getElementById(`loja-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                                    }, 100)
+                                                }}
+                                            >
+                                                Quero Agora
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {/* Parceiros do Ecossistema */}
+                    <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                    <Store className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
+                                    <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
+                                </div>
+                            </div>
+                            {userLocation && (
+                                <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 sm:h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
+                                    <MapPin className="h-3 w-3 mr-1" />
+                                    Atualizar Localização
+                                </Button>
+                            )}
+                        </div>
+
+                        {!userLocation && !locationError && (
+                            <div className="bg-brand-blue/5 p-4 rounded-3xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
+                                        <MapPin className="h-5 w-5" />
                                     </div>
-                                    {/* Chart & Table Area */}
-                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
-                                        <div className="col-span-1 md:col-span-2 bg-white rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col items-center justify-end">
-                                            <div className="flex-1 flex items-end gap-2 md:gap-3 lg:gap-6 justify-between mt-auto w-full max-h-[80px] md:max-h-full">
-                                                {[40, 70, 45, 90, 65, 80, 55, 75, 45].map((h, i) => (
-                                                    <div key={i} className="w-full bg-brand-blue/10 rounded-t-sm md:rounded-t-md relative flex items-end" style={{ height: `${h}%` }}>
-                                                        <div className="w-full bg-brand-blue rounded-t-sm md:rounded-t-md transition-all absolute bottom-0 left-0" style={{ height: `${h - 15}%` }} />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="bg-slate-900 rounded-[24px] p-6 flex flex-col gap-5 hidden sm:flex border border-slate-800">
-                                            <div className="h-3 w-32 bg-slate-700 rounded-full mb-2" />
-                                            {[1, 2, 3].map(i => (
-                                                <div key={i} className="bg-slate-800 rounded-2xl p-4 flex justify-between items-center border border-slate-700/50">
+                                    <div>
+                                        <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
+                                        <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
+                                    </div>
+                                </div>
+                                <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 text-[10px] font-black uppercase italic tracking-wider">
+                                    Permitir
+                                </Button>
+                            </div>
+                        )}
+
+                        {companies.length === 0 && !loading ? (
+                            <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                                <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja parceira encontrada na sua região.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-4">
+                                {companies.map((company, index) => {
+                                    const isExpanded = selectedCompany?.id === company.id;
+                                    const pointsMultiplier = loyaltyConfigs[company.id]?.double_points_active ? 2 : 1;
+                                    return (
+                                        <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl")} style={{ animationDelay: `${index * 50}ms` }}>
+                                            <CardContent className="p-0">
+                                                <div className={cn("flex items-center justify-between cursor-pointer p-5 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
                                                     <div className="flex items-center gap-4">
-                                                        <div className="h-10 w-10 rounded-full bg-brand-orange/20 border border-brand-orange/30" />
-                                                        <div className="space-y-2">
-                                                            <div className="h-2.5 w-20 bg-white/90 rounded-full" />
-                                                            <div className="h-2 w-14 bg-white/40 rounded-full" />
+                                                        <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
+                                                            <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-black text-slate-900 uppercase italic tracking-tight">{company.full_name || 'Empresa Parceira'}</h3>
+                                                            {company.distance !== undefined && (
+                                                                <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
+                                                                    <MapPin className="h-3 w-3" />
+                                                                    {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
+                                                                    {company.address && ` • ${company.address}`}
+                                                                </div>
+                                                            )}
+                                                            {!isExpanded && (
+                                                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    <div className="h-3.5 w-12 bg-brand-green rounded-full" />
+                                                    <div className="flex items-center gap-3">
+                                                        {isExpanded && (
+                                                            <div className="hidden sm:flex flex-col text-right mr-4">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
+                                                                <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
+                                                            </div>
+                                                        )}
+                                                        <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
+                                                            <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            ))}
+
+                                                {/* Expanded Accordion Content: Products */}
+                                                <div className={cn("grid transition-all duration-300 origin-top px-5 pb-5", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
+                                                    <div className="overflow-hidden">
+                                                        <div className="pt-5 border-t border-slate-200/60">
+                                                            {loading && isExpanded ? (
+                                                                <div className="flex justify-center py-8">
+                                                                    <div className="h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                                                                </div>
+                                                            ) : products.length === 0 && isExpanded ? (
+                                                                <div className="text-center py-8 text-slate-400 font-bold text-sm italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                    {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
+                                                                        <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
+                                                                            {product.is_top_seller && (
+                                                                                <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
+                                                                                    <Flame className="h-3 w-3" /> Top Vendas
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="flex justify-between items-start mb-3 mt-1">
+                                                                                <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
+                                                                                    <ShoppingBag className="h-5 w-5" />
+                                                                                </div>
+                                                                                <div className={cn("border text-[10px] font-black px-2 py-1 rounded-full italic uppercase shadow-sm", pointsMultiplier > 1 ? "bg-orange-50 border-orange-100 text-[#E9592C] animate-pulse" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
+                                                                                    +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🔥'}
+                                                                                </div>
+                                                                            </div>
+                                                                            <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
+                                                                            <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
+                                                                            <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
+                                                                            <Button
+                                                                                className={cn(
+                                                                                    "w-full h-10 mt-4 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300",
+                                                                                    lastAddedItem === product.id
+                                                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                                                        : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                                )}
+                                                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                            >
+                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
+                                                                            </Button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : activeTab === 'my_stores' ? (
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6 pb-20">
+                    <div className="flex items-center justify-between px-2">
+                        <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest italic">Nossas Lojas Parceiras</h3>
+                        <p className="text-[10px] font-bold text-brand-orange uppercase italic">{companies.length} Parceiros</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        {companies.map(store => {
+                            const userStore = myStores.find(s => s.id === store.id)
+                            const balance = userStore?.points_balance || 0
+                            const hasPoints = balance > 0
+                            const config = loyaltyConfigs[store.id]
+                            const target = config?.min_points_redemption || 100
+                            const progress = Math.min(balance / target * 100, 100)
+
+                            return (
+                                <button
+                                    key={store.id}
+                                    onClick={() => handleSelectCompany(store)}
+                                    className="w-full text-left bg-white border border-slate-100 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-slate-200 transition-all hover:shadow-xl hover:bg-slate-50 group shadow-sm shadow-slate-100"
+                                >
+                                    <div className="flex items-center gap-5 w-full sm:w-auto">
+                                        <div className="relative">
+                                            <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center text-[#297CCB] group-hover:scale-110 transition-transform shadow-sm">
+                                                <Store className="h-8 w-8" />
+                                            </div>
+                                            {hasPoints && (
+                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full border-2 border-white shadow-sm">
+                                                    <Heart className="h-3 w-3 fill-current" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <h3 className="text-xl font-black text-slate-900 uppercase italic leading-none">{store.full_name}</h3>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                {hasPoints ? 'Sua Loja Qrida ❤️' : 'Clique para conhecer'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full sm:w-[250px] space-y-3">
+                                        <div className="flex justify-between items-end">
+                                            <p className="text-[9px] font-black text-slate-500 uppercase italic tracking-tighter">Seu Saldo</p>
+                                            <p className="text-xs font-black text-[#E9592C] uppercase italic">{balance} / {target} pts</p>
+                                        </div>
+                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-[#297CCB] to-[#E9592C] transition-all duration-1000 ease-out"
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-[9px] font-bold text-slate-400 italic">
+                                                {progress >= 100 ? '🎉 Resgate pronto!' : `Faltam ${target - balance} pts`}
+                                            </p>
+                                            <div className="flex items-center gap-1 text-[9px] font-black text-[#297CCB] uppercase group-hover:translate-x-1 transition-transform">
+                                                Ver Ofertas <ChevronRight className="h-3 w-3" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            ) : activeTab === 'requests' ? (
+                <div className="animate-in fade-in duration-500 space-y-8 pb-20">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 border border-purple-100 shadow-sm">
+                            <ShoppingBag className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic leading-tight">Meus Pedidos</h2>
+                            <p className="text-slate-500 font-medium italic text-sm">Acompanhe e valide seus pontos aqui.</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).length === 0 ? (
+                            <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                                <ShoppingBag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                                <p className="text-slate-500 font-black italic uppercase tracking-wider text-lg">NENHUM PEDIDO ATIVO.</p>
+                                <p className="text-slate-400 text-xs font-medium italic mt-2">Suas solicitações finalizadas e recusadas ficam no histórico.</p>
+                            </div>
+                        ) : (
+                            purchaseRequests.filter(r => ['pending', 'confirmed'].includes(r.status)).map(req => (
+                                <Card key={req.id} className={cn(
+                                    "p-6 rounded-[32px] border shadow-xl shadow-slate-100 relative overflow-hidden flex flex-col gap-4 bg-white",
+                                    req.status === 'pending' ? "border-amber-200" : "border-blue-200"
+                                )}>
+                                    <div className="flex justify-between items-start">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{req.company?.full_name}</p>
+                                            <h3 className="text-sm font-black uppercase text-slate-900 truncate italic">
+                                                {req.items.length === 1 ? req.items[0].name : `${req.items[0].name} +${req.items.length - 1} itens`}
+                                            </h3>
+                                        </div>
+                                        <div className={cn(
+                                            "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
+                                            req.status === 'pending' ? "bg-amber-50 text-[#F7AA1C] border border-amber-100" : "bg-blue-50 text-[#297CCB] border border-blue-100"
+                                        )}>
+                                            {req.status === 'pending' ? 'Pendente' : 'Confirmado'}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center py-2 border-y border-slate-50">
+                                        <div>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Tipo</p>
+                                            <p className="text-base font-black italic text-slate-900 uppercase">{req.type === 'redeem' ? 'Resgate' : 'Compra'}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase italic">Pontos</p>
+                                            <p className={cn("text-base font-black italic", req.type === 'redeem' ? "text-red-500" : "text-[#E9592C]")}>
+                                                {req.type === 'redeem' ? '-' : '+'}{req.total_points} PTS
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {req.status === 'pending' && req.type === 'redeem' && (
+                                        <div className="bg-amber-50 p-4 rounded-2xl text-center border border-amber-100">
+                                            <p className="text-[10px] font-black text-[#F7AA1C] uppercase italic mb-1 italic">Status do Resgate</p>
+                                            <p className="text-sm font-black italic text-[#F7AA1C] uppercase">🚀 Aguardando aprovação do lojista</p>
+                                        </div>
+                                    )}
+
+                                    <p className="text-[8px] text-slate-400 font-bold text-center italic mt-2">
+                                        {new Date(req.created_at).toLocaleString()}
+                                    </p>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                </div>
+            ) : activeTab === 'history' ? (
+                <div className="animate-in fade-in duration-500 space-y-8 pb-32">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 border border-emerald-100 shadow-sm">
+                            <HistoryIcon className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">Extrato Geral</h2>
+                            <p className="text-slate-500 font-bold italic text-sm">Todas as suas movimentações de pontos.</p>
+                        </div>
+                    </div>
+
+                    {historyLoading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="h-10 w-10 border-4 border-[#297CCB] border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-slate-400 font-black italic uppercase text-xs">Carregando extrato...</p>
+                        </div>
+                    ) : historyData.length === 0 ? (
+                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                            <HistoryIcon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-500 font-black italic uppercase text-lg">NENHUMA MOVIMENTAÇÃO.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {historyData.map(item => {
+                                const isTransaction = item.record_type === 'transaction'
+                                const isRequest = item.record_type === 'request'
+                                const status = item.status
+                                const type = item.type // 'earn' or 'redeem'
+                                const expiresAt = item.expires_at ? new Date(item.expires_at) : null
+                                const now = new Date()
+                                // Se não tem validade informada, NÃO é expirado
+                                const isExpired = expiresAt ? (expiresAt < now) : false
+
+                                let displayTitle = ''
+                                let displayIcon = <Award className="h-5 w-5" />
+                                let iconBg = "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                let pointsColor = "text-emerald-600"
+                                let pointsSign = '+'
+
+                                if (isTransaction) {
+                                    displayTitle = type === 'earn' ? 'Pedido Finalizado' : 'Resgate de Prêmio'
+                                    displayIcon = type === 'earn' ? <Check className="h-5 w-5" /> : <Gift className="h-5 w-5" />
+
+                                    if (type === 'earn') {
+                                        iconBg = isExpired ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        pointsColor = isExpired ? "text-red-600" : "text-emerald-600"
+                                        pointsSign = '+'
+                                    } else {
+                                        iconBg = "bg-red-50 text-red-600 border-red-100"
+                                        pointsColor = "text-red-600"
+                                        pointsSign = '-'
+                                    }
+                                } else if (isRequest) {
+                                    if (status === 'completed') {
+                                        displayTitle = type === 'redeem' ? 'Resgate Finalizado' : 'Pedido Finalizado'
+                                        displayIcon = <Check className="h-5 w-5" />
+                                        iconBg = isExpired ? "bg-red-50 text-red-600 border-red-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        pointsColor = isExpired ? "text-red-600" : "text-emerald-600"
+                                    } else if (status === 'rejected') {
+                                        displayTitle = type === 'redeem' ? 'Resgate Recusado' : 'Pedido Recusado'
+                                        displayIcon = <X className="h-5 w-5" />
+                                        iconBg = "bg-slate-100 text-slate-400 border-slate-200"
+                                        pointsColor = "text-slate-400"
+                                        pointsSign = ''
+                                    }
+                                }
+
+                                return (
+                                    <div key={item.id} className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                                            <span className="text-[10px] font-black uppercase text-[#297CCB] italic tracking-widest">{item.company_name || 'Loja Parceira'}</span>
+                                            <div className="flex items-center gap-2">
+                                                {(isTransaction || (isRequest && status === 'completed')) && (
+                                                    <span className={cn(
+                                                        "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
+                                                        isExpired ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                                                    )}>
+                                                        {isExpired ? 'Finalizado' : 'Válido'}
+                                                    </span>
+                                                )}
+                                                {isRequest && status === 'rejected' && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-slate-50 text-slate-400">
+                                                        Recusado
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center border", iconBg)}>
+                                                    {displayIcon}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black uppercase text-slate-900 italic leading-none">{displayTitle}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                                        {new Date(item.created_at).toLocaleDateString()} às {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className={cn("text-lg font-black italic", pointsColor)}>
+                                                    {pointsSign}{item.points || item.total_points} pts
+                                                </p>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase italic">
+                                                    Validade: {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : 'Não informada'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </div>
+            ) : null}
+
+            {/* Rodapé do Carrinho Minimalista */}
+            {cart.length > 0 && !isCartOpen && (
+                <div
+                    className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-40 animate-in slide-in-from-bottom duration-500"
+                    onClick={() => setIsCartOpen(true)}
+                >
+                    <div className="bg-slate-900 backdrop-blur-xl border border-white/10 rounded-full p-2 pl-6 pr-2 shadow-2xl flex items-center justify-between cursor-pointer group hover:bg-slate-800 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="relative">
+                                <ShoppingBag className="h-6 w-6 text-[#F7AA1C] group-hover:scale-110 transition-transform" />
+                                <span className="absolute -top-2 -right-2 bg-[#E9592C] text-white text-[10px] font-black h-5 w-5 rounded-full flex items-center justify-center border-2 border-slate-900">
+                                    {cart.reduce((acc, i) => acc + i.quantity, 0)}
+                                </span>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase italic">Meu Pedido</p>
+                                <p className="text-xs font-black text-white italic">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <Button className="bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 px-6 rounded-full font-black italic uppercase text-[10px] shadow-lg shadow-orange-900/20">
+                            Revisar Itens
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Overlay de Detalhes do Carrinho (Drawer) */}
+            {isCartOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setIsCartOpen(false)
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full max-w-2xl mx-auto"
+                    >
+                        <Card className="rounded-t-[40px] bg-white border-t border-slate-100 shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col max-h-[90vh] overflow-hidden relative">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mt-4 mb-2" />
+
+                            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-[#297CCB] rounded-t-[32px]">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white/20 rounded-xl">
+                                        <ShoppingBag className="h-5 w-5 text-white" />
+                                    </div>
+                                    <h3 className="text-lg font-black uppercase italic text-white">Resumo da Compra</h3>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-white hover:bg-white/10 rounded-full"
+                                    onClick={() => setIsCartOpen(false)}
+                                >
+                                    <X className="h-6 w-6" />
+                                </Button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAF9F6]">
+                                {cart.map(item => (
+                                    <div key={item.product.id} className="flex items-center justify-between bg-white p-4 rounded-[24px] border border-slate-100 animate-in zoom-in-95 shadow-sm shadow-slate-100">
+                                        <div className="flex-1">
+                                            <p className="text-sm font-black uppercase italic text-slate-900">{item.product.name}</p>
+                                            <p className="text-xs font-bold text-slate-500">R$ {item.product.price.toFixed(2)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleUpdateQuantity(item.product.id, -1)
+                                                    }}
+                                                    className="w-10 h-10 flex items-center justify-center hover:bg-slate-200 text-slate-900 font-black"
+                                                >-</button>
+                                                <span className="w-10 text-center text-sm font-black text-slate-900">{item.quantity}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleUpdateQuantity(item.product.id, 1)
+                                                    }}
+                                                    className="w-10 h-10 flex items-center justify-center hover:bg-slate-200 text-slate-900 font-black"
+                                                >+</button>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleRemoveFromCart(item.product.id)}
+                                                className="text-slate-400 hover:text-red-500 h-10 w-10 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="h-5 w-5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="p-8 bg-white border-t border-slate-50 flex flex-col gap-6">
+                                <div className="bg-[#FAF9F6] p-6 rounded-[32px] border border-slate-100 shadow-sm">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <p className="text-xs font-black text-slate-500 uppercase tracking-widest italic">Subtotal</p>
+                                        <p className="text-2xl font-black italic text-slate-900">R$ {cart.reduce((acc, i) => acc + (i.product.price * i.quantity), 0).toFixed(2)}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-xs font-black text-[#E9592C] uppercase tracking-widest italic">Total de Pontos</p>
+                                        <div className="flex items-center gap-2">
+                                            <Award className="h-5 w-5 text-[#E9592C]" />
+                                            <p className={cn("text-2xl font-black italic", cartPointsMultiplier > 1 ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => acc + (i.product.points_reward * cartPointsMultiplier * i.quantity), 0)} PTS {cartPointsMultiplier > 1 && '🔥'}</p>
                                         </div>
                                     </div>
                                 </div>
+
+                                <Button
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        handleSendRequest()
+                                    }}
+                                    className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-16 rounded-[24px] font-black italic uppercase text-sm shadow-2xl shadow-orange-100 mb-4"
+                                >
+                                    ENVIAR PEDIDO AGORA
+                                </Button>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'rewards' && (
+                <div className="animate-in fade-in duration-500 space-y-8 pb-32">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center text-[#E9592C] border border-orange-100 shadow-sm shadow-orange-100/50">
+                                <Gift className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-tight">Prêmios nas suas Lojas</h2>
+                                <p className="text-slate-500 font-bold italic text-sm">Confira os prêmios das lojas onde você tem pontos.</p>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* Pain / Identification Section */}
-            <section className="py-24 px-6 bg-slate-950 text-white relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-brand-blue/5 to-transparent opacity-50" />
-                <div className="max-w-7xl mx-auto relative z-10 text-center space-y-12">
-                    <div className="p-4 bg-white/5 border border-white/10 rounded-full w-fit mx-auto">
-                        <HeartPulse className="h-8 w-8 text-brand-orange animate-pulse" />
-                    </div>
-                    <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none max-w-4xl mx-auto">
-                        Sabe quanto custa trazer um cliente novo? <span className="text-brand-orange italic">7X MAIS</span> do que manter um cliente que já é seu.
-                    </h2>
-                    <p className="text-xl text-slate-400 font-medium max-w-2xl mx-auto leading-relaxed">
-                        Ou seja, pra você fazer a mesma venda pra um cliente novo, que ainda não te conhece, é 7x mais caro do que vender pra um cliente que já te conhece e já comprou de você. O Qrido te ajuda nisso: fidelizar.
-                    </p>
-                </div>
-            </section>
-
-            {/* Features Grid Section */}
-            <section className="py-32 px-6">
-                <div className="max-w-7xl mx-auto space-y-20">
-                    <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Por que o Qrido?</h2>
-                        <p className="text-slate-500 font-medium max-w-xl mx-auto">Ele é simples. E o simples funciona.</p>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setActiveTab('offers')}
+                            className="h-10 w-10 text-slate-400 hover:text-slate-900 bg-white shadow-sm border border-slate-100 rounded-full"
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-                        {/* Feature 1 */}
-                        <Card className="border-none shadow-xl bg-brand-blue rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <Zap className="h-8 w-8 text-white fill-current" />
-                            </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Sistema de Pontos<br />Personalizado</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Defina suas próprias regras. Escolha quanto cada real vale em pontos e crie um ecossistema único para o seu negócio.</p>
-                        </Card>
-
-                        {/* Feature 2 */}
-                        <Card className="border-none shadow-xl bg-brand-green rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <TrendingUp className="h-8 w-8 text-white" />
-                            </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Dashboard de<br />Métricas Reais</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Saiba exatamente quem são seus clientes fiéis, quanto eles gastam e qual a frequência de retorno em tempo real.</p>
-                        </Card>
-
-                        {/* Feature 3 */}
-                        <Card className="border-none shadow-xl bg-brand-orange rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <Gift className="h-8 w-8 text-white" />
-                            </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Gestão de Prêmios<br />Irresistíveis</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Crie recompensas que geram desejo. Desde descontos exclusivos até produtos gratuitos que fazem o cliente voltar sorrindo.</p>
-                        </Card>
-
-                        {/* Feature 4 */}
-                        <Card className="border-none shadow-xl bg-brand-yellow rounded-[40px] p-10 text-brand-dark overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-black/5 rounded-2xl w-fit mb-8 group-hover:bg-black/10 transition-colors">
-                                <Smartphone className="h-8 w-8 text-brand-dark" />
-                            </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Cadastro instantâneo<br />sem Apps</h3>
-                            <p className="text-brand-dark/60 font-medium leading-relaxed">O seu cliente entra no programa em segundos via QR Code. Nada de baixar aplicativos pesados ou formulários chatos.</p>
-                        </Card>
-                    </div>
-                </div>
-            </section>
-
-            {/* How it Works Section */}
-            <section id="como-funciona" className="py-24 px-6 bg-slate-100 rounded-t-[80px]">
-                <div className="max-w-7xl mx-auto space-y-20">
-                    <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">4 Passos para o Sucesso</h2>
-                        <p className="text-slate-500 font-medium">Do cadastro à primeira venda recorrente em minutos.</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        {[
-                            { step: '01', title: 'Crie sua Conta', desc: 'Em menos de 2 minutos você configura sua loja e perfil.', icon: MousePointer2 },
-                            { step: '02', title: 'Defina Regras', desc: 'Escolha o valor dos pontos e os prêmios da sua vitrine.', icon: Settings },
-                            { step: '03', title: 'Distribua Pontos', desc: 'O cliente compra e você credita os pontos na hora pelo celular.', icon: Smartphone },
-                            { step: '04', title: 'Colha os Lucros', desc: 'Sua base de dados cresce e sua recorrência decola.', icon: TrendingUp },
-                        ].map((item, idx) => (
-                            <div key={idx} className="relative group">
-                                <div className="text-8xl font-black text-slate-200 absolute -top-8 -left-4 italic select-none group-hover:text-brand-blue/10 transition-colors">{item.step}</div>
-                                <div className="relative z-10 space-y-4 pt-4">
-                                    <div className="h-12 w-12 bg-white rounded-2xl flex items-center justify-center text-brand-blue shadow-sm border border-slate-200">
-                                        <item.icon className="h-6 w-6" />
-                                    </div>
-                                    <h3 className="text-xl font-black italic uppercase text-slate-900 tracking-tight">{item.title}</h3>
-                                    <p className="text-sm text-slate-500 font-medium leading-relaxed">{item.desc}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ROI / Results Section */}
-            <section className="py-24 px-6 relative bg-slate-900 text-white overflow-hidden">
-                 <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-brand-orange/10 rounded-full blur-[100px] translate-x-1/3 -translate-y-1/3 pointer-events-none" />
-                 <div className="max-w-7xl mx-auto relative z-10">
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-                         <div className="space-y-8">
-                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-yellow/10 rounded-full text-brand-yellow mb-2">
-                                 <TrendingUp className="h-4 w-4 fill-current" />
-                                 <span className="text-[10px] font-black uppercase tracking-[2px] italic">Feito para Empresas</span>
-                             </div>
-                             <h2 className="text-4xl md:text-5xl font-black italic uppercase leading-none">
-                                 A Matemática é <span className="text-brand-yellow">Simples</span>.
-                             </h2>
-                             <p className="text-xl text-slate-300 font-medium">
-                                 Deixar de fidelizar significa perder receita todos os meses. Veja o que acontece quando sua empresa foca na retenção através do QRido:
-                             </p>
-                             <ul className="space-y-6">
-                                 {[
-                                     { title: '+45% em Retenção', desc: 'Clientes voltam quase o dobro de vezes ao saberem que acumulam pontos e prêmios.' },
-                                     { title: 'Ticket Médio 20% Maior', desc: 'A meta de atingir um prêmio faz o cliente gastar um pouco a mais a cada visita para resgatar mais rápido.' },
-                                     { title: 'Custo Zero de App', desc: 'Não pague taxas abusivas ou desenvolva aplicativos caros. Seu programa de fidelidade na nuvem em 5 minutos.' }
-                                 ].map((item, idx) => (
-                                     <li key={idx} className="flex gap-4">
-                                         <div className="h-12 w-12 rounded-2xl bg-brand-orange/20 flex items-center justify-center shrink-0">
-                                             <TrendingUp className="h-6 w-6 text-brand-orange" />
-                                         </div>
-                                         <div>
-                                             <h4 className="text-xl font-black italic uppercase text-white">{item.title}</h4>
-                                             <p className="text-slate-400 font-medium">{item.desc}</p>
-                                         </div>
-                                     </li>
-                                 ))}
-                             </ul>
-                         </div>
-                         <div className="bg-slate-800 rounded-[40px] p-8 border border-slate-700 relative shadow-2xl">
-                            <div className="absolute -top-6 -right-6 lg:-right-10 bg-brand-green text-slate-900 font-black italic uppercase px-6 py-3 rounded-full text-sm shadow-xl rotate-3">
-                                Case de Sucesso
-                            </div>
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="h-16 w-16 bg-slate-700 rounded-full flex items-center justify-center overflow-hidden">
-                                    <Store className="h-8 w-8 text-slate-400" />
-                                </div>
-                                <div>
-                                    <h4 className="text-xl font-black italic uppercase text-white">Cafeteria Central</h4>
-                                    <p className="text-brand-orange font-bold text-sm">Cliente QRCode Pro desde 2024</p>
-                                </div>
-                            </div>
-                            <p className="text-lg text-slate-300 mb-8 italic">
-                                "Antes do QRido, nossos clientes vinham 1x por semana. Hoje, com a meta de ganhar um café grátis, eles vêm até 3x para acumular mais rápido. Nosso faturamento aumentou absurdamente apenas recompensando quem já comprava."
-                            </p>
-                            <div className="grid grid-cols-2 gap-4 border-t border-slate-700 pt-6">
-                                <div>
-                                    <p className="text-slate-500 font-bold uppercase text-xs">Crescimento (Vendas)</p>
-                                    <p className="text-4xl font-black italic text-brand-green">+34%</p>
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 font-bold uppercase text-xs">ROI do Investimento</p>
-                                    <p className="text-4xl font-black italic text-brand-blue">15x</p>
-                                </div>
-                            </div>
-                         </div>
-                     </div>
-                 </div>
-            </section>
-
-            {/* Pricing Section */}
-            <section id="planos" className="py-32 px-6 relative bg-[#FAF9F6]">
-                <div className="max-w-7xl mx-auto space-y-20">
-                    <div className="text-center space-y-4">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/10 rounded-full text-brand-blue mb-2">
-                             <Crown className="h-4 w-4 fill-current" />
-                             <span className="text-[10px] font-black uppercase tracking-[2px] italic">Nossos Planos</span>
+                    {rewardsLoading ? (
+                        <div className="py-20 text-center space-y-4">
+                            <div className="h-10 w-10 border-4 border-[#E9592C] border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-slate-400 font-black italic uppercase text-xs">Carregando prêmios...</p>
                         </div>
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Plano perfeito pro <span className="text-brand-orange">tamanho</span> do seu negócio</h2>
-                        <p className="text-slate-500 font-medium max-w-xl mx-auto">
-                            Invista na fidelização dos seus clientes hoje e veja seu faturamento aumentar. Escolha o plano ideal pra sua empresa.
-                        </p>
-                    </div>
+                    ) : allRewards.length === 0 ? (
+                        <div className="py-20 text-center bg-white rounded-[40px] border border-dashed border-slate-200">
+                            <Gift className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-500 font-black italic uppercase text-lg">NENHUM PRÊMIO DISPONÍVEL NO MOMENTO.</p>
+                            <p className="text-slate-400 text-xs font-bold italic mt-2">Você ainda não possui pontos ativos ou as lojas não cadastraram prêmios.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {allRewards.map((reward, i) => {
+                                const balance = reward.user_balance || 0
+                                const progress = Math.min((balance / reward.points_required) * 100, 100)
+                                const isAvailable = balance >= reward.points_required
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {[
-                            {
-                                id: 'start',
-                                name: 'Plano Qridinho',
-                                price: 'R$ 49,99',
-                                period: '/mês',
-                                description: 'Ideal para quem está focando em fidelizar do zero.',
-                                icon: Zap,
-                                iconColor: 'text-brand-blue',
-                                borderFocus: 'hover:ring-brand-blue',
-                                features: ['Até 10 produtos', '100 clientes', 'Métricas básicas', 'Suporte via chat']
-                            },
-                            {
-                                id: 'pro',
-                                name: 'Plano Qrido',
-                                price: 'R$ 89,99',
-                                period: '/mês',
-                                popular: true,
-                                description: 'Para lojas que querem escalar rápido.',
-                                icon: Rocket,
-                                iconColor: 'text-[#F7AA1C]',
-                                borderFocus: 'ring-[#F7AA1C]',
-                                features: ['Até 20 produtos', '300 clientes', 'Dashboard avançado', 'Relatórios mensais', 'Prioridade no atendimento']
-                            },
-                            {
-                                id: 'master',
-                                name: 'Plano Qridão',
-                                price: 'R$ 199,99',
-                                period: '/mês',
-                                description: 'O ecossistema completo para você dominar sua região.',
-                                icon: Crown,
-                                iconColor: 'text-[#E9592C]',
-                                borderFocus: 'hover:ring-[#E9592C]',
-                                features: ['Até 100 produtos', 'Até 1000 clientes', 'Botão pontos em dobro para ações relâmpago', 'Gerente de conta personalizado', 'Material gráfico para sua empresa']
-                            }
-                        ].map((plan) => (
-                            <Card key={plan.id} className={cn(
-                                "relative flex flex-col rounded-[48px] border-none shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group",
-                                plan.popular ? "ring-4 scale-105 z-10" : "bg-white hover:-translate-y-2 hover:ring-2",
-                                plan.borderFocus
-                            )}>
-                                {plan.popular && (
-                                    <div className="absolute top-0 right-0 bg-[#F7AA1C] text-white px-6 py-2 rounded-bl-[24px] font-black italic text-[10px] uppercase tracking-widest">
-                                        MAIS ASSINADO
-                                    </div>
-                                )}
-                                <div className="p-10 pb-6 text-center space-y-4">
-                                    <div className="mx-auto h-16 w-16 rounded-3xl flex items-center justify-center bg-slate-50 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                                        <plan.icon className={cn("h-8 w-8", plan.iconColor)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tight text-slate-900">{plan.name}</h3>
-                                        <p className="text-xs text-slate-400 font-bold uppercase italic max-w-[200px] mx-auto">{plan.description}</p>
-                                    </div>
-                                </div>
-                                <div className="p-10 pt-0 flex-grow space-y-8">
-                                    <div className="text-center">
-                                        <span className="text-5xl font-black italic text-slate-900">{plan.price}</span>
-                                        <span className="text-slate-400 font-black italic tracking-tighter">{plan.period}</span>
-                                    </div>
-                                    <div className="space-y-4 font-medium">
-                                        {plan.features.map((feature, i) => (
-                                            <div key={i} className="flex items-center gap-3">
-                                                <div className="bg-emerald-50 rounded-full p-1 text-emerald-500 shrink-0">
-                                                    <CheckCircle2 className="h-4 w-4" />
+                                return (
+                                    <Card key={`${reward.id}-${i}`} className={cn(
+                                        "p-6 rounded-[32px] border shadow-xl shadow-slate-100/50 transition-all flex flex-col gap-4 bg-white hover:scale-[1.02] duration-300",
+                                        isAvailable ? "border-[#F7AA1C] ring-1 ring-[#F7AA1C]/20 shadow-orange-100/50" : "border-slate-100"
+                                    )}>
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn(
+                                                    "p-3 rounded-2xl border",
+                                                    isAvailable ? "bg-amber-50 text-[#F7AA1C] border-amber-100" : "bg-slate-50 text-slate-400 border-slate-100 shadow-inner"
+                                                )}>
+                                                    <Award className="h-5 w-5" />
                                                 </div>
-                                                <span className="text-sm text-slate-600 font-bold italic">{feature}</span>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic">{reward.company_name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">Saldo: {balance} pts</p>
+                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="p-10 pt-4 mt-auto">
-                                    <Link href={`/login?mode=register&role=company&plan=${plan.id}`} className="group block">
-                                        <Button className={cn(
-                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-[10px] md:text-sm shadow-xl transition-all whitespace-normal px-2",
-                                            plan.popular ? "bg-[#F7AA1C] hover:bg-[#e09917] text-white shadow-[#F7AA1C]/30" : "bg-slate-900 hover:bg-slate-800 text-white"
-                                        )}>
-                                            Assinar {plan.name.split(' ')[1]}
-                                            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform inline" />
-                                        </Button>
-                                    </Link>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Final CTA Section */}
-            <section className="py-32 px-6">
-                <div className="max-w-5xl mx-auto bg-brand-blue rounded-[56px] p-12 md:p-20 text-center text-white relative overflow-hidden shadow-2xl shadow-brand-blue/40 group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-white/10 transition-all duration-700" />
-                    
-                    <div className="relative z-10 space-y-8">
-                        <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">
-                            Bora fazer a sua loja ser a mais <span className="text-brand-yellow">QRIDA</span> do seu bairro?
-                        </h2>
-                        <p className="text-xl text-white/70 font-medium max-w-2xl mx-auto italic">
-                            Otimize seu investimento naquilo que dá certo: fazer seus clientes virarem fãs.
-                        </p>
-                        <Link href="/login?mode=register&role=company" className="inline-block w-full max-w-[280px] md:max-w-sm">
-                            <Button className="h-auto py-4 md:h-16 px-6 md:px-12 w-full bg-white text-brand-blue hover:bg-slate-100 rounded-[24px] text-sm md:text-lg font-black italic uppercase transition-all hover:scale-105 whitespace-normal">
-                                Criar Conta Agora
-                            </Button>
-                        </Link>
-                    </div>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="py-12 border-t border-slate-100 px-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:row items-center justify-between gap-8">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 bg-brand-blue rounded-lg flex items-center justify-center text-white">
-                            <Zap className="h-4 w-4 fill-current" />
+                                            <div className="text-right whitespace-nowrap ml-2">
+                                                <p className="text-[10px] font-black uppercase text-slate-400 font-bold">Objetivo</p>
+                                                <p className="text-lg font-black text-slate-900 leading-none italic">{reward.points_required} pts</p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-black text-slate-900 uppercase italic leading-tight">{reward.title}</h3>
+                                            <p className="text-xs text-slate-500 italic mt-1 font-bold line-clamp-2">{reward.description}</p>
+                                        </div>
+                                        <div className="space-y-2 mt-auto pt-4 relative">
+                                            <div className="flex justify-between items-end">
+                                                <p className="text-[10px] font-black uppercase text-slate-500 italic font-bold">Progresso</p>
+                                                <p className="text-[10px] font-black text-brand-blue uppercase italic">{balance} / {reward.points_required} pts</p>
+                                            </div>
+                                            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-50 shadow-inner relative">
+                                                <div
+                                                    className={cn(
+                                                        "h-full transition-all duration-1000 ease-out",
+                                                        isAvailable ? "bg-[#F7AA1C]" : "bg-gradient-to-r from-brand-blue to-teal-400"
+                                                    )}
+                                                    style={{ width: `${progress}%` }}
+                                                />
+                                            </div>
+                                            <p className={cn(
+                                                "text-[9px] font-black italic uppercase tracking-tighter",
+                                                isAvailable ? "text-[#F7AA1C]" : "text-slate-400"
+                                            )}>
+                                                {isAvailable ? "✨ PRONTO PARA O RESGATE!" : `Faltam ${reward.points_required - balance} pontos.`}
+                                            </p>
+                                        </div>
+                                        {isAvailable && (
+                                            <Button
+                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-orange-200 mt-2 hover:scale-[1.02] transition-transform"
+                                                onClick={() => handleRedeemReward(reward)}
+                                            >
+                                                SOLICITAR RESGATE
+                                            </Button>
+                                        )}
+                                    </Card>
+                                )
+                            })}
                         </div>
-                        <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900">QRIDO</span>
-                    </div>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic">© 2026 QRIDO • Todos os direitos reservados</p>
-                    <div className="flex items-center gap-6">
-                        <Link href="#" className="text-xs font-black uppercase italic text-slate-400 hover:text-brand-blue transition-colors">Termos</Link>
-                        <Link href="#" className="text-xs font-black uppercase italic text-slate-400 hover:text-brand-blue transition-colors">Privacidade</Link>
+                    )}
+                </div>
+            )}
+            {/* Modal de prompt de Login para Anônimos */}
+            {showLoginPromptModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[40px] p-10 max-w-md w-full border border-slate-100 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-300">
+                        <div className="h-16 w-16 bg-brand-blue/10 rounded-full flex items-center justify-center mx-auto text-brand-blue border border-brand-blue/20">
+                            <User className="h-8 w-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-brand-blue">
+                                Identificação Necessária
+                            </h3>
+                            <p className="text-slate-500 font-bold italic text-sm">
+                                Para adicionar itens ao carrinho, solicitar validação de compras, resgatar recompensas ou acessar seu extrato, você precisa entrar na sua conta.
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="btn-blue w-full h-14 rounded-2xl text-xs font-black italic uppercase tracking-widest bg-brand-blue text-white hover:bg-brand-blue/90"
+                            >
+                                Fazer Login ou Cadastro
+                            </Button>
+                            <button
+                                onClick={() => setShowLoginPromptModal(false)}
+                                className="text-xs font-black uppercase italic tracking-widest text-slate-400 hover:text-slate-600 py-2"
+                            >
+                                Continuar Navegando
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </footer>
+            )}
         </div>
     )
 }
+

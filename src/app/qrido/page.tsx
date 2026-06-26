@@ -28,7 +28,7 @@ export default function QRidoRoleSwitcher() {
             if (profile?.role === 'admin') {
                 router.replace('/qrido/admin')
             } else if (profile?.role === 'customer') {
-                router.replace('/qrido/customer')
+                router.replace('/')
             } else {
                 router.replace('/qrido/company')
             }
