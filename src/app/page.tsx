@@ -108,8 +108,42 @@ export default function CustomerDashboard() {
     const [isGlobalHistory, setIsGlobalHistory] = useState(false)
     const [showScore, setShowScore] = useState(true)
     const [showLoginPromptModal, setShowLoginPromptModal] = useState(false)
+    const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+    const [featuredProductsLoading, setFeaturedProductsLoading] = useState(false)
 
     const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
+
+    const fetchFeaturedProducts = async (companyIds: string[]) => {
+        if (!companyIds || companyIds.length === 0) {
+            setFeaturedProducts([])
+            return
+        }
+        setFeaturedProductsLoading(true)
+        const supabase = createClient()
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .in('company_id', companyIds)
+            .eq('is_active', true)
+        
+        if (error) {
+            console.error('Erro ao buscar produtos em destaque:', error)
+        } else if (data) {
+            setFeaturedProducts(data)
+        }
+        setFeaturedProductsLoading(false)
+    }
+
+    useEffect(() => {
+        const promotedCompanyIds = companies
+            .filter(c => loyaltyConfigs[c.id]?.double_points_active)
+            .map(c => c.id)
+        if (promotedCompanyIds.length > 0) {
+            fetchFeaturedProducts(promotedCompanyIds)
+        } else {
+            setFeaturedProducts([])
+        }
+    }, [companies, loyaltyConfigs])
 
     useEffect(() => {
         fetchInitialData()
@@ -926,7 +960,7 @@ export default function CustomerDashboard() {
     const cartPointsMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active) ? 2 : 1
 
     return (
-        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
+        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 py-8 space-y-8 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
             {/* Header Estilo App */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1032,8 +1066,8 @@ export default function CustomerDashboard() {
                 </div>
             </div>
 
-            {/* Grade de Ações Rápidas (Grid Style) */}
-            <div className="grid grid-cols-5 gap-2 sm:gap-4">
+            {/* Grade de Ações Rápidas (Centered Flex) */}
+            <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 md:gap-8 w-full py-2">
                 {[
                     { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
                     { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
@@ -1071,249 +1105,229 @@ export default function CustomerDashboard() {
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-10">
-                    {promotedCompanies.length > 0 && (
-                        <>
-                            <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
-                                <div className="relative z-10">
-                                    <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
-                                    <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
-                                </div>
-                                <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
-                            </div>
+                    <div className="bg-gradient-to-br from-[#E9592C] to-[#E9592C]/80 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200 relative overflow-hidden">
+                        <div className="relative z-10">
+                            <h2 className="text-3xl font-black italic uppercase leading-tight mb-2">Qridos do Dia 🔥</h2>
+                            <p className="text-white/80 font-bold italic text-sm">Promoções em destaque com tempo limitado ou bônus exclusivos!</p>
+                        </div>
+                        <div className="absolute top-0 right-0 h-full w-1/2 bg-white/5 skew-x-12 translate-x-1/2" />
+                    </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {promotedCompanies.map((c) => (
-                                    <Card key={c.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group">
-                                        <CardHeader className="flex-1">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <TrendingUp className="h-3 w-3 text-[#E9592C]" />
-                                                <span className="text-[9px] font-black text-[#E9592C] uppercase italic tracking-widest">Destaque QRido</span>
+                    {featuredProductsLoading ? (
+                        <div className="flex justify-center py-12">
+                            <div className="h-8 w-8 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : featuredProducts.length === 0 ? (
+                        <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                            <ShoppingBag className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-slate-400 italic">Nenhum produto em destaque no momento.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {featuredProducts.map((product) => {
+                                const company = companies.find(c => c.id === product.company_id)
+                                const pointsMultiplier = loyaltyConfigs[product.company_id]?.double_points_active ? 2 : 1
+                                
+                                return (
+                                    <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
+                                        {pointsMultiplier > 1 && (
+                                            <div className="absolute top-3 left-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
+                                                <span>🪙🪙</span>
+                                                <span>Pontos em Dobro</span>
                                             </div>
-                                            <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1">{c.full_name}</CardTitle>
-                                            <p className="text-[10px] font-bold text-slate-500 italic">Cupom de Pontos em Dobro ativado!</p>
+                                        )}
+                                        {product.is_top_seller && (
+                                            <div className="absolute top-3 right-3 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
+                                                🔥 Top Vendas
+                                            </div>
+                                        )}
+                                        <CardHeader className="flex-1 pt-12">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Store className="h-3 w-3 text-brand-blue" />
+                                                <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[150px]">
+                                                    {company?.full_name || 'Parceiro'}
+                                                </span>
+                                            </div>
+                                            <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1 line-clamp-1">{product.name}</CardTitle>
+                                            <p className="text-brand-blue font-black italic text-sm">R$ {product.price}</p>
+                                            <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
                                         </CardHeader>
-                                        <CardContent className="pt-0">
+                                        <CardContent className="pt-0 pb-6 flex flex-col gap-3">
+                                            <div className={cn(
+                                                "border text-[10px] font-black px-3 py-1.5 rounded-xl italic uppercase shadow-inner text-center",
+                                                pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
+                                            )}>
+                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🪙🪙'}
+                                            </div>
                                             <Button
-                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-10 rounded-xl font-black italic uppercase text-[10px] shadow-lg shadow-orange-100"
-                                                onClick={() => {
-                                                    handleSelectCompany(c)
-                                                    setTimeout(() => {
-                                                      document.getElementById(`loja-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                                    }, 100)
-                                                }}
+                                                className={cn(
+                                                    "w-full h-11 rounded-2xl font-black italic uppercase text-[10px] shadow-md transition-all duration-300",
+                                                    lastAddedItem === product.id
+                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                        : "bg-[#E9592C] hover:bg-[#E9592C]/90 text-white shadow-orange-100"
+                                                )}
+                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                             >
-                                                Quero Agora
+                                                {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
                                             </Button>
                                         </CardContent>
                                     </Card>
-                                ))}
-                            </div>
-                        </>
-                    )}
-
-                    {/* Parceiros do Ecossistema */}
-                    <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                    <Store className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
-                                    <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
-                                </div>
-                            </div>
-                            {userLocation && (
-                                <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 sm:h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
-                                    <MapPin className="h-3 w-3 mr-1" />
-                                    Atualizar Localização
-                                </Button>
-                            )}
+                                )
+                            })}
                         </div>
-
-                        {!userLocation && !locationError && (
-                            <div className="bg-brand-blue/5 p-4 rounded-3xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
-                                        <MapPin className="h-5 w-5" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
-                                        <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
-                                    </div>
-                                </div>
-                                <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 text-[10px] font-black uppercase italic tracking-wider">
-                                    Permitir
-                                </Button>
-                            </div>
-                        )}
-
-                        {companies.length === 0 && !loading ? (
-                            <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
-                                <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                                <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja parceira encontrada na sua região.</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-4">
-                                {companies.map((company, index) => {
-                                    const isExpanded = selectedCompany?.id === company.id;
-                                    const pointsMultiplier = loyaltyConfigs[company.id]?.double_points_active ? 2 : 1;
-                                    return (
-                                        <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl")} style={{ animationDelay: `${index * 50}ms` }}>
-                                            <CardContent className="p-0">
-                                                <div className={cn("flex items-center justify-between cursor-pointer p-5 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
-                                                            <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="font-black text-slate-900 uppercase italic tracking-tight">{company.full_name || 'Empresa Parceira'}</h3>
-                                                            {company.distance !== undefined && (
-                                                                <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
-                                                                    <MapPin className="h-3 w-3" />
-                                                                    {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
-                                                                    {company.address && ` • ${company.address}`}
-                                                                </div>
-                                                            )}
-                                                            {!isExpanded && (
-                                                                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        {isExpanded && (
-                                                            <div className="hidden sm:flex flex-col text-right mr-4">
-                                                                <span className="text-[9px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
-                                                                <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
-                                                            </div>
-                                                        )}
-                                                        <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
-                                                            <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Expanded Accordion Content: Products */}
-                                                <div className={cn("grid transition-all duration-300 origin-top px-5 pb-5", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
-                                                    <div className="overflow-hidden">
-                                                        <div className="pt-5 border-t border-slate-200/60">
-                                                            {loading && isExpanded ? (
-                                                                <div className="flex justify-center py-8">
-                                                                    <div className="h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
-                                                                </div>
-                                                            ) : products.length === 0 && isExpanded ? (
-                                                                <div className="text-center py-8 text-slate-400 font-bold text-sm italic">Nenhuma oferta ativa nesta loja no momento.</div>
-                                                            ) : (
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                                                    {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
-                                                                        <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
-                                                                            {product.is_top_seller && (
-                                                                                <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
-                                                                                    <Flame className="h-3 w-3" /> Top Vendas
-                                                                                </div>
-                                                                            )}
-                                                                            <div className="flex justify-between items-start mb-3 mt-1">
-                                                                                <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
-                                                                                    <ShoppingBag className="h-5 w-5" />
-                                                                                </div>
-                                                                                <div className={cn("border text-[10px] font-black px-2 py-1 rounded-full italic uppercase shadow-sm", pointsMultiplier > 1 ? "bg-orange-50 border-orange-100 text-[#E9592C] animate-pulse" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
-                                                                                    +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🔥'}
-                                                                                </div>
-                                                                            </div>
-                                                                            <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
-                                                                            <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
-                                                                            <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
-                                                                            <Button
-                                                                                className={cn(
-                                                                                    "w-full h-10 mt-4 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300",
-                                                                                    lastAddedItem === product.id
-                                                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                                                        : "bg-slate-900 hover:bg-slate-800 text-white"
-                                                                                )}
-                                                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                                                            >
-                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
-                                                                            </Button>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )
-                                })}
-                            </div>
-                        )}
-                    </div>
+                    )}
                 </div>
             ) : activeTab === 'my_stores' ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6 pb-20">
-                    <div className="flex items-center justify-between px-2">
-                        <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-widest italic">Nossas Lojas Parceiras</h3>
-                        <p className="text-[10px] font-bold text-brand-orange uppercase italic">{companies.length} Parceiros</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                <Store className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
+                                <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
+                            </div>
+                        </div>
+                        {userLocation && (
+                            <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 sm:h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                Atualizar Localização
+                            </Button>
+                        )}
                     </div>
 
-                    <div className="space-y-4">
-                        {companies.map(store => {
-                            const userStore = myStores.find(s => s.id === store.id)
-                            const balance = userStore?.points_balance || 0
-                            const hasPoints = balance > 0
-                            const config = loyaltyConfigs[store.id]
-                            const target = config?.min_points_redemption || 100
-                            const progress = Math.min(balance / target * 100, 100)
+                    {!userLocation && !locationError && (
+                        <div className="bg-brand-blue/5 p-4 rounded-3xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
+                                    <MapPin className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
+                                    <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
+                                </div>
+                            </div>
+                            <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 text-[10px] font-black uppercase italic tracking-wider">
+                                Permitir
+                            </Button>
+                        </div>
+                    )}
 
-                            return (
-                                <button
-                                    key={store.id}
-                                    onClick={() => handleSelectCompany(store)}
-                                    className="w-full text-left bg-white border border-slate-100 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:border-slate-200 transition-all hover:shadow-xl hover:bg-slate-50 group shadow-sm shadow-slate-100"
-                                >
-                                    <div className="flex items-center gap-5 w-full sm:w-auto">
-                                        <div className="relative">
-                                            <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center text-[#297CCB] group-hover:scale-110 transition-transform shadow-sm">
-                                                <Store className="h-8 w-8" />
-                                            </div>
-                                            {hasPoints && (
-                                                <div className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full border-2 border-white shadow-sm">
-                                                    <Heart className="h-3 w-3 fill-current" />
+                    {companies.length === 0 && !loading ? (
+                        <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
+                            <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja parceira encontrada na sua região.</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-4">
+                            {companies.map((company, index) => {
+                                const isExpanded = selectedCompany?.id === company.id;
+                                const pointsMultiplier = loyaltyConfigs[company.id]?.double_points_active ? 2 : 1;
+                                const userStore = myStores.find(s => s.id === company.id)
+                                const balance = userStore?.points_balance || 0
+
+                                return (
+                                    <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl")} style={{ animationDelay: `${index * 50}ms` }}>
+                                        <CardContent className="p-0">
+                                            <div className={cn("flex items-center justify-between cursor-pointer p-5 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
+                                                        <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-black text-slate-900 uppercase italic tracking-tight flex items-center gap-2 flex-wrap">
+                                                            {company.full_name || 'Empresa Parceira'}
+                                                            {pointsMultiplier > 1 && (
+                                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-1 shadow-sm">
+                                                                    🪙🪙 Pontos em Dobro
+                                                                </span>
+                                                            )}
+                                                            {balance > 0 && (
+                                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-1 shadow-sm">
+                                                                    ❤️ {balance} pts
+                                                                </span>
+                                                            )}
+                                                        </h3>
+                                                        {company.distance !== undefined && (
+                                                            <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
+                                                                <MapPin className="h-3 w-3" />
+                                                                {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
+                                                                {company.address && ` • ${company.address}`}
+                                                            </div>
+                                                        )}
+                                                        {!isExpanded && (
+                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h3 className="text-xl font-black text-slate-900 uppercase italic leading-none">{store.full_name}</h3>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                {hasPoints ? 'Sua Loja Qrida ❤️' : 'Clique para conhecer'}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="w-full sm:w-[250px] space-y-3">
-                                        <div className="flex justify-between items-end">
-                                            <p className="text-[9px] font-black text-slate-500 uppercase italic tracking-tighter">Seu Saldo</p>
-                                            <p className="text-xs font-black text-[#E9592C] uppercase italic">{balance} / {target} pts</p>
-                                        </div>
-                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-[#297CCB] to-[#E9592C] transition-all duration-1000 ease-out"
-                                                style={{ width: `${progress}%` }}
-                                            />
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <p className="text-[9px] font-bold text-slate-400 italic">
-                                                {progress >= 100 ? '🎉 Resgate pronto!' : `Faltam ${target - balance} pts`}
-                                            </p>
-                                            <div className="flex items-center gap-1 text-[9px] font-black text-[#297CCB] uppercase group-hover:translate-x-1 transition-transform">
-                                                Ver Ofertas <ChevronRight className="h-3 w-3" />
+                                                <div className="flex items-center gap-3">
+                                                    {isExpanded && (
+                                                        <div className="hidden sm:flex flex-col text-right mr-4">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
+                                                            <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
+                                                        </div>
+                                                    )}
+                                                    <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
+                                                        <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </button>
-                            )
-                        })}
-                    </div>
+
+                                            {/* Expanded Accordion Content: Products */}
+                                            <div className={cn("grid transition-all duration-300 origin-top px-5 pb-5", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
+                                                <div className="overflow-hidden">
+                                                    <div className="pt-5 border-t border-slate-200/60">
+                                                        {loading && isExpanded ? (
+                                                            <div className="flex justify-center py-8">
+                                                                <div className="h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                                                            </div>
+                                                        ) : products.length === 0 && isExpanded ? (
+                                                            <div className="text-center py-8 text-slate-400 font-bold text-sm italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                        ) : (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
+                                                                    <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
+                                                                        {product.is_top_seller && (
+                                                                            <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
+                                                                                <Flame className="h-3 w-3" /> Top Vendas
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="flex justify-between items-start mb-3 mt-1">
+                                                                            <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
+                                                                                <ShoppingBag className="h-5 w-5" />
+                                                                            </div>
+                                                                            <div className={cn("border text-[10px] font-black px-2.5 py-1 rounded-full italic uppercase shadow-sm flex items-center gap-1", pointsMultiplier > 1 ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white border-amber-300" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
+                                                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && '🪙🪙 Pontos em Dobro!'}
+                                                                            </div>
+                                                                        </div>
+                                                                        <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
+                                                                        <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
+                                                                        <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
+                                                                        <Button
+                                                                            className={cn(
+                                                                                "w-full h-10 mt-4 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300",
+                                                                                lastAddedItem === product.id
+                                                                                    ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                                                    : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                            )}
+                                                                            onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                        >
+                                                                            {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
+                                                                        </Button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
             ) : activeTab === 'requests' ? (
                 <div className="animate-in fade-in duration-500 space-y-8 pb-20">
