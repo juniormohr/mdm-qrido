@@ -1176,36 +1176,39 @@ export default function CustomerDashboard() {
                                                 🔥 Top Vendas Qrido
                                             </div>
                                         )}
-                                        <CardHeader className="flex-1 pt-12">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Store className="h-3 w-3 text-brand-blue" />
-                                                <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[150px]">
-                                                    {company?.full_name || 'Parceiro'}
-                                                </span>
+                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-12 p-6 gap-4">
+                                            <div className="flex-1 flex flex-col justify-center min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Store className="h-3 w-3 text-brand-blue" />
+                                                    <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[150px]">
+                                                        {company?.full_name || 'Parceiro'}
+                                                    </span>
+                                                </div>
+                                                <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1 line-clamp-1">{product.name}</CardTitle>
+                                                <p className="text-brand-blue font-black italic text-sm">R$ {product.price}</p>
+                                                <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
                                             </div>
-                                            <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1 line-clamp-1">{product.name}</CardTitle>
-                                            <p className="text-brand-blue font-black italic text-sm">R$ {product.price}</p>
-                                            <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
-                                        </CardHeader>
-                                        <CardContent className="pt-0 pb-6 flex flex-row items-center gap-2">
-                                            <div className={cn(
-                                                "border text-[10px] font-black px-2 py-3 rounded-xl italic uppercase shadow-inner text-center w-20 shrink-0 flex items-center justify-center h-11",
-                                                pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
-                                            )}>
-                                                +{product.points_reward * pointsMultiplier} PTS
+                                            
+                                            <div className="flex flex-col justify-center gap-2 w-32 shrink-0">
+                                                <div className={cn(
+                                                    "border text-[10px] font-black py-2.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-10 w-full",
+                                                    pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
+                                                )}>
+                                                    +{product.points_reward * pointsMultiplier} PTS
+                                                </div>
+                                                <Button
+                                                    className={cn(
+                                                        "w-full h-11 rounded-xl font-black italic uppercase text-[9px] shadow-md transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                        lastAddedItem === product.id
+                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                            : "bg-[#E9592C] hover:bg-[#E9592C]/90 text-white shadow-orange-100"
+                                                    )}
+                                                    onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                >
+                                                    {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                </Button>
                                             </div>
-                                            <Button
-                                                className={cn(
-                                                    "flex-1 h-11 rounded-2xl font-black italic uppercase text-[10px] shadow-md transition-all duration-300 px-2 truncate",
-                                                    lastAddedItem === product.id
-                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                        : "bg-[#E9592C] hover:bg-[#E9592C]/90 text-white shadow-orange-100"
-                                                )}
-                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                            >
-                                                {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
-                                            </Button>
-                                        </CardContent>
+                                        </div>
                                     </Card>
                                 )
                             })}
@@ -1328,35 +1331,32 @@ export default function CustomerDashboard() {
                                                                                 <Flame className="h-3 w-3" /> Top Vendas Qrido
                                                                             </div>
                                                                         )}
-                                                                        <div className="flex justify-between items-start mb-3 mt-1">
-                                                                            <div className="bg-slate-50 p-2 text-slate-400 rounded-xl border border-slate-100 group-hover/item:text-brand-blue transition-colors">
-                                                                                <ShoppingBag className="h-5 w-5" />
+                                                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-10 p-4 gap-3">
+                                                                            <div className="flex-1 flex flex-col justify-center min-w-0">
+                                                                                <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
+                                                                                <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
+                                                                                <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
                                                                             </div>
-                                                                            <div className={cn("border text-[10px] font-black px-2.5 py-1 rounded-full italic uppercase shadow-sm flex items-center gap-1", pointsMultiplier > 1 ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-white border-amber-300" : "bg-slate-50 border-slate-100 text-[#E9592C]")}>
-                                                                                +{product.points_reward * pointsMultiplier} PTS {pointsMultiplier > 1 && <><GoldCoinsIcon /> Pontos em Dobro!</>}
+                                                                            
+                                                                            <div className="flex flex-col justify-center gap-2 w-32 shrink-0">
+                                                                                <div className={cn(
+                                                                                    "border text-[10px] font-black py-2.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-10 w-full",
+                                                                                    pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
+                                                                                )}>
+                                                                                    +{product.points_reward * pointsMultiplier} PTS
+                                                                                </div>
+                                                                                <Button
+                                                                                    className={cn(
+                                                                                        "w-full h-10 rounded-xl font-black italic uppercase text-[9px] shadow-sm transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                                                        lastAddedItem === product.id
+                                                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
+                                                                                            : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                                    )}
+                                                                                    onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                                >
+                                                                                    {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                                                </Button>
                                                                             </div>
-                                                                        </div>
-                                                                        <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
-                                                                        <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
-                                                                        <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2 flex-1">{product.description}</p>
-                                                                        <div className="flex items-center gap-2 mt-4">
-                                                                            <div className={cn(
-                                                                                "border text-[10px] font-black px-2 py-3 rounded-xl italic uppercase shadow-inner text-center w-20 shrink-0 flex items-center justify-center h-10",
-                                                                                pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
-                                                                            )}>
-                                                                                +{product.points_reward * pointsMultiplier} PTS
-                                                                            </div>
-                                                                            <Button
-                                                                                className={cn(
-                                                                                    "flex-1 h-10 rounded-xl font-black italic uppercase text-[10px] shadow-sm transition-all duration-300 px-2 truncate",
-                                                                                    lastAddedItem === product.id
-                                                                                        ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                                                        : "bg-slate-900 hover:bg-slate-800 text-white"
-                                                                                )}
-                                                                                onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                                                            >
-                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
-                                                                            </Button>
                                                                         </div>
                                                                     </div>
                                                                 ))}
