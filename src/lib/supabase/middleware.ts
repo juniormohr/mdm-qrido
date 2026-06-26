@@ -39,7 +39,9 @@ export async function updateSession(request: NextRequest) {
         request.nextUrl.pathname.startsWith('/login') ||
         request.nextUrl.pathname.startsWith('/auth') ||
         request.nextUrl.pathname.startsWith('/qrido/auth') ||
-        request.nextUrl.pathname === '/' // Landing page is public
+        request.nextUrl.pathname === '/' || // Landing page is public
+        request.nextUrl.pathname === '/qrido/customer' ||
+        request.nextUrl.pathname.startsWith('/qrido/products')
 
     // If we want to force login for everything except login page:
     if (!user && !isPublicRoute) {

@@ -107,6 +107,7 @@ export default function CustomerDashboard() {
     const [historyLoading, setHistoryLoading] = useState(false)
     const [isGlobalHistory, setIsGlobalHistory] = useState(false)
     const [showScore, setShowScore] = useState(true)
+    const [showLoginPromptModal, setShowLoginPromptModal] = useState(false)
 
     const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
 
@@ -118,7 +119,13 @@ export default function CustomerDashboard() {
         const supabase = createClient()
         const loadTabData = async () => {
             const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            
+            if (!user) {
+                if (activeTab === 'offers' && !userLocation) {
+                    await fetchCompanies()
+                }
+                return
+            }
 
             const phone = userProfile?.phone || userPhoneRef.current
 
@@ -235,9 +242,10 @@ export default function CustomerDashboard() {
         }
 
         const { data: { user } } = await supabase.auth.getUser()
-
         if (!user) {
             console.log('fetchInitialData: Usuário não autenticado')
+            await fetchCompanies()
+            setLoading(false)
             return
         }
 
@@ -785,6 +793,10 @@ export default function CustomerDashboard() {
     }
 
     const handleAddToCart = (product: Product) => {
+        if (!userProfile) {
+            setShowLoginPromptModal(true)
+            return
+        }
         setCart(currentCart => {
             const existingIndex = currentCart.findIndex(item => item.product.id === product.id)
             if (existingIndex > -1) {
@@ -867,6 +879,10 @@ export default function CustomerDashboard() {
     }
 
     const handleRedeemReward = async (reward: any) => {
+        if (!userProfile) {
+            setShowLoginPromptModal(true)
+            return
+        }
         const companyId = reward.user_id || selectedCompany?.id
         const balance = reward.user_balance !== undefined ? reward.user_balance : customerBalance
 
@@ -925,62 +941,94 @@ export default function CustomerDashboard() {
                     </div>
                     <div>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Seja bem-vindo</p>
-                        <h2 className="text-lg font-black text-slate-900 italic uppercase">{userProfile?.full_name?.split(' ')[0]}</h2>
+                        <h2 className="text-lg font-black text-slate-900 italic uppercase">
+                            {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'Visitante'}
+                        </h2>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => alert(hasNewNotifications ? 'Você tem novos pedidos pendentes!' : 'Você não tem novas notificações no momento.')}
-                        className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors relative"
-                    >
-                        <Bell className="h-5 w-5" />
-                        {hasNewNotifications && (
-                            <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-brand-orange rounded-full border-2 border-white" />
-                        )}
-                    </button>
-                    <button
-                        onClick={() => router.push('/qrido/settings')}
-                        className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
-                    >
-                        <Settings className="h-5 w-5" />
-                    </button>
+                    {userProfile ? (
+                        <>
+                            <button
+                                onClick={() => alert(hasNewNotifications ? 'Você tem novos pedidos pendentes!' : 'Você não tem novas notificações no momento.')}
+                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors relative"
+                            >
+                                <Bell className="h-5 w-5" />
+                                {hasNewNotifications && (
+                                    <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-brand-orange rounded-full border-2 border-white" />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => router.push('/qrido/settings')}
+                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
+                            >
+                                <Settings className="h-5 w-5" />
+                            </button>
+                        </>
+                    ) : (
+                        <Button
+                            onClick={() => router.push('/login?role=customer')}
+                            className="bg-brand-blue hover:bg-brand-blue/90 text-white font-black italic uppercase tracking-wider text-[10px] px-4 h-10 rounded-xl shadow-sm"
+                        >
+                            Entrar / Criar Conta
+                        </Button>
+                    )}
                 </div>
             </div>
 
             {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
             <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
                 <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="space-y-1">
-                            <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
-                            <div className="flex items-center gap-3">
-                                <h2 className="text-6xl font-black text-white italic tracking-tighter">
-                                    {showScore ? globalScore : '••••'}
-                                    <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
-                                </h2>
+                    {userProfile ? (
+                        <>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="space-y-1">
+                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="text-6xl font-black text-white italic tracking-tighter">
+                                            {showScore ? globalScore : '••••'}
+                                            <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                        </h2>
+                                        <button
+                                            onClick={() => setShowScore(!showScore)}
+                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                        >
+                                            {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                        </button>
+                                    </div>
+                                </div>
                                 <button
-                                    onClick={() => setShowScore(!showScore)}
-                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                    onClick={() => setActiveTab('rewards')}
+                                    className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
                                 >
-                                    {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                    <Gift className="h-8 w-8" />
                                 </button>
                             </div>
-                        </div>
-                        <button
-                            onClick={() => setActiveTab('rewards')}
-                            className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
-                        >
-                            <Gift className="h-8 w-8" />
-                        </button>
-                    </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                        <div className="flex items-center gap-2 text-white/60">
-                            <Plus className="h-4 w-4" />
-                            <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
+                            <div className="flex items-center justify-between pt-6 border-t border-white/10">
+                                <div className="flex items-center gap-2 text-white/60">
+                                    <Plus className="h-4 w-4" />
+                                    <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-white/40" />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                            <div className="space-y-2 text-center sm:text-left">
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight">Acumule pontos em compras!</h3>
+                                <p className="text-xs text-white/80 font-bold italic">
+                                    Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
+                                </p>
+                            </div>
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="w-full sm:w-auto bg-white text-brand-blue hover:bg-white/90 font-black italic uppercase tracking-wider text-xs px-6 h-14 rounded-2xl shadow-xl shrink-0"
+                            >
+                                Começar Agora
+                            </Button>
                         </div>
-                        <ChevronRight className="h-5 w-5 text-white/40" />
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -995,6 +1043,10 @@ export default function CustomerDashboard() {
                     <button
                         key={tab.id}
                         onClick={() => {
+                            if (tab.id !== 'offers' && !userProfile) {
+                                setShowLoginPromptModal(true)
+                                return
+                            }
                             setActiveTab(tab.id as any)
                         }}
                         className="flex flex-col items-center gap-2 group"
@@ -1678,6 +1730,38 @@ export default function CustomerDashboard() {
                             })}
                         </div>
                     )}
+                </div>
+            )}
+            {/* Modal de prompt de Login para Anônimos */}
+            {showLoginPromptModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[40px] p-10 max-w-md w-full border border-slate-100 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-300">
+                        <div className="h-16 w-16 bg-brand-blue/10 rounded-full flex items-center justify-center mx-auto text-brand-blue border border-brand-blue/20">
+                            <User className="h-8 w-8" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-brand-blue">
+                                Identificação Necessária
+                            </h3>
+                            <p className="text-slate-500 font-bold italic text-sm">
+                                Para adicionar itens ao carrinho, solicitar validação de compras, resgatar recompensas ou acessar seu extrato, você precisa entrar na sua conta.
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="btn-blue w-full h-14 rounded-2xl text-xs font-black italic uppercase tracking-widest bg-brand-blue text-white hover:bg-brand-blue/90"
+                            >
+                                Fazer Login ou Cadastro
+                            </Button>
+                            <button
+                                onClick={() => setShowLoginPromptModal(false)}
+                                className="text-xs font-black uppercase italic tracking-widest text-slate-400 hover:text-slate-600 py-2"
+                            >
+                                Continuar Navegando
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

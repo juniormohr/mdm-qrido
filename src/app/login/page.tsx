@@ -1,6 +1,6 @@
 'use client'
 
-import { login, signup } from './actions'
+import { login, signup, signInWithGoogle } from './actions'
 import { useFormStatus } from 'react-dom'
 import { useState, useEffect } from 'react'
 import { AlertCircle } from 'lucide-react'
@@ -399,6 +399,31 @@ export default function LoginPage() {
                     <div className="pt-2">
                         <SubmitButton isLogin={isLogin} />
                     </div>
+
+                    <div className="relative flex items-center justify-center my-4">
+                        <div className="border-t border-slate-200 w-full"></div>
+                        <span className="absolute bg-white px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">ou</span>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            setError(null)
+                            const res = await signInWithGoogle()
+                            if (res?.error) {
+                                setError(res.error)
+                            }
+                        }}
+                        className="flex items-center justify-center gap-3 w-full h-14 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-black transition-all"
+                    >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24">
+                            <path
+                                fill="#EA4335"
+                                d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.41 0-6.19-2.78-6.19-6.19s2.78-6.19 6.19-6.19c1.7 0 3.24.69 4.36 1.81l3.05-3.05C19.1 1.91 15.89 1 12.24 1 6.16 1 1.25 5.91 1.25 12s4.91 11 10.99 11c6.51 0 11.23-4.58 11.23-11.23 0-.7-.07-1.39-.19-2.07H12.24z"
+                            />
+                        </svg>
+                        {isLogin ? 'Entrar com o Google' : 'Cadastrar com o Google'}
+                    </button>
 
                     <div className="text-center pt-4">
                         <button
