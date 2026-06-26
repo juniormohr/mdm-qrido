@@ -1059,7 +1059,7 @@ export default function CustomerDashboard() {
                                 onClick={() => router.push('/login?role=customer')}
                                 className="w-full sm:w-auto bg-white text-brand-blue hover:bg-white/90 font-black italic uppercase tracking-wider text-xs px-6 h-14 rounded-2xl shadow-xl shrink-0"
                             >
-                                Começar Agora
+                                Seja Qrido
                             </Button>
                         </div>
                     )}
@@ -1138,7 +1138,7 @@ export default function CustomerDashboard() {
                                         )}
                                         {product.is_top_seller && (
                                             <div className="absolute top-3 right-3 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
-                                                🔥 Top Vendas
+                                                🔥 Top Vendas Qrido
                                             </div>
                                         )}
                                         <CardHeader className="flex-1 pt-12">
@@ -1168,7 +1168,7 @@ export default function CustomerDashboard() {
                                                 )}
                                                 onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                             >
-                                                {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
+                                                {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
                                             </Button>
                                         </CardContent>
                                     </Card>
@@ -1185,7 +1185,7 @@ export default function CustomerDashboard() {
                                 <Store className="h-5 w-5" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema</h2>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema Qrido</h2>
                                 <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
                             </div>
                         </div>
@@ -1217,7 +1217,7 @@ export default function CustomerDashboard() {
                     {companies.length === 0 && !loading ? (
                         <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
                             <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                            <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja parceira encontrada na sua região.</p>
+                            <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja Qrida parceira encontrada na sua região.</p>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-4">
@@ -1290,7 +1290,7 @@ export default function CustomerDashboard() {
                                                                     <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
                                                                         {product.is_top_seller && (
                                                                             <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
-                                                                                <Flame className="h-3 w-3" /> Top Vendas
+                                                                                <Flame className="h-3 w-3" /> Top Vendas Qrido
                                                                             </div>
                                                                         )}
                                                                         <div className="flex justify-between items-start mb-3 mt-1">
@@ -1313,7 +1313,7 @@ export default function CustomerDashboard() {
                                                                             )}
                                                                             onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                                                         >
-                                                                            {lastAddedItem === product.id ? "ADICIONADO!" : "ADICIONAR AO PEDIDO"}
+                                                                            {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO ESSE QRIDO AGORA"}
                                                                         </Button>
                                                                     </div>
                                                                 ))}

@@ -1,8 +1,20 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Sidebar } from '@/components/sidebar'
-import { Menu } from 'lucide-react'
+import { Menu, Building2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+function formatCpfCnpj(value: string) {
+    if (!value) return ''
+    const clean = value.replace(/\D/g, '')
+    if (clean.length === 11) {
+        return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+    } else if (clean.length === 14) {
+        return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+    }
+    return value
+}
 
 export default function DashboardLayout({
     children,
@@ -10,6 +22,62 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [companyInfo, setCompanyInfo] = useState<{
+        name: string;
+        cpfCnpj: string;
+        totalSales: number;
+        totalCustomers: number;
+        show: boolean;
+    }>({ name: '', cpfCnpj: '', totalSales: 0, totalCustomers: 0, show: false })
+
+    useEffect(() => {
+        async function loadCompanyHeaderInfo() {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('company_id, role')
+                .eq('id', user.id)
+                .single()
+
+            if (profile?.role === 'company' || profile?.role === 'company_staff') {
+                const companyId = (profile.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+                
+                // Fetch company details (name, CNPJ/CPF)
+                const { data: compProfile } = await supabase
+                    .from('profiles')
+                    .select('full_name, cpf_cnpj')
+                    .eq('id', companyId)
+                    .single()
+                
+                // Fetch total customers
+                const { count } = await supabase
+                    .from('customers')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('user_id', companyId)
+
+                // Fetch total sales
+                const { data: salesData } = await supabase
+                    .from('loyalty_transactions')
+                    .select('sale_amount')
+                    .eq('user_id', companyId)
+                    .eq('type', 'earn')
+                
+                const totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+
+                setCompanyInfo({
+                    name: compProfile?.full_name || 'Minha Empresa',
+                    cpfCnpj: compProfile?.cpf_cnpj || '',
+                    totalSales: totalSalesAmount,
+                    totalCustomers: count || 0,
+                    show: true
+                })
+            }
+        }
+        loadCompanyHeaderInfo()
+    }, [])
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -21,6 +89,34 @@ export default function DashboardLayout({
             </Suspense>
 
             <div className="flex-1 flex flex-col min-w-0">
+                {/* Cabeçalho Persistente da Empresa */}
+                {companyInfo.show && (
+                    <div className="bg-[#297CCB] text-white px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-blue-400/20 shadow-md shrink-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <Building2 className="h-5 w-5 text-white/80 shrink-0" />
+                            <div className="font-black uppercase italic tracking-wider text-sm">
+                                {companyInfo.name}
+                            </div>
+                            {companyInfo.cpfCnpj && (
+                                <div className="text-[11px] bg-white/10 px-2 py-0.5 rounded text-white/90 font-mono">
+                                    <span className="font-bold opacity-60 uppercase mr-1">Doc:</span>
+                                    {formatCpfCnpj(companyInfo.cpfCnpj)}
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-6">
+                            <div className="text-xs">
+                                <span className="font-bold opacity-70 uppercase mr-1">Vendas:</span>
+                                <span className="font-black text-emerald-300">R$ {companyInfo.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="text-xs">
+                                <span className="font-bold opacity-70 uppercase mr-1">Clientes:</span>
+                                <span className="font-black text-amber-300">{companyInfo.totalCustomers}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header Mobile */}
                 <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-100 shrink-0">
                     <button
