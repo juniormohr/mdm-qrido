@@ -176,7 +176,7 @@ function AdminContent() {
         if (customers) {
             const formatted = customers.map(c => ({
                 ...c,
-                company_name: c.profiles?.full_name || 'Loja Desconhecida'
+                company_name: c.profiles?.full_name || 'Grupo Desconhecido'
             }))
             setAllCustomers(formatted)
         }
@@ -748,7 +748,7 @@ function AdminContent() {
                                         className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
                                     >
                                         <option value="store">Loja Padrão</option>
-                                        <option value="mall">Shopping / Grupo (Pode Convidar Lojas)</option>
+                                        <option value="mall">Grupo (Pode Convidar Lojas)</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">

@@ -43,7 +43,7 @@ export default function GroupsPage() {
         
         const { data: groupsData } = await supabase
             .from('company_groups')
-            .select('id, status, created_at, mall_id, store_id')
+            .select('id, status, created_at, mall_id, store_id, double_points')
             .eq(roleColumn, user.id)
 
         if (groupsData && groupsData.length > 0) {
@@ -118,6 +118,23 @@ export default function GroupsPage() {
         }
     }
 
+    async function updateEventSettings(groupId: string, doublePoints: boolean, start: string | null, end: string | null) {
+        const { error } = await supabase
+            .from('company_groups')
+            .update({ 
+                double_points: doublePoints,
+                event_start_date: start || null,
+                event_end_date: end || null
+            })
+            .eq('id', groupId)
+
+        if (error) {
+            alert('Erro ao atualizar configurações: ' + error.message)
+        } else {
+            fetchInitialData()
+        }
+    }
+
     if (loading) return <div className="p-8 text-center">Carregando...</div>
 
     return (
@@ -126,12 +143,12 @@ export default function GroupsPage() {
                 <BackButton />
                 <div className="text-center space-y-2">
                     <h2 className="text-4xl font-black tracking-tight text-slate-900 uppercase italic">
-                        {companyType === 'mall' ? 'Gerenciar Lojas' : 'Meus Grupos'}
+                        {companyType === 'mall' ? 'Gerenciar Lojas do Grupo' : 'Meus Grupos'}
                     </h2>
                     <p className="text-slate-500 font-medium">
                         {companyType === 'mall' 
-                            ? 'Convide lojas para o seu grupo de fidelidade.' 
-                            : 'Veja e aceite convites para participar de campanhas em rede.'}
+                            ? 'Convide lojas para o seu grupo de fidelidade e ative pontos em dobro.' 
+                            : 'Veja e aceite convites para participar de grupos de benefícios.'}
                     </p>
                 </div>
             </div>
@@ -222,22 +239,88 @@ export default function GroupsPage() {
                                         </div>
                                     </div>
 
+                                    {isAccepted && (
+                                        <div className="flex flex-col gap-3 bg-white px-6 py-4 rounded-[28px] border border-slate-100 shadow-sm w-full sm:w-auto">
+                                            <div className="flex items-center justify-between gap-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 italic">Pontos em Dobro</span>
+                                                    <span className={cn("text-[11px] font-bold uppercase", group.double_points ? "text-brand-orange" : "text-slate-400")}>
+                                                        {group.double_points ? 'Ativado' : 'Desativado'}
+                                                    </span>
+                                                </div>
+                                                {companyType === 'mall' ? (
+                                                    <button 
+                                                        onClick={() => updateEventSettings(group.id, !group.double_points, group.event_start_date, group.event_end_date)}
+                                                        className={cn(
+                                                            "w-12 h-6 rounded-full p-1 transition-colors duration-200 relative",
+                                                            group.double_points ? "bg-brand-orange" : "bg-slate-200"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-4 h-4 bg-white rounded-full transition-transform duration-200 shadow-sm",
+                                                            group.double_points ? "translate-x-6" : "translate-x-0"
+                                                        )} />
+                                                    </button>
+                                                ) : (
+                                                    <div className={cn("w-3 h-3 rounded-full", group.double_points ? "bg-brand-orange animate-pulse" : "bg-slate-200")} />
+                                                )}
+                                            </div>
+
+                                            {group.double_points && (
+                                                <div className="space-y-3 pt-3 border-t border-slate-50 animate-in slide-in-from-top-2 duration-300">
+                                                    <p className="text-[9px] font-black uppercase text-slate-400 italic">Período do Evento (Opcional)</p>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div className="space-y-1">
+                                                            <span className="text-[8px] font-bold text-slate-400 uppercase ml-1">Início</span>
+                                                            <Input 
+                                                                type="date" 
+                                                                value={group.event_start_date ? group.event_start_date.split('T')[0] : ''}
+                                                                readOnly={companyType !== 'mall'}
+                                                                onChange={(e) => updateEventSettings(group.id, group.double_points, e.target.value, group.event_end_date)}
+                                                                className="h-8 text-[10px] rounded-lg bg-slate-50 border-none px-2"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <span className="text-[8px] font-bold text-slate-400 uppercase ml-1">Fim</span>
+                                                            <Input 
+                                                                type="date" 
+                                                                value={group.event_end_date ? group.event_end_date.split('T')[0] : ''}
+                                                                readOnly={companyType !== 'mall'}
+                                                                onChange={(e) => updateEventSettings(group.id, group.double_points, group.event_start_date, e.target.value)}
+                                                                className="h-8 text-[10px] rounded-lg bg-slate-50 border-none px-2"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {!group.event_start_date && !group.event_end_date && (
+                                                        <p className="text-[8px] text-slate-400 italic leading-tight">Sem período definido: ativo permanentemente.</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Ações para a loja que recebe o convite */}
                                     {companyType === 'store' && isPending && (
                                         <div className="flex gap-2 w-full sm:w-auto">
                                             <Button 
                                                 onClick={() => respondToInvite(group.id, 'accepted')}
-                                                className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 rounded-xl"
+                                                className="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 rounded-xl font-bold italic uppercase text-xs"
                                             >
                                                 <CheckCircle2 className="h-4 w-4 mr-2" /> Aceitar
                                             </Button>
                                             <Button 
                                                 variant="outline" 
                                                 onClick={() => respondToInvite(group.id, 'rejected')}
-                                                className="flex-1 sm:flex-none text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 rounded-xl"
+                                                className="flex-1 sm:flex-none text-red-500 hover:text-red-600 hover:bg-red-50 border-red-200 rounded-xl font-bold italic uppercase text-xs"
                                             >
                                                 <XCircle className="h-4 w-4 mr-2" /> Recusar
                                             </Button>
+                                        </div>
+                                    )}
+
+                                    {companyType === 'mall' && isPending && (
+                                        <div className="text-amber-500 font-black italic uppercase text-[10px] bg-amber-100 px-3 py-1 rounded-full">
+                                            Aguardando Loja
                                         </div>
                                     )}
                                 </Card>

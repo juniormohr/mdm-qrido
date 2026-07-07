@@ -22,6 +22,7 @@ export default function DashboardLayout({
     children: React.ReactNode
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [localSessionId, setLocalSessionId] = useState<string | null>(null)
     const [companyInfo, setCompanyInfo] = useState<{
         name: string;
         cpfCnpj: string;
@@ -38,9 +39,26 @@ export default function DashboardLayout({
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('company_id, role')
+                .select('company_id, role, last_session_id')
                 .eq('id', user.id)
                 .single()
+
+            // Lógica de Login Único
+            if (profile?.last_session_id) {
+                const storedSessionId = localStorage.getItem('qrido_session_id')
+                
+                if (!storedSessionId) {
+                    // Primeira vez logado nesta aba/browser, salva o ID atual do banco
+                    localStorage.setItem('qrido_session_id', profile.last_session_id)
+                    setLocalSessionId(profile.last_session_id)
+                } else if (storedSessionId !== profile.last_session_id) {
+                    // O ID no banco mudou (login em outro lugar), desloga este aqui
+                    await supabase.auth.signOut()
+                    localStorage.removeItem('qrido_session_id')
+                    window.location.href = '/login?error=multiple_sessions'
+                    return
+                }
+            }
 
             if (profile?.role === 'company' || profile?.role === 'company_staff') {
                 const companyId = (profile.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id

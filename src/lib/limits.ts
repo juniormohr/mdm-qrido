@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/client'
 
 export const TIER_LIMITS = {
     start: { max_customers: 100, max_products: 10, price: 49.99 },
-    pro: { max_customers: 300, max_products: 20, price: 89.99 },
+    pro: { max_customers: 300, max_products: 30, price: 89.99 },
     master: { max_customers: 1000, max_products: 100, price: 199.99 },
     partnership: { max_customers: 999999, max_products: 999999, price: 0 }
 }

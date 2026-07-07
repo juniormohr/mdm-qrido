@@ -34,6 +34,9 @@ export default function LoginPage() {
             setUserRole(params.get('role') as 'customer' | 'company')
         }
         if (params.get('plan')) setSelectedPlan(params.get('plan') || '')
+        if (params.get('error') === 'multiple_sessions') {
+            setError('Sua conta foi acessada em outro dispositivo. Você foi desconectado por segurança.')
+        }
     }, [])
     
     // Form fields state
@@ -43,7 +46,8 @@ export default function LoginPage() {
         phone: '',
         email: '',
         password: '',
-        confirm_password: ''
+        confirm_password: '',
+        unit_count: '1'
     })
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,6 +144,11 @@ export default function LoginPage() {
             } else if (formData.confirm_password && value === formData.confirm_password) {
                 setFieldErrors(prev => ({ ...prev, confirm_password: '' }))
             }
+        } else if (name === 'unit_count') {
+            const count = parseInt(value)
+            if (isNaN(count) || count < 1) {
+                error = 'Informe ao menos 1 unidade.'
+            }
         }
 
         setFieldErrors(prev => ({ ...prev, [name]: error }))
@@ -173,6 +182,9 @@ export default function LoginPage() {
                     if (!emailRegex.test(val)) errors.email = 'E-mail inválido.'
                 } else if (key === 'confirm_password') {
                     if (val !== formData.password) errors.confirm_password = 'As senhas não coincidem.'
+                } else if (key === 'unit_count' && userRole === 'company') {
+                    const count = parseInt(val)
+                    if (isNaN(count) || count < 1) errors.unit_count = 'Informe ao menos 1 unidade.'
                 }
             })
 
@@ -292,6 +304,35 @@ export default function LoginPage() {
                                     />
                                     {fieldErrors.phone && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.phone}</p>}
                                 </div>
+                                {userRole === 'company' && (
+                                    <div className="space-y-2">
+                                        <label htmlFor="unit_count" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                            Quantidade de Unidades (Lojas)
+                                        </label>
+                                        <input
+                                            id="unit_count"
+                                            name="unit_count"
+                                            type="number"
+                                            min="1"
+                                            required
+                                            value={formData.unit_count}
+                                            onChange={(e) => {
+                                                const val = e.target.value
+                                                setLocalFormData(prev => ({ ...prev, unit_count: val }))
+                                                if (fieldErrors.unit_count) setFieldErrors(prev => ({ ...prev, unit_count: '' }))
+                                            }}
+                                            onBlur={handleBlur}
+                                            className={cn(
+                                                "block w-full h-14 rounded-2xl border px-5 text-slate-900 font-bold placeholder:text-slate-300 transition-all outline-none focus:ring-2",
+                                                fieldErrors.unit_count 
+                                                    ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
+                                                    : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
+                                            )}
+                                        />
+                                        {fieldErrors.unit_count && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.unit_count}</p>}
+                                        <p className="text-[9px] text-slate-400 font-medium italic ml-2">* Acima de 1 unidade, seu perfil será configurado como GRUPO.</p>
+                                    </div>
+                                )}
                             </>
                         )}
                         {!isLogin && (
@@ -431,13 +472,14 @@ export default function LoginPage() {
                                 setIsLogin(!isLogin)
                                 setError(null)
                                 setFieldErrors({})
-                                setLocalFormData({
+                                setFormData({
                                     full_name: '',
                                     document: '',
                                     phone: '',
                                     email: '',
                                     password: '',
-                                    confirm_password: ''
+                                    confirm_password: '',
+                                    unit_count: '1'
                                 })
                             }}
                             className="text-xs font-black uppercase italic tracking-widest text-slate-400 hover:text-brand-blue transition-colors"

@@ -13,48 +13,52 @@ const PLANS = [
     {
         id: 'qridinho_mensal',
         name: 'Plano Qridinho Mensal',
-        price: 'R$ 49,99',
+        price: 'R$ 49,90',
         period: '/mês',
         description: 'Ideal para quem está focando em fidelizar do zero.',
         icon: <Zap className="h-6 w-6 text-[#297CCB]" />,
         features: [
-            'Até 10 produtos',
-            '100 clientes',
-            'Métricas básicas',
-            'Suporte via chat'
+            'Até 10 produtos cadastrados',
+            'Até 100 clientes na base',
+            'Até 2 usuários',
+            'Suporte via email',
+            'Métricas básicas'
         ],
         type: 'monthly'
     },
     {
         id: 'qrido_mensal',
         name: 'Plano Qrido Mensal',
-        price: 'R$ 89,99',
+        price: 'R$ 89,90',
         period: '/mês',
         description: 'Para lojas que querem escalar rápido.',
         icon: <Rocket className="h-6 w-6 text-[#F7AA1C]" />,
         popular: true,
         features: [
-            'Até 20 produtos',
-            '300 clientes',
-            'Dashboard avançado',
-            'Relatórios mensais',
-            'Prioridade no atendimento'
+            'Até 30 produtos cadastrados',
+            'Até 300 clientes na base',
+            'Até 5 usuários',
+            'Botão de pontos em dobro',
+            'Suporte preferencial pelo WhatsApp',
+            'Métricas detalhadas'
         ],
         type: 'monthly'
     },
     {
         id: 'qridao_mensal',
         name: 'Plano Qridão Mensal',
-        price: 'R$ 199,99',
+        price: 'R$ 199,90',
         period: '/mês',
         description: 'O ecossistema completo para você dominar sua região.',
         icon: <Crown className="h-6 w-6 text-[#E9592C]" />,
         features: [
             'Até 100 produtos',
-            'Até 1000 clientes',
-            'Botão pontos em dobro para ações relâmpago',
-            'Gerente de conta personalizado',
-            'Material gráfico para sua empresa'
+            'Até 1000 clientes na base',
+            'Até 10 usuários',
+            'Botão de pontos em dobro para ação relâmpago',
+            'Gerente de contas personalizado',
+            'Material gráfico para a empresa',
+            'Dashboard completo'
         ],
         type: 'monthly'
     },
@@ -68,10 +72,11 @@ const PLANS = [
         icon: <Zap className="h-6 w-6 text-[#297CCB]" />,
         features: [
             'Desconto especial de 20%',
-            'Até 10 produtos',
-            '100 clientes',
-            'Métricas básicas',
-            'Suporte via chat'
+            'Até 10 produtos cadastrados',
+            'Até 100 clientes na base',
+            'Até 2 usuários',
+            'Suporte via email',
+            'Métricas básicas'
         ],
         type: 'yearly'
     },
@@ -84,11 +89,12 @@ const PLANS = [
         icon: <Rocket className="h-6 w-6 text-[#F7AA1C]" />,
         features: [
             'Desconto especial de 20%',
-            'Até 20 produtos',
-            '300 clientes',
-            'Dashboard avançado',
-            'Relatórios mensais',
-            'Prioridade no atendimento'
+            'Até 30 produtos cadastrados',
+            'Até 300 clientes na base',
+            'Até 5 usuários',
+            'Botão de pontos em dobro',
+            'Suporte preferencial pelo WhatsApp',
+            'Métricas detalhadas'
         ],
         type: 'yearly'
     },
@@ -102,10 +108,12 @@ const PLANS = [
         features: [
             'Desconto especial de 20%',
             'Até 100 produtos',
-            'Até 1000 clientes',
-            'Botão pontos em dobro para ações relâmpago',
-            'Gerente de conta personalizado',
-            'Material gráfico para sua empresa'
+            'Até 1000 clientes na base',
+            'Até 10 usuários',
+            'Botão de pontos em dobro para ação relâmpago',
+            'Gerente de contas personalizado',
+            'Material gráfico para a empresa',
+            'Dashboard completo'
         ],
         type: 'yearly'
     }

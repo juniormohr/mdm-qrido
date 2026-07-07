@@ -275,39 +275,39 @@ export default function LandingPage() {
                         {[
                             {
                                 id: 'qridinho_mensal',
-                                name: 'Plano Start',
+                                name: 'Plano Qridinho',
                                 price: 'R$ 49,90',
                                 period: '/mês',
                                 popular: false,
-                                description: 'O plano perfeito para quem está começando a fidelizar.',
+                                description: 'Até 10 produtos cadastrados; até 100 clientes na base; até 2 usuários; suporte via email; métricas básicas.',
                                 icon: Zap,
                                 iconColor: 'text-[#297CCB]',
                                 borderFocus: 'hover:ring-[#297CCB]',
-                                features: ['Até 10 produtos', 'Até 100 clientes cadastrados', 'Suporte por e-mail', 'Métricas básicas']
+                                features: ['Até 10 produtos cadastrados', 'Até 100 clientes na base', 'Até 2 usuários', 'Suporte via email', 'Métricas básicas']
                             },
                             {
                                 id: 'qrido_mensal',
-                                name: 'Plano Pro',
+                                name: 'Plano Qrido',
                                 price: 'R$ 89,90',
                                 period: '/mês',
                                 popular: true,
-                                description: 'Ideal para empresas em crescimento constante.',
+                                description: 'Até 30 produtos cadastrados; até 300 clientes na base; até 5 usuários; botão de pontos em dobro; suporte preferencial pelo whatsapp; métricas detalhadas.',
                                 icon: Rocket,
                                 iconColor: 'text-[#E9592C]',
                                 borderFocus: 'ring-[#E9592C]/30 hover:ring-[#E9592C]',
-                                features: ['Até 20 produtos', 'Até 300 clientes cadastrados', 'Suporte preferencial por WhatsApp', 'Métricas detalhadas', 'Exportação de relatórios']
+                                features: ['Até 30 produtos cadastrados', 'Até 300 clientes na base', 'Até 5 usuários', 'Botão de pontos em dobro', 'Suporte preferencial pelo WhatsApp', 'Métricas detalhadas']
                             },
                             {
                                 id: 'qridao_mensal',
-                                name: 'Plano Master',
+                                name: 'Plano Qridão',
                                 price: 'R$ 199,90',
                                 period: '/mês',
                                 popular: false,
-                                description: 'O ecossistema completo para você dominar sua região.',
+                                description: 'Até 100 produtos; até 1000 clientes na base; até 10 usuários; botão de pontos em dobro para ação relâmpago; gerente de contas personalizado; material gráfico para a empresa; dashboard completo.',
                                 icon: Crown,
                                 iconColor: 'text-[#E9592C]',
                                 borderFocus: 'hover:ring-[#E9592C]',
-                                features: ['Até 100 produtos', 'Até 1000 clientes', 'Botão pontos em dobro para ações relâmpago', 'Gerente de conta personalizado', 'Material gráfico para sua empresa']
+                                features: ['Até 100 produtos', 'Até 1000 clientes na base', 'Até 10 usuários', 'Botão de pontos em dobro para ação relâmpago', 'Gerente de contas personalizado', 'Material gráfico para a empresa', 'Dashboard completo']
                             }
                         ].map((plan) => (
                             <Card key={plan.id} className={cn(

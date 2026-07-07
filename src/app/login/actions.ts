@@ -38,6 +38,22 @@ export async function login(formData: FormData) {
         return { error: 'Credenciais inválidas. Verifique documento e senha.' }
     }
 
+    // Atualizar last_session_id para login único
+    const sessionId = Math.random().toString(36).substring(2, 15)
+    await adminAuthClient
+        .from('profiles')
+        .select('id')
+        .eq('email', profile.email)
+        .single()
+        .then(async ({ data }) => {
+            if (data) {
+                await adminAuthClient
+                    .from('profiles')
+                    .update({ last_session_id: sessionId })
+                    .eq('id', data.id)
+            }
+        })
+
     revalidatePath('/', 'layout')
     redirect('/qrido')
 }
@@ -79,7 +95,9 @@ export async function signup(formData: FormData) {
                 full_name,
                 phone,
                 role,
-                cpf_cnpj: cpfCnpj
+                cpf_cnpj: cpfCnpj,
+                unit_count: parseInt(formData.get('unit_count') as string) || 1,
+                last_session_id: Math.random().toString(36).substring(2, 15)
             }
         }
     })
@@ -90,9 +108,15 @@ export async function signup(formData: FormData) {
 
     revalidatePath('/', 'layout')
 
-    // Role-based redirection
     if (role === 'company') {
+        const unit_count = parseInt(formData.get('unit_count') as string) || 1
         const plan = formData.get('plan') as string
+        
+        // Se tiver mais de uma unidade, redireciona para página de contato/parceria
+        if (unit_count > 1) {
+            redirect('/qrido/select-plan/group-contact')
+        }
+
         if (plan) {
             redirect(`/qrido/pricing?plan=${plan}`)
         } else {

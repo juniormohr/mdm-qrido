@@ -17,12 +17,38 @@ export async function processTransactionAction(data: {
 
     const { customerId, totalPoints, totalAmount } = data
 
-    // 1. Registrar a transação para a Loja atual
+    // --- LÓGICA DE GRUPO (ANTIGO SHOPPING) ---
+    // 3. Buscar grupos que a loja participa (status = 'accepted')
+    const { data: groups, error: groupsError } = await supabase
+        .from('company_groups')
+        .select('mall_id, double_points, event_start_date, event_end_date')
+        .eq('store_id', user.id)
+        .eq('status', 'accepted')
+
+    const now = new Date()
+    const isDoublePoints = groups?.some(g => {
+        if (!g.double_points) return false
+        
+        // Se houver data de evento, verifica se estamos nela
+        if (g.event_start_date && g.event_end_date) {
+            const start = new Date(g.event_start_date)
+            const end = new Date(g.event_end_date)
+            // Normalizar para comparação apenas de data se necessário, ou manter timestamp
+            return now >= start && now <= end
+        }
+        
+        // Se não houver data, mantém o comportamento de duplicar sempre
+        return true
+    }) || false
+    
+    const finalTotalPoints = isDoublePoints ? totalPoints * 2 : totalPoints
+
+    // 1. Registrar a transação para a Loja atual (com pontos em dobro se aplicável)
     const { error: txError } = await supabase.from('loyalty_transactions').insert({
         user_id: user.id,
         customer_id: customerId,
         type: 'earn',
-        points: totalPoints,
+        points: finalTotalPoints,
         sale_amount: totalAmount,
         expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     })
@@ -38,21 +64,13 @@ export async function processTransactionAction(data: {
 
     if (custFetchError) return { error: 'Erro ao buscar cliente: ' + custFetchError.message }
 
-    // 2. Atualizar saldo do cliente na Loja
+    // 2. Atualizar saldo do cliente na Loja (com pontos em dobro se aplicável)
     const { error: custError } = await supabase
         .from('customers')
-        .update({ points_balance: customerStore.points_balance + totalPoints })
+        .update({ points_balance: customerStore.points_balance + finalTotalPoints })
         .eq('id', customerId)
 
     if (custError) return { error: 'Erro ao atualizar saldo da loja: ' + custError.message }
-
-    // --- LÓGICA DE SHOPPING (MALL) ---
-    // 3. Buscar grupos que a loja participa (status = 'accepted')
-    const { data: groups, error: groupsError } = await supabase
-        .from('company_groups')
-        .select('mall_id')
-        .eq('store_id', user.id)
-        .eq('status', 'accepted')
 
     if (!groupsError && groups && groups.length > 0) {
         const adminSupabase = createAdminClient()
@@ -60,7 +78,19 @@ export async function processTransactionAction(data: {
         for (const group of groups) {
             const mallId = group.mall_id
             
-            // a) Buscar configuração de fidelidade do Shopping
+            // Verifica multiplicador do grupo específico
+            let multiplier = 1
+            if (group.double_points) {
+                if (group.event_start_date && group.event_end_date) {
+                    const start = new Date(group.event_start_date)
+                    const end = new Date(group.event_end_date)
+                    if (now >= start && now <= end) multiplier = 2
+                } else {
+                    multiplier = 2
+                }
+            }
+            
+            // a) Buscar configuração de fidelidade do Grupo
             const { data: mallConfig } = await adminSupabase
                 .from('loyalty_configs')
                 .select('*')
@@ -69,12 +99,9 @@ export async function processTransactionAction(data: {
             
             let mallPoints = 0
             if (mallConfig && mallConfig.points_per_real) {
-                // Cálculo de pontos do shopping baseado na regra dele
-                // Exemplo: 100 reais * 0.5 (points_per_real) = 50 pontos
-                mallPoints = Math.floor(totalAmount * mallConfig.points_per_real)
+                mallPoints = Math.floor(totalAmount * mallConfig.points_per_real * multiplier)
             } else {
-                // Se não tem config, assume 1 ponto por real
-                mallPoints = Math.floor(totalAmount)
+                mallPoints = Math.floor(totalAmount * multiplier)
             }
 
             if (mallPoints <= 0) continue // Não pontua 0
