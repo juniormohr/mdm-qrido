@@ -472,7 +472,7 @@ export default function LoginPage() {
                                 setIsLogin(!isLogin)
                                 setError(null)
                                 setFieldErrors({})
-                                setFormData({
+                                setLocalFormData({
                                     full_name: '',
                                     document: '',
                                     phone: '',
