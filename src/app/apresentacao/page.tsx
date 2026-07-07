@@ -248,10 +248,10 @@ export default function LandingPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                         {[
-                            { step: '01', title: 'Cadastre sua Empresa', desc: 'Crie sua conta em 1 minuto e configure suas regras de pontuação.' },
-                            { step: '02', title: 'Espalhe os QR Codes', desc: 'Disponibilize os códigos nas mesas, balcão, embalagens ou redes sociais.' },
-                            { step: '03', title: 'Clientes Escaneiam', desc: 'Seus clientes ganham pontos na hora após cada compra de forma simples.' },
-                            { step: '04', title: 'Fidelização Ativa', desc: 'Eles retornam com frequência para acumular e resgatar os prêmios cadastrados.' }
+                            { step: '01', title: 'Cadastre sua Empresa', desc: 'Crie sua conta em segundos e defina quais produtos valem pontos e quais prêmios seus clientes podem resgatar.' },
+                            { step: '02', title: 'Registre a Venda', desc: 'No momento do pagamento, basta informar o WhatsApp do cliente no seu painel para enviar os pontos instantaneamente.' },
+                            { step: '03', title: 'Sem Aplicativos', desc: 'Seu cliente recebe um link para acompanhar o saldo e ver os prêmios disponíveis, sem precisar baixar nada.' },
+                            { step: '04', title: 'Recorrência Infinita', desc: 'Com pontos acumulados, seus clientes voltam muito mais vezes para resgatar prêmios e comprar novamente.' }
                         ].map((item, i) => (
                             <div key={i} className="bg-white p-8 rounded-[32px] border border-slate-200/60 shadow-sm relative group hover:border-brand-blue/30 transition-colors">
                                 <span className="absolute -top-6 left-6 text-5xl font-black italic text-brand-blue/10 group-hover:text-brand-blue/20 transition-colors">{item.step}</span>
