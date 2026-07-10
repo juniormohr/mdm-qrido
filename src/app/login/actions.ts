@@ -127,12 +127,18 @@ export async function signup(formData: FormData) {
     }
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(role?: string, plan?: string) {
     const supabase = await createClient()
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const callbackUrl = new URL(`${baseUrl}/auth/callback`)
+    if (role) callbackUrl.searchParams.set('role', role)
+    if (plan) callbackUrl.searchParams.set('plan', plan)
+
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback`,
+            redirectTo: callbackUrl.toString(),
         },
     })
 

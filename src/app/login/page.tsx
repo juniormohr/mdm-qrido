@@ -450,7 +450,7 @@ export default function LoginPage() {
                         type="button"
                         onClick={async () => {
                             setError(null)
-                            const res = await signInWithGoogle()
+                            const res = await signInWithGoogle(userRole, selectedPlan)
                             if (res?.error) {
                                 setError(res.error)
                             }

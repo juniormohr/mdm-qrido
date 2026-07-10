@@ -11,6 +11,8 @@ export default function CompleteProfilePage() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [role, setRole] = useState('customer')
+    const [plan, setPlan] = useState('')
     
     const [formData, setFormData] = useState({
         full_name: '',
@@ -21,6 +23,11 @@ export default function CompleteProfilePage() {
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
     useEffect(() => {
+        // Capturar role e plan da URL
+        const params = new URLSearchParams(window.location.search)
+        setRole(params.get('role') || 'customer')
+        setPlan(params.get('plan') || '')
+
         async function checkSession() {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
@@ -128,7 +135,7 @@ export default function CompleteProfilePage() {
                 full_name: formData.full_name.trim(),
                 phone: formData.phone,
                 cpf_cnpj: rawDoc,
-                role: 'customer' // Cadastro via Google entra por padrão como cliente
+                role: role
             })
             .eq('id', user.id)
 
@@ -136,7 +143,23 @@ export default function CompleteProfilePage() {
             setError(updateError.message)
             setSaving(false)
         } else {
-            router.replace('/')
+            // Redirecionar conforme role e plan
+            const GURU_LINKS: Record<string, string> = {
+                qridinho_mensal: 'https://checkout.qridoapp.com.br/subscribe/qridinho-mensal',
+                qridinho_anual: 'https://checkout.qridoapp.com.br/subscribe/qridinho-anual',
+                qrido_mensal: 'https://checkout.qridoapp.com.br/subscribe/qrido-mensal',
+                qrido_anual: 'https://checkout.qridoapp.com.br/subscribe/qrido-anual',
+                qridao_mensal: 'https://checkout.qridoapp.com.br/subscribe/qridao-mensal',
+                qridao_anual: 'https://checkout.qridoapp.com.br/subscribe/qridao-anual',
+            }
+
+            if (role === 'company' && plan && GURU_LINKS[plan]) {
+                window.location.href = GURU_LINKS[plan]
+            } else if (role === 'company') {
+                router.replace('/qrido/pricing')
+            } else {
+                router.replace('/qrido')
+            }
         }
     }
 
