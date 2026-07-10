@@ -66,7 +66,7 @@ const PLANS = [
     {
         id: 'qridinho_anual',
         name: 'Plano Qridinho Anual',
-        price: 'R$ 39,99',
+        price: 'R$ 39,90',
         period: '/mês',
         description: 'Fidelidade de 12 meses. O melhor custo-benefício para iniciantes.',
         icon: <Zap className="h-6 w-6 text-[#297CCB]" />,
@@ -83,7 +83,7 @@ const PLANS = [
     {
         id: 'qrido_anual',
         name: 'Plano Qrido Anual',
-        price: 'R$ 71,99',
+        price: 'R$ 71,90',
         period: '/mês',
         description: 'Fidelidade de 12 meses. Escalar com o menor preço.',
         icon: <Rocket className="h-6 w-6 text-[#F7AA1C]" />,
@@ -101,7 +101,7 @@ const PLANS = [
     {
         id: 'qridao_anual',
         name: 'Plano Qridão Anual',
-        price: 'R$ 159,99',
+        price: 'R$ 159,90',
         period: '/mês',
         description: 'Fidelidade de 12 meses. A potência completa com desconto massivo.',
         icon: <Crown className="h-6 w-6 text-[#E9592C]" />,
@@ -119,6 +119,15 @@ const PLANS = [
     }
 ]
 
+const GURU_CHECKOUT_LINKS: Record<string, string> = {
+    qridinho_mensal: 'https://checkout.qridoapp.com.br/subscribe/qridinho-mensal',
+    qridinho_anual: 'https://checkout.qridoapp.com.br/subscribe/qridinho-anual',
+    qrido_mensal: 'https://checkout.qridoapp.com.br/subscribe/qrido-mensal',
+    qrido_anual: 'https://checkout.qridoapp.com.br/subscribe/qrido-anual',
+    qridao_mensal: 'https://checkout.qridoapp.com.br/subscribe/qridao-mensal',
+    qridao_anual: 'https://checkout.qridoapp.com.br/subscribe/qridao-anual'
+}
+
 export default function PricingPage() {
     const router = useRouter()
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
@@ -126,7 +135,12 @@ export default function PricingPage() {
     const filteredPlans = PLANS.filter(plan => plan.type === billingCycle)
 
     const handleSubscribe = (planId: string) => {
-        router.push(`/qrido/checkout?plan=${planId}`)
+        const url = GURU_CHECKOUT_LINKS[planId]
+        if (url) {
+            window.location.href = url
+        } else {
+            router.push(`/qrido/checkout?plan=${planId}`)
+        }
     }
 
     return (

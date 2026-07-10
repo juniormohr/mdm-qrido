@@ -14,9 +14,9 @@ const PLAN_DETAILS: Record<string, { name: string; price: string; period: string
     qridinho_mensal: { name: 'Qridinho Mensal', price: 'R$ 49,90', period: '/mês', desc: 'Até 10 produtos, 100 clientes e 2 usuários.' },
     qrido_mensal: { name: 'Qrido Mensal', price: 'R$ 89,90', period: '/mês', desc: 'Até 30 produtos, 300 clientes e 5 usuários.' },
     qridao_mensal: { name: 'Qridão Mensal', price: 'R$ 199,90', period: '/mês', desc: 'Até 100 produtos, 1000 clientes e 10 usuários.' },
-    qridinho_anual: { name: 'Qridinho Anual', price: 'R$ 39,99', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
-    qrido_anual: { name: 'Qrido Anual', price: 'R$ 71,99', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
-    qridao_anual: { name: 'Qridão Anual', price: 'R$ 159,99', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' }
+    qridinho_anual: { name: 'Qridinho Anual', price: 'R$ 39,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
+    qrido_anual: { name: 'Qrido Anual', price: 'R$ 71,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
+    qridao_anual: { name: 'Qridão Anual', price: 'R$ 159,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' }
 }
 
 function CheckoutContent() {

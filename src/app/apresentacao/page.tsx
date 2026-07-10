@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { 
     Users, 
@@ -25,6 +25,8 @@ import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 export default function LandingPage() {
+    const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 selection:bg-brand-blue/10">
             {/* Header / Nav */}
@@ -269,41 +271,66 @@ export default function LandingPage() {
                     <div className="text-center space-y-4">
                         <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Planos Sob Medida</h2>
                         <p className="text-slate-500 font-medium">Cresça sem limites. Escolha a melhor opção para seu momento.</p>
+                        
+                        {/* Alternador de ciclo de faturamento */}
+                        <div className="flex items-center justify-center pt-4">
+                            <div className="bg-slate-250 bg-slate-200/60 p-1 rounded-2xl inline-flex gap-1">
+                                <button
+                                    onClick={() => setBillingCycle('monthly')}
+                                    className={cn(
+                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all cursor-pointer",
+                                        billingCycle === 'monthly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                    )}
+                                >
+                                    Mensal
+                                </button>
+                                <button
+                                    onClick={() => setBillingCycle('yearly')}
+                                    className={cn(
+                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer",
+                                        billingCycle === 'yearly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                    )}
+                                >
+                                    Anual (12m)
+                                    <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black">Economia de 20%</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {[
                             {
-                                id: 'qridinho_mensal',
+                                id: billingCycle === 'monthly' ? 'qridinho_mensal' : 'qridinho_anual',
                                 name: 'Plano Qridinho',
-                                price: 'R$ 49,90',
+                                price: billingCycle === 'monthly' ? 'R$ 49,90' : 'R$ 39,90',
                                 period: '/mês',
                                 popular: false,
-                                description: '',
+                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
                                 icon: Zap,
                                 iconColor: 'text-[#297CCB]',
                                 borderFocus: 'hover:ring-[#297CCB]',
                                 features: ['Até 10 produtos cadastrados', 'Até 100 clientes na base', 'Até 2 usuários', 'Suporte via email', 'Métricas básicas']
                             },
                             {
-                                id: 'qrido_mensal',
+                                id: billingCycle === 'monthly' ? 'qrido_mensal' : 'qrido_anual',
                                 name: 'Plano Qrido',
-                                price: 'R$ 89,90',
+                                price: billingCycle === 'monthly' ? 'R$ 89,90' : 'R$ 71,90',
                                 period: '/mês',
                                 popular: true,
-                                description: '',
+                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
                                 icon: Rocket,
                                 iconColor: 'text-[#E9592C]',
                                 borderFocus: 'ring-[#E9592C]/30 hover:ring-[#E9592C]',
                                 features: ['Até 30 produtos cadastrados', 'Até 300 clientes na base', 'Até 5 usuários', 'Botão de pontos em dobro', 'Suporte preferencial pelo WhatsApp', 'Métricas detalhadas']
                             },
                             {
-                                id: 'qridao_mensal',
+                                id: billingCycle === 'monthly' ? 'qridao_mensal' : 'qridao_anual',
                                 name: 'Plano Qridão',
-                                price: 'R$ 199,90',
+                                price: billingCycle === 'monthly' ? 'R$ 199,90' : 'R$ 159,90',
                                 period: '/mês',
                                 popular: false,
-                                description: '',
+                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
                                 icon: Crown,
                                 iconColor: 'text-[#E9592C]',
                                 borderFocus: 'hover:ring-[#E9592C]',
@@ -348,7 +375,7 @@ export default function LandingPage() {
                                 <div className="p-10 pt-4 mt-auto">
                                     <Link href={`/login?mode=register&role=company&plan=${plan.id}`} className="group block">
                                         <Button className={cn(
-                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-[10px] md:text-sm shadow-xl transition-all whitespace-normal px-2",
+                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-[10px] md:text-sm shadow-xl transition-all whitespace-normal px-2 cursor-pointer",
                                             plan.popular ? "bg-[#F7AA1C] hover:bg-[#e09917] text-white shadow-[#F7AA1C]/30" : "bg-slate-900 hover:bg-slate-800 text-white"
                                         )}>
                                             Assinar {plan.name.split(' ')[1]}
