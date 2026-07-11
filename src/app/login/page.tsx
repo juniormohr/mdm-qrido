@@ -26,6 +26,7 @@ export default function LoginPage() {
     const [error, setError] = useState<string | null>(null)
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [selectedPlan, setSelectedPlan] = useState<string>('')
+    const [noCnpj, setNoCnpj] = useState(false)
     
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
@@ -66,8 +67,8 @@ export default function LoginPage() {
     const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '')
         
-        const isCnpjOnly = !isLogin && userRole === 'company';
-        const isCpfOnly = !isLogin && userRole === 'customer';
+        const isCnpjOnly = !isLogin && userRole === 'company' && !noCnpj;
+        const isCpfOnly = (!isLogin && userRole === 'customer') || (!isLogin && userRole === 'company' && noCnpj);
         
         const maxLength = isCpfOnly ? 11 : 14;
         if (val.length > maxLength) val = val.substring(0, maxLength);
@@ -119,8 +120,8 @@ export default function LoginPage() {
             }
         } else if (name === 'document') {
             const rawDoc = value.replace(/\D/g, '')
-            const isCnpjOnly = !isLogin && userRole === 'company';
-            const isCpfOnly = !isLogin && userRole === 'customer';
+            const isCnpjOnly = !isLogin && userRole === 'company' && !noCnpj;
+            const isCpfOnly = (!isLogin && userRole === 'customer') || (!isLogin && userRole === 'company' && noCnpj);
             if (isCpfOnly && rawDoc.length < 11) {
                 error = 'CPF inválido. Faltam números.'
             } else if (isCnpjOnly && rawDoc.length < 14) {
@@ -173,8 +174,9 @@ export default function LoginPage() {
                     }
                 } else if (key === 'document') {
                     const rawDoc = val.replace(/\D/g, '')
-                    if (userRole === 'customer' && rawDoc.length < 11) errors.document = 'CPF inválido.'
-                    if (userRole === 'company' && rawDoc.length < 14) errors.document = 'CNPJ inválido.'
+                    const isCpfOnly = (userRole === 'customer') || (userRole === 'company' && noCnpj);
+                    if (isCpfOnly && rawDoc.length < 11) errors.document = 'CPF inválido.'
+                    if (!isCpfOnly && rawDoc.length < 14) errors.document = 'CNPJ inválido.'
                 } else if (key === 'phone') {
                     if (val.replace(/\D/g, '').length < 11) errors.phone = 'WhatsApp inválido.'
                 } else if (key === 'email') {
@@ -362,7 +364,7 @@ export default function LoginPage() {
                         )}
                         <div className="space-y-2">
                             <label htmlFor="document-field" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                                {!isLogin ? (userRole === 'customer' ? 'Seu CPF' : 'CNPJ da Empresa') : 'CPF ou CNPJ'}
+                                {!isLogin ? (userRole === 'customer' || noCnpj ? 'Seu CPF' : 'CNPJ da Empresa') : 'CPF ou CNPJ'}
                             </label>
                             <input
                                 id="document-field"
@@ -378,9 +380,28 @@ export default function LoginPage() {
                                         ? "border-red-500 bg-red-50/10 focus:ring-red-500" 
                                         : "border-slate-100 bg-slate-50/50 focus:ring-brand-blue"
                                 )}
-                                placeholder={!isLogin && userRole === 'company' ? "00.000.000/0000-00" : "000.000.000-00"}
+                                placeholder={!isLogin && userRole === 'company' && !noCnpj ? "00.000.000/0000-00" : "000.000.000-00"}
                             />
                             {fieldErrors.document && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.document}</p>}
+                            
+                            {!isLogin && userRole === 'company' && (
+                                <div className="flex items-center gap-2 mt-2 ml-1">
+                                    <input
+                                        id="no-cnpj-checkbox"
+                                        type="checkbox"
+                                        checked={noCnpj}
+                                        onChange={(e) => {
+                                            setNoCnpj(e.target.checked)
+                                            setLocalFormData(prev => ({ ...prev, document: '' }))
+                                            setFieldErrors(prev => ({ ...prev, document: '' }))
+                                        }}
+                                        className="rounded border-slate-200 text-brand-blue focus:ring-brand-blue h-4 w-4"
+                                    />
+                                    <label htmlFor="no-cnpj-checkbox" className="text-xs font-bold text-slate-500 cursor-pointer select-none">
+                                        Eu não tenho CNPJ
+                                    </label>
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between ml-1">

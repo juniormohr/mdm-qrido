@@ -60,7 +60,7 @@ export default function GroupContactPage() {
                             </div>
                             
                             <a 
-                                href="https://wa.me/5500000000000?text=Olá,%20acabei%20de%20cadastrar%20meu%20grupo%20no%20QRido%20e%20quero%20ativar%20meu%20desconto%20progressivo."
+                                href="https://wa.me/5567981190681?text=Olá,%20acabei%20de%20cadastrar%20meu%20grupo%20no%20QRido%20e%20quero%20ativar%20meu%20desconto%20progressivo."
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="block"

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { Sidebar } from '@/components/sidebar'
 import { Menu, Building2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { usePathname, useRouter } from 'next/navigation'
 
 function formatCpfCnpj(value: string) {
     if (!value) return ''
@@ -21,6 +22,14 @@ export default function DashboardLayout({
 }: {
     children: React.ReactNode
 }) {
+    const pathname = usePathname()
+    const router = useRouter()
+    
+    const isOnboarding = pathname?.startsWith('/qrido/pricing') || 
+                         pathname?.startsWith('/qrido/select-plan') || 
+                         pathname?.startsWith('/qrido/checkout') || 
+                         pathname?.startsWith('/qrido/complete-profile')
+
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [localSessionId, setLocalSessionId] = useState<string | null>(null)
     const [companyInfo, setCompanyInfo] = useState<{
@@ -63,6 +72,37 @@ export default function DashboardLayout({
             if (profile?.role === 'company' || profile?.role === 'company_staff') {
                 const companyId = (profile.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
                 
+                // Validação de assinatura se não for rota de onboarding
+                if (!isOnboarding) {
+                    const { data: sub } = await supabase
+                        .from('subscriptions')
+                        .select('status')
+                        .eq('user_id', companyId)
+                        .in('status', ['active', 'trialing'])
+                        .maybeSingle()
+
+                    const { data: prof } = await supabase
+                        .from('profiles')
+                        .select('subscription_tier, partnership_end_date, unit_count')
+                        .eq('id', companyId)
+                        .single()
+
+                    const isPartnership = prof?.subscription_tier === 'partnership' && 
+                                         prof.partnership_end_date && 
+                                         new Date(prof.partnership_end_date) > new Date()
+
+                    const hasActiveSubscription = !!sub || isPartnership
+
+                    if (!hasActiveSubscription) {
+                        if (prof?.unit_count && prof.unit_count > 1) {
+                            window.location.href = '/qrido/select-plan/group-contact'
+                        } else {
+                            window.location.href = '/qrido/pricing'
+                        }
+                        return
+                    }
+                }
+
                 // Fetch company details (name, CNPJ/CPF)
                 const { data: compProfile } = await supabase
                     .from('profiles')
@@ -90,12 +130,20 @@ export default function DashboardLayout({
                     cpfCnpj: compProfile?.cpf_cnpj || '',
                     totalSales: totalSalesAmount,
                     totalCustomers: count || 0,
-                    show: true
+                    show: !isOnboarding
                 })
             }
         }
         loadCompanyHeaderInfo()
-    }, [])
+    }, [isOnboarding])
+
+    if (isOnboarding) {
+        return (
+            <div className="min-h-screen bg-[#FDF5ED] flex items-center justify-center p-4 w-full">
+                {children}
+            </div>
+        )
+    }
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden">

@@ -35,7 +35,7 @@ export default function UsersPage() {
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id, staff_slots')
+            .select('id, staff_slots, subscription_tier')
             .eq('id', user.id)
             .single()
 
@@ -51,7 +51,18 @@ export default function UsersPage() {
         setLoading(false)
     }
 
-    const availableSlots = (companyProfile?.staff_slots || 0) - staffs.length
+    let tier = companyProfile?.subscription_tier || 'basic'
+    let baseSlots = 1
+    if (tier === 'pro' || tier.includes('qrido_mensal') || tier.includes('qrido_anual') || tier === 'qrido') {
+        baseSlots = 4
+    } else if (tier === 'master' || tier.includes('qridao') || tier === 'qridao') {
+        baseSlots = 9
+    } else if (tier === 'partnership') {
+        baseSlots = 999999
+    }
+
+    const totalSlots = (companyProfile?.staff_slots || 0) + baseSlots
+    const availableSlots = totalSlots - staffs.length
 
     async function handleBuySlots() {
         setIsBuying(true)
@@ -140,7 +151,7 @@ export default function UsersPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
-                        <div className="text-4xl font-black text-slate-900">{companyProfile?.staff_slots || 0}</div>
+                        <div className="text-4xl font-black text-slate-900">{totalSlots}</div>
                         <p className="text-sm text-slate-500 mt-1 font-medium">R$ 9,00 por usuário</p>
                     </CardContent>
                 </Card>

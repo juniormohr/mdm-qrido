@@ -18,8 +18,10 @@ export default function QRidoSettings() {
         phone: '',
         email: '',
         role: '',
-        subscription_tier: 'basic'
+        subscription_tier: 'basic',
+        cpf_cnpj: ''
     })
+    const [newCnpj, setNewCnpj] = useState('')
     const [limits, setLimits] = useState({
         products: { count: 0, limit: 0, percentage: 0 },
         customers: { count: 0, limit: 0, percentage: 0 }
@@ -44,7 +46,7 @@ export default function QRidoSettings() {
 
         const { data } = await supabase
             .from('profiles')
-            .select('full_name, phone, role, subscription_tier')
+            .select('full_name, phone, role, subscription_tier, cpf_cnpj')
             .eq('id', user.id)
             .single()
 
@@ -55,7 +57,8 @@ export default function QRidoSettings() {
             phone: data?.phone || '',
             email: user.email || '',
             role: data?.role || '',
-            subscription_tier: tier
+            subscription_tier: tier,
+            cpf_cnpj: data?.cpf_cnpj || ''
         })
 
         // Fetch limits
@@ -93,6 +96,17 @@ export default function QRidoSettings() {
         setSaving(false)
     }
 
+    function formatCpfCnpj(value: string) {
+        if (!value) return ''
+        const clean = value.replace(/\D/g, '')
+        if (clean.length === 11) {
+            return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+        } else if (clean.length === 14) {
+            return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+        }
+        return value
+    }
+
     async function handleSave() {
         setSaving(true)
         setMessage(null)
@@ -101,18 +115,49 @@ export default function QRidoSettings() {
 
         if (!user) return
 
+        // 1. Atualizar e-mail se alterou
+        if (profile.email !== user.email) {
+            const { error: emailError } = await supabase.auth.updateUser({ email: profile.email })
+            if (emailError) {
+                setMessage({ type: 'error', text: `Erro ao atualizar e-mail: ${emailError.message}` })
+                setSaving(false)
+                return
+            }
+        }
+
+        // 2. Atualizar perfil
+        const updateData: any = {
+            full_name: profile.full_name,
+            phone: profile.phone
+        }
+
+        // 3. Se a empresa tinha apenas CPF e preencheu o CNPJ, salvamos
+        const isCompany = profile.role === 'company'
+        const hasOnlyCpf = isCompany && profile.cpf_cnpj?.replace(/\D/g, '').length === 11
+        if (hasOnlyCpf && newCnpj) {
+            const cleanCnpj = newCnpj.replace(/\D/g, '')
+            if (cleanCnpj.length === 14) {
+                updateData.cpf_cnpj = cleanCnpj
+            } else {
+                setMessage({ type: 'error', text: 'CNPJ inválido. Forneça 14 dígitos.' })
+                setSaving(false)
+                return
+            }
+        }
+
         const { error } = await supabase
             .from('profiles')
-            .update({
-                full_name: profile.full_name,
-                phone: profile.phone
-            })
+            .update(updateData)
             .eq('id', user.id)
 
         if (error) {
             setMessage({ type: 'error', text: 'Erro ao salvar perfil.' })
         } else {
             setMessage({ type: 'success', text: 'Perfil atualizado com sucesso!' })
+            if (hasOnlyCpf && newCnpj) {
+                setNewCnpj('')
+            }
+            fetchProfile()
         }
         setSaving(false)
     }
@@ -170,14 +215,14 @@ export default function QRidoSettings() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">E-mail (Apenas Leitura)</Label>
+                            <Label htmlFor="email" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">E-mail de Acesso</Label>
                             <div className="relative">
                                 <Mail className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                 <Input
                                     id="email"
                                     value={profile.email}
-                                    disabled
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 text-slate-400"
+                                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 bg-white"
                                 />
                             </div>
                         </div>
@@ -195,6 +240,81 @@ export default function QRidoSettings() {
                                 />
                             </div>
                         </div>
+
+                        {/* Exibição e inclusão de CPF / CNPJ */}
+                        {profile.role === 'customer' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="cpf-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">CPF (Inalterável)</Label>
+                                <div className="relative">
+                                    <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
+                                    <Input
+                                        id="cpf-locked"
+                                        value={formatCpfCnpj(profile.cpf_cnpj)}
+                                        disabled
+                                        className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 text-slate-400"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {profile.role === 'company' && (
+                            <>
+                                {profile.cpf_cnpj?.replace(/\D/g, '').length === 11 ? (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cpf-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">CPF Responsável (Inalterável)</Label>
+                                            <div className="relative">
+                                                <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
+                                                <Input
+                                                    id="cpf-locked"
+                                                    value={formatCpfCnpj(profile.cpf_cnpj)}
+                                                    disabled
+                                                    className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 text-slate-400"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="cnpj-editable" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Incluir CNPJ da Empresa</Label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
+                                                <Input
+                                                    id="cnpj-editable"
+                                                    value={newCnpj}
+                                                    onChange={(e) => {
+                                                        let val = e.target.value.replace(/\D/g, '')
+                                                        if (val.length > 14) val = val.substring(0, 14)
+                                                        let masked = val
+                                                        if (val.length > 12) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5')
+                                                        else if (val.length > 8) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4')
+                                                        else if (val.length > 5) masked = val.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3')
+                                                        else if (val.length > 2) masked = val.replace(/(\d{2})(\d{1,3})/, '$1.$2')
+                                                        setNewCnpj(masked)
+                                                    }}
+                                                    placeholder="00.000.000/0000-00"
+                                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold"
+                                                />
+                                            </div>
+                                            <div className="bg-amber-50 text-amber-800 border border-amber-100 p-4 rounded-2xl flex items-center gap-3">
+                                                <span className="font-bold text-xs">⚠️ Cadastro Incompleto: CNPJ pendente. Insira o CNPJ para regularizar o perfil da empresa.</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cnpj-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">CNPJ da Empresa (Inalterável)</Label>
+                                        <div className="relative">
+                                            <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
+                                            <Input
+                                                id="cnpj-locked"
+                                                value={formatCpfCnpj(profile.cpf_cnpj)}
+                                                disabled
+                                                className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 text-slate-400"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <Button

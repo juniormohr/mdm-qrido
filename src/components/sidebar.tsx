@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X } from 'lucide-react'
+import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X, Megaphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -47,21 +47,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const companyNav = [
         { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
-        { name: 'Nossos Produtos', href: '/qrido/products', icon: Package },
-        { name: 'Meus Clientes', href: '/qrido/customers', icon: Users },
-        { name: 'Catálogo Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Produtos', href: '/qrido/products', icon: Package },
+        { name: 'Clientes', href: '/qrido/customers', icon: Users },
+        { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
         { name: 'Equipe', href: '/qrido/company/users', icon: Users },
         { name: 'Regras de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
+        { name: 'MKT', href: '/qrido/mkt', icon: Megaphone },
     ]
 
     const customerNav = [
         { name: 'Dashboard Cliente', href: '/qrido/customer', icon: LayoutDashboard },
-        { name: 'Ajustes', href: '/qrido/settings', icon: Settings },
+        { name: 'Configurações', href: '/qrido/settings', icon: Settings },
     ]
 
     const globalNav = [
         { name: 'MDM CRM', href: '/crm', icon: BarChart3 },
-        { name: 'Ajustes Conta', href: '/qrido/settings', icon: Settings },
+        { name: 'Configurações', href: '/qrido/settings', icon: Settings },
     ]
 
     const adminNav = [

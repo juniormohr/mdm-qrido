@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         // 1. Validar se a empresa possui slots disponíveis
         const { data: companyProfile, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('staff_slots')
+            .select('staff_slots, subscription_tier')
             .eq('id', company_id)
             .single()
 
@@ -43,7 +43,18 @@ export async function POST(request: Request) {
         }
 
         const currentCount = currentStaff?.length || 0;
-        const totalSlots = companyProfile.staff_slots || 0;
+        
+        let tier = companyProfile.subscription_tier || 'basic'
+        let baseSlots = 1
+        if (tier === 'pro' || tier === 'qrido_mensal' || tier === 'qrido_anual' || tier === 'qrido') {
+            baseSlots = 4
+        } else if (tier === 'master' || tier === 'qridao_mensal' || tier === 'qridao_anual' || tier === 'qridao') {
+            baseSlots = 9
+        } else if (tier === 'partnership') {
+            baseSlots = 999999
+        }
+
+        const totalSlots = (companyProfile.staff_slots || 0) + baseSlots;
 
         if (currentCount >= totalSlots) {
              return NextResponse.json({ error: 'Limite de usuários atingido. Por favor, adquira mais licenças.' }, { status: 403 })

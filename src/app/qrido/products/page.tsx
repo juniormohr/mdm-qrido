@@ -6,9 +6,10 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil } from 'lucide-react'
+import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil, Zap, Lock, Sparkles } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 import { UpsellModal } from '@/components/qrido/upsell-modal'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Product {
     id: string
@@ -33,6 +34,11 @@ export default function ProductManagementPage() {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
     const [showUpsellModal, setShowUpsellModal] = useState(false)
     const [upsellLimit, setUpsellLimit] = useState(0)
+    
+    // Estados do Destaque
+    const [tier, setTier] = useState<string>('start')
+    const [showHighlightModal, setShowHighlightModal] = useState(false)
+    const [selectedProductForHighlight, setSelectedProductForHighlight] = useState<Product | null>(null)
 
     useEffect(() => {
         fetchProducts()
@@ -43,6 +49,16 @@ export default function ProductManagementPage() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('subscription_tier')
+            .eq('id', user.id)
+            .single()
+
+        if (profile) {
+            setTier(profile.subscription_tier || 'start')
+        }
 
         const { data } = await supabase
             .from('products')
@@ -302,6 +318,27 @@ export default function ProductManagementPage() {
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{product.name}</h3>
                                     <p className="text-slate-400 text-sm mt-1 font-medium line-clamp-2">{product.description || 'Sem descrição'}</p>
                                 </div>
+                                <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50">
+                                    <div className="space-y-0.5">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
+                                            <Sparkles className="h-3 w-3 text-brand-orange animate-pulse" />
+                                            Destacar Produto
+                                        </span>
+                                        <p className="text-[9px] text-slate-400 font-medium">Impulsione no topo do feed</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={false}
+                                            onChange={() => {
+                                                setSelectedProductForHighlight(product)
+                                                setShowHighlightModal(true)
+                                            }}
+                                        />
+                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-blue"></div>
+                                    </label>
+                                </div>
                                 <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-50">
                                     <div className="flex flex-col">
                                         <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Preço</span>
@@ -327,6 +364,97 @@ export default function ProductManagementPage() {
                 limitType="products" 
                 currentLimit={upsellLimit} 
             />
+
+            {/* Modal de Destaque */}
+            <Dialog open={showHighlightModal} onOpenChange={setShowHighlightModal}>
+                <DialogContent className="sm:max-w-[480px] rounded-[32px] p-6 border-none shadow-2xl bg-white">
+                    <DialogHeader className="pb-4 border-b border-slate-100">
+                        <DialogTitle className="text-xl font-black italic uppercase text-brand-blue flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-brand-orange animate-bounce" />
+                            Destacar Produto
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-500 font-medium text-sm">
+                            Impulsione o produto <strong className="text-slate-900 font-bold">"{selectedProductForHighlight?.name}"</strong> no topo do app dos seus clientes para gerar mais vendas e visibilidade.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="py-6 space-y-4">
+                        {/* Opção 1 Dia */}
+                        <div className="border border-slate-100 p-5 rounded-2xl flex justify-between items-center bg-slate-50 hover:bg-slate-50/80 transition-all">
+                            <div className="space-y-1">
+                                <span className="font-black text-slate-800 text-sm uppercase italic">Destaque por 1 Dia</span>
+                                <p className="text-[11px] text-slate-500 font-medium">Perfeito para promoções rápidas</p>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-brand-blue/10 text-brand-blue uppercase tracking-wider">Livre para todos os planos</span>
+                            </div>
+                            <div className="text-right flex flex-col items-end gap-2">
+                                <span className="text-lg font-black text-brand-blue">R$ 15,00</span>
+                                <a 
+                                    href="https://checkout.qridoapp.com.br/pay/destaque-1-dia-qrido" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                >
+                                    <Button className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl">Destacar</Button>
+                                </a>
+                            </div>
+                        </div>
+
+                        {/* Opção 1 Semana */}
+                        {(() => {
+                            const isQridinho = tier === 'start' || tier === 'basic' || tier?.includes('qridinho')
+                            if (isQridinho) {
+                                return (
+                                    <div className="border border-slate-100/50 p-5 rounded-2xl flex flex-col gap-3 bg-slate-50/50 opacity-60 relative overflow-hidden">
+                                        <div className="flex justify-between items-center">
+                                            <div className="space-y-1">
+                                                <span className="font-black text-slate-400 text-sm uppercase italic flex items-center gap-1.5">
+                                                    Destaque por 1 Semana
+                                                    <Lock className="h-3 w-3" />
+                                                </span>
+                                                <p className="text-[11px] text-slate-400 font-medium">Ideal para campanhas mais longas</p>
+                                            </div>
+                                            <span className="text-lg font-black text-slate-400">R$ 30,00</span>
+                                        </div>
+                                        <div className="bg-brand-orange/5 border border-brand-orange/10 p-2.5 rounded-xl">
+                                            <p className="text-[10px] text-brand-orange font-black uppercase tracking-wider italic">
+                                                🔒 Disponível no plano Qrido - faça upgrade e seja um Qrido
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                            }
+                            return (
+                                <div className="border border-slate-100 p-5 rounded-2xl flex justify-between items-center bg-slate-50 hover:bg-slate-50/80 transition-all">
+                                    <div className="space-y-1">
+                                        <span className="font-black text-slate-800 text-sm uppercase italic">Destaque por 1 Semana</span>
+                                        <p className="text-[11px] text-slate-500 font-medium">Ideal para campanhas mais longas</p>
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] font-black bg-brand-green/10 text-brand-green uppercase tracking-wider">Plano QRIDO</span>
+                                    </div>
+                                    <div className="text-right flex flex-col items-end gap-2">
+                                        <span className="text-lg font-black text-brand-blue">R$ 30,00</span>
+                                        <a 
+                                            href="https://checkout.qridoapp.com.br/pay/destaque-1-semana-qrido" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                        >
+                                            <Button className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl">Destacar</Button>
+                                        </a>
+                                    </div>
+                                </div>
+                            )
+                        })()}
+                    </div>
+
+                    <DialogFooter className="border-t border-slate-50 pt-4 flex sm:justify-center">
+                        <Button 
+                            variant="ghost" 
+                            onClick={() => setShowHighlightModal(false)}
+                            className="rounded-xl font-bold text-slate-500 hover:bg-slate-50 text-xs py-2 px-6"
+                        >
+                            Fechar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
