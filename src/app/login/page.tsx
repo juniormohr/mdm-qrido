@@ -441,6 +441,7 @@ export default function LoginPage() {
                         <SubmitButton isLogin={isLogin} />
                     </div>
 
+                    {/* 
                     <div className="relative flex items-center justify-center my-4">
                         <div className="border-t border-slate-200 w-full"></div>
                         <span className="absolute bg-white px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">ou</span>
@@ -465,6 +466,7 @@ export default function LoginPage() {
                         </svg>
                         {isLogin ? 'Entrar com o Google' : 'Cadastrar com o Google'}
                     </button>
+                    */}
 
                     <div className="text-center pt-4">
                         <button
