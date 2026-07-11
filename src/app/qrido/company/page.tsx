@@ -8,6 +8,10 @@ import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap,
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+function getExpiryDate() {
+    return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+}
+
 export default function CompanyDashboard() {
     const [stats, setStats] = useState({
         totalLeads: 0, // Clientes fidelizados (mês atual)
@@ -30,16 +34,13 @@ export default function CompanyDashboard() {
         startOfMonth.setHours(0, 0, 0, 0)
         const monthStartIso = startOfMonth.toISOString()
 
-        // 1. Clientes Fidelizados (Unique customers this month)
+        // 1. Clientes Fidelizados (Total de clientes cadastrados para a empresa)
         const { data: loyalData } = await supabase
-            .from('loyalty_transactions')
-            .select('customer_id')
+            .from('customers')
+            .select('id')
             .eq('user_id', userId)
-            .eq('type', 'earn')
-            .gte('created_at', monthStartIso)
 
-        const uniqueLoyalIds = new Set(loyalData?.map(t => t.customer_id))
-        const totalLoyal = uniqueLoyalIds.size
+        const totalLoyal = loyalData?.length || 0
 
         // 2. Vendas em R$ feitas pelo qrido (base do mês atual)
         const { data: salesData } = await supabase
@@ -51,33 +52,31 @@ export default function CompanyDashboard() {
         
         const totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
 
-        // 3. Pontos distribuídos através das vendas (base do mês atual)
+        // 3. Pontos distribuídos através das vendas (total acumulado histórico)
         const { data: pointsData } = await supabase
             .from('loyalty_transactions')
             .select('points')
             .eq('user_id', userId)
             .eq('type', 'earn')
-            .gte('created_at', monthStartIso)
         
         const totalPointsDistributed = pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
 
-        // 4. Resgates Realizados (quantidade e pontos dentro do mês atual)
+        // 4. Resgates Realizados (total acumulado histórico)
         const { data: redemptionsData } = await supabase
             .from('loyalty_transactions')
             .select('points')
             .eq('user_id', userId)
             .eq('type', 'redeem')
-            .gte('created_at', monthStartIso)
 
         const redemptionsCount = redemptionsData?.length || 0
         const redemptionsPoints = redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
 
         setStats({
             totalLeads: totalLoyal,
-            leadsThisMonth: totalSalesAmount, // Reusing leadsThisMonth field for sales amount for simplicity or renaming state
-            topSource: String(totalPointsDistributed), // Reusing topSource for points distributed
+            leadsThisMonth: totalSalesAmount,
+            topSource: String(totalPointsDistributed),
             redemptions: redemptionsCount,
-            totalPoints: redemptionsPoints // Reusing totalPoints for points redeemed
+            totalPoints: redemptionsPoints
         })
     }
 
@@ -170,6 +169,38 @@ export default function CompanyDashboard() {
             .subscribe()
     }
 
+    function subscribeToTransactions(userId: string) {
+        const supabase = createClient()
+        return supabase
+            .channel('loyalty_transactions_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'loyalty_transactions',
+                filter: `user_id=eq.${userId}`
+            }, () => {
+                console.log('Realtime: mudança detectada em loyalty_transactions!')
+                fetchStats(userId)
+            })
+            .subscribe()
+    }
+
+    function subscribeToCustomers(userId: string) {
+        const supabase = createClient()
+        return supabase
+            .channel('customers_changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'customers',
+                filter: `user_id=eq.${userId}`
+            }, () => {
+                console.log('Realtime: mudança detectada em customers!')
+                fetchStats(userId)
+            })
+            .subscribe()
+    }
+
     const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
 
     useEffect(() => {
@@ -187,6 +218,8 @@ export default function CompanyDashboard() {
             fetchPendingInvites(companyId)
             subscribeToRequests(companyId)
             subscribeToInvites(companyId)
+            subscribeToTransactions(companyId)
+            subscribeToCustomers(companyId)
 
             if (profile) {
                 setTier(profile.subscription_tier || 'start')
@@ -195,6 +228,7 @@ export default function CompanyDashboard() {
         }
 
         fetchInitialData()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     async function handleConfirmRedemption(requestId: string) {
@@ -341,7 +375,7 @@ export default function CompanyDashboard() {
             type: 'earn',
             points: request.total_points,
             sale_amount: request.total_amount,
-            expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            expires_at: getExpiryDate(),
             created_by: user.id
         })
 
@@ -440,7 +474,7 @@ export default function CompanyDashboard() {
                     </div>
                     <div>
                         <h2 className="text-3xl font-black text-white italic">{stats.totalLeads}</h2>
-                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base do mês atual</p>
+                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base de clientes</p>
                     </div>
                 </div>
 
