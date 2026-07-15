@@ -25,13 +25,13 @@ export async function checkSubscription() {
     // 2. Check Stripe subscription
     const { data: subscription } = await supabase
         .from('subscriptions')
-        .select('status, plan')
+        .select('id, status, plan')
         .eq('user_id', user.id)
         .in('status', ['active', 'trialing'])
         .single()
 
-    if (!subscription) {
-        // Fallback to start if no active subscription found
+    if (!subscription || !subscription.id) {
+        // Fallback to basic if no active subscription found
         return { authorized: profile?.subscription_tier !== 'basic' && !!profile?.subscription_tier, plan: profile?.subscription_tier || 'basic' }
     }
 

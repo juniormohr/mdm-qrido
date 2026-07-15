@@ -76,7 +76,7 @@ export default function DashboardLayout({
                 if (!isOnboarding) {
                     const { data: sub } = await supabase
                         .from('subscriptions')
-                        .select('status')
+                        .select('id, status')
                         .eq('user_id', companyId)
                         .in('status', ['active', 'trialing'])
                         .maybeSingle()
@@ -91,7 +91,7 @@ export default function DashboardLayout({
                                          prof.partnership_end_date && 
                                          new Date(prof.partnership_end_date) > new Date()
 
-                    const hasActiveSubscription = !!sub || isPartnership
+                    const hasActiveSubscription = (!!sub && !!sub.id) || isPartnership
 
                     if (!hasActiveSubscription) {
                         if (prof?.unit_count && prof.unit_count > 1) {
