@@ -49,6 +49,7 @@ interface AdminStats {
 
 const TIER_PRICES = {
     start: 49.99,
+    basic: 49.99,
     pro: 89.99,
     master: 199.99
 }
@@ -91,13 +92,54 @@ function AdminContent() {
     const [showCustomerModal, setShowCustomerModal] = useState(false)
     const [currentEntity, setCurrentEntity] = useState<any>(null)
     const [selectedTier, setSelectedTier] = useState<string>('basic')
+    const [cpfCnpj, setCpfCnpj] = useState('')
+    const [phone, setPhone] = useState('')
+
+    const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '')
+        
+        // Comportamento dinâmico idêntico ao login:
+        // Se a quantidade de dígitos for maior que 11, tratamos como CNPJ (máximo 14), senão CPF (máximo 11)
+        const maxLength = val.length > 11 ? 14 : 11;
+        if (val.length > maxLength) val = val.substring(0, maxLength);
+
+        let masked = val;
+        if (val.length > 11) {
+            // CNPJ
+            if (val.length > 12) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5')
+            else if (val.length > 8) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4')
+            else if (val.length > 5) masked = val.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3')
+            else if (val.length > 2) masked = val.replace(/(\d{2})(\d{1,3})/, '$1.$2')
+        } else {
+            // CPF
+            if (val.length > 9) masked = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+            else if (val.length > 6) masked = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
+            else if (val.length > 3) masked = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
+        }
+        
+        setCpfCnpj(masked)
+    }
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let val = e.target.value.replace(/\D/g, '')
+        if (val.length > 11) val = val.substring(0, 11)
+        
+        let masked = val
+        if (val.length > 0) masked = '(' + val
+        if (val.length > 2) masked = '(' + val.substring(0, 2) + ') ' + val.substring(2)
+        if (val.length > 7) masked = '(' + val.substring(0, 2) + ') ' + val.substring(2, 7) + '-' + val.substring(7)
+        
+        setPhone(masked)
+    }
 
     useEffect(() => {
         if (currentEntity?.subscription_tier) {
             setSelectedTier(currentEntity.subscription_tier)
         } else {
-            setSelectedTier('start')
+            setSelectedTier('basic')
         }
+        setCpfCnpj('')
+        setPhone(currentEntity?.phone || '')
     }, [currentEntity, showCompanyModal])
 
     useEffect(() => {
@@ -204,7 +246,7 @@ function AdminContent() {
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
 
         const revenue = profiles?.reduce((acc, p) => {
-            const tier = (p.subscription_tier || 'start') as keyof typeof TIER_PRICES
+            const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
             return acc + (TIER_PRICES[tier] || 0)
         }, 0) || 0
 
@@ -506,10 +548,10 @@ function AdminContent() {
                                                         comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
                                                             comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
                                                     )}
-                                                    value={comp.subscription_tier || 'start'}
+                                                    value={comp.subscription_tier || 'basic'}
                                                     onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
                                                 >
-                                                    <option value="start">QRIDINHO</option>
+                                                    <option value="basic">QRIDINHO</option>
                                                     <option value="pro">QRIDO</option>
                                                     <option value="master">QRIDÃO</option>
                                                     <option value="partnership">PARCERIA</option>
@@ -733,12 +775,25 @@ function AdminContent() {
                                 {!currentEntity && (
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">CNPJ ou CPF (Apenas números)</Label>
-                                        <Input name="cpf_cnpj" placeholder="Ex: 00000000000100" required className="rounded-xl border-slate-100 h-12" />
+                                        <Input 
+                                            name="cpf_cnpj" 
+                                            placeholder="00.000.000/0000-00 ou 000.000.000-00" 
+                                            value={cpfCnpj}
+                                            onChange={handleCpfCnpjChange}
+                                            required 
+                                            className="rounded-xl border-slate-100 h-12" 
+                                        />
                                     </div>
                                 )}
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone / WhatsApp</Label>
-                                    <Input name="phone" defaultValue={currentEntity?.phone} placeholder="(00) 0 0000-0000" className="rounded-xl border-slate-100 h-12" />
+                                    <Input 
+                                        name="phone" 
+                                        value={phone}
+                                        onChange={handlePhoneChange}
+                                        placeholder="(00) 00000-0000" 
+                                        className="rounded-xl border-slate-100 h-12" 
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Empresa</Label>
@@ -759,7 +814,7 @@ function AdminContent() {
                                         onChange={(e) => setSelectedTier(e.target.value)}
                                         className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
                                     >
-                                        <option value="start">QRIDINHO (R$ 49,99)</option>
+                                        <option value="basic">QRIDINHO (R$ 49,99)</option>
                                         <option value="pro">QRIDO (R$ 89,99)</option>
                                         <option value="master">QRIDÃO (R$ 199,99)</option>
                                         <option value="partnership">PARCERIA (GRATUITO)</option>
