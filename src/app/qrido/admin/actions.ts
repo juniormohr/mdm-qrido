@@ -92,3 +92,31 @@ export async function createCompanyAction(data: {
     return { error: err.message || 'Erro interno ao cadastrar empresa.' }
   }
 }
+
+export async function deleteCompanyAction(id: string) {
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Deletar o usuário do Supabase Auth (isso também remove do profiles se houver cascade,
+    // mas vamos rodar a remoção no profiles e em outras tabelas se necessário).
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
+    if (authError) {
+      // Se der erro porque o usuário já não existe no Auth por algum motivo, podemos tentar deletar direto no profiles
+      console.error('Erro ao deletar do Auth, tentando deletar apenas da tabela profiles:', authError.message)
+    }
+
+    // 2. Deletar do profiles por segurança
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .delete()
+      .eq('id', id)
+
+    if (profileError) {
+      return { error: 'Erro ao remover perfil do banco de dados: ' + profileError.message }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Erro interno ao deletar empresa.' }
+  }
+}

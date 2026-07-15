@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction } from './actions'
+import { createCompanyAction, deleteCompanyAction } from './actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -268,10 +268,11 @@ function AdminContent() {
 
     const handleDeleteCompany = async (id: string) => {
         if (!confirm('Tem certeza? Isso removerá a empresa e todos os seus dados vinculados.')) return
-        const supabase = createClient()
-        // Note: In a real app, you'd probably handle auth deletion too, 
-        // but here we focus on the profile as it drives the dashboard.
-        await supabase.from('profiles').delete().eq('id', id)
+        setLoading(true)
+        const result = await deleteCompanyAction(id)
+        if (result?.error) {
+            alert('Erro ao excluir empresa: ' + result.error)
+        }
         fetchAllData()
     }
 
