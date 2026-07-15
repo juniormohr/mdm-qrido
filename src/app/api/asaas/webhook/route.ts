@@ -25,17 +25,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ received: true })
         }
 
-        const subscriptionId = payment.subscription
+        const customerId = payment.customer
 
-        // Fetch local subscription to get the user_id and plan
-        const { data: subData } = await supabaseAdmin
-            .from('subscriptions')
-            .select('user_id, plan')
-            .eq('id', subscriptionId)
-            .single()
+        // Fetch local profile to get the user_id
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('id, subscription_tier')
+            .eq('asaas_customer_id', customerId)
+            .maybeSingle()
 
-        if (!subData) {
-            console.log(`Webhook ignored: Subscription ${subscriptionId} not found locally`)
+        if (!profile) {
+            console.log(`Webhook ignored: Profile with customer ${customerId} not found locally`)
             return NextResponse.json({ received: true })
         }
 
@@ -46,11 +46,7 @@ export async function POST(req: Request) {
                 await supabaseAdmin.from('subscriptions').update({
                     status: 'active',
                     current_period_end: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
-                }).eq('id', subscriptionId)
-
-                await supabaseAdmin.from('profiles').update({
-                    subscription_tier: subData.plan
-                }).eq('id', subData.user_id)
+                }).eq('user_id', profile.id)
 
                 break
             }
@@ -58,18 +54,18 @@ export async function POST(req: Request) {
             case 'PAYMENT_OVERDUE': {
                 await supabaseAdmin.from('subscriptions').update({
                     status: 'past_due',
-                }).eq('id', subscriptionId)
+                }).eq('user_id', profile.id)
                 break
             }
 
             case 'SUBSCRIPTION_DELETED': {
                  await supabaseAdmin.from('subscriptions').update({
                     status: 'canceled',
-                }).eq('id', subscriptionId)
+                }).eq('user_id', profile.id)
 
                 await supabaseAdmin.from('profiles').update({
                     subscription_tier: 'basic'
-                }).eq('id', subData.user_id)
+                }).eq('id', profile.id)
                 break
             }
         }

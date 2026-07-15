@@ -113,7 +113,6 @@ export async function POST(req: Request) {
         // 6. Registrar a assinatura no Supabase local
         const supabaseAdmin = createAdminClient()
         await supabaseAdmin.from('subscriptions').upsert({
-            id: subscription.id,
             user_id: user.id,
             status: 'active',
             plan: planId

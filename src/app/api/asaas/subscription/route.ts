@@ -73,7 +73,6 @@ export async function POST(req: Request) {
         // Save pending subscription in DB using Admin Client
         const supabaseAdmin = createAdminClient()
         await supabaseAdmin.from('subscriptions').upsert({
-            id: subscription.id,
             user_id: user.id,
             status: 'pending',
             plan: planId,
