@@ -36,7 +36,7 @@ export default function ProductManagementPage() {
     const [upsellLimit, setUpsellLimit] = useState(0)
     
     // Estados do Destaque
-    const [tier, setTier] = useState<string>('start')
+    const [tier, setTier] = useState<string>('basic')
     const [showHighlightModal, setShowHighlightModal] = useState(false)
     const [selectedProductForHighlight, setSelectedProductForHighlight] = useState<Product | null>(null)
 
@@ -57,7 +57,7 @@ export default function ProductManagementPage() {
             .single()
 
         if (profile) {
-            setTier(profile.subscription_tier || 'start')
+            setTier(profile.subscription_tier || 'basic')
         }
 
         const { data } = await supabase

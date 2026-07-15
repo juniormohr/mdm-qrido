@@ -68,7 +68,7 @@ export async function POST(req: Request) {
                 }).eq('id', subscriptionId)
 
                 await supabaseAdmin.from('profiles').update({
-                    subscription_tier: 'start'
+                    subscription_tier: 'basic'
                 }).eq('id', subData.user_id)
                 break
             }

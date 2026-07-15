@@ -32,7 +32,7 @@ export async function checkSubscription() {
 
     if (!subscription) {
         // Fallback to start if no active subscription found
-        return { authorized: profile?.subscription_tier !== 'start' && !!profile?.subscription_tier, plan: profile?.subscription_tier || 'start' }
+        return { authorized: profile?.subscription_tier !== 'basic' && !!profile?.subscription_tier, plan: profile?.subscription_tier || 'basic' }
     }
 
     return { authorized: true, plan: subscription.plan }

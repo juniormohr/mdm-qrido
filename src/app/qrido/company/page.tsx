@@ -23,7 +23,7 @@ export default function CompanyDashboard() {
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
     const [pendingInvites, setPendingInvites] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
-    const [tier, setTier] = useState<string>('start')
+    const [tier, setTier] = useState<string>('basic')
     const [companyType, setCompanyType] = useState<'store' | 'mall'>('store')
 
     async function fetchStats(userId: string) {
@@ -222,7 +222,7 @@ export default function CompanyDashboard() {
             subscribeToCustomers(companyId)
 
             if (profile) {
-                setTier(profile.subscription_tier || 'start')
+                setTier(profile.subscription_tier || 'basic')
                 setCompanyType(profile.company_type || 'store')
             }
         }
@@ -734,7 +734,7 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {tier === 'start' && (
+            {tier === 'basic' && (
                 <Card className="border-none bg-gradient-to-br from-[#F7AA1C] to-amber-600 p-1 shadow-2xl">
                     <div className="bg-white/10 backdrop-blur-md rounded-[inherit] p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
                         <Crown className="absolute -right-8 -top-8 h-40 w-40 text-white/10" />
