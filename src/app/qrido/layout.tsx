@@ -74,23 +74,31 @@ export default function DashboardLayout({
                 
                 // Validação de assinatura se não for rota de onboarding
                 if (!isOnboarding) {
-                    const { data: sub } = await supabase
+                    const { data: sub, error: subError } = await supabase
                         .from('subscriptions')
                         .select('plan, status')
                         .eq('user_id', companyId)
                         .in('status', ['active', 'trialing'])
                         .maybeSingle()
 
-                    const { data: prof } = await supabase
+                    const { data: prof, error: profError } = await supabase
                         .from('profiles')
                         .select('subscription_tier, partnership_end_date, unit_count')
                         .eq('id', companyId)
                         .single()
 
+                    console.log('--- QRido Subscription Validation Debug ---')
+                    console.log('companyId:', companyId)
+                    console.log('sub:', sub, 'subError:', subError)
+                    console.log('prof:', prof, 'profError:', profError)
+
                     const isPartnership = prof?.subscription_tier === 'partnership' && 
                                          (!prof.partnership_end_date || new Date(prof.partnership_end_date) > new Date())
 
                     const hasActiveSubscription = (!!sub && sub.plan !== 'start') || isPartnership
+                    console.log('isPartnership:', isPartnership)
+                    console.log('hasActiveSubscription:', hasActiveSubscription)
+                    console.log('---------------------------------------------')
 
                     if (!hasActiveSubscription) {
                         if (prof?.unit_count && prof.unit_count > 1) {
