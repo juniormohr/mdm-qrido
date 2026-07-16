@@ -38,7 +38,8 @@ import {
     Gift,
     Heart,
     MapPin,
-    Flame
+    Flame,
+    Trophy
 } from 'lucide-react'
 
 interface CartItem {
@@ -119,6 +120,153 @@ export default function CustomerDashboard() {
     const [companyRewards, setCompanyRewards] = useState<any[]>([])
     const [allRewards, setAllRewards] = useState<any[]>([])
     const [rewardsLoading, setRewardsLoading] = useState(false)
+    const [topRewards, setTopRewards] = useState<any[]>([])
+
+    async function fetchTopRewards(profileId: string) {
+        const supabase = createClient()
+
+        // 1. Buscar a cidade do cliente
+        const { data: userAddress } = await supabase
+            .from('addresses')
+            .select('city')
+            .eq('profile_id', profileId)
+            .maybeSingle()
+
+        const city = userAddress?.city || ''
+
+        // 2. Buscar empresas da mesma cidade
+        let eligibleCompanyIds: string[] = []
+        if (city) {
+            const { data: companyAddresses } = await supabase
+                .from('addresses')
+                .select('profile_id')
+                .eq('city', city)
+
+            if (companyAddresses) {
+                eligibleCompanyIds = companyAddresses.map(addr => addr.profile_id).filter(Boolean)
+            }
+        }
+
+        // Se não houver empresas na cidade, buscar todas as empresas
+        if (eligibleCompanyIds.length === 0) {
+            const { data: allCompanies } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('role', 'company')
+
+            if (allCompanies) {
+                eligibleCompanyIds = allCompanies.map(c => c.id)
+            }
+        }
+
+        if (eligibleCompanyIds.length === 0) {
+            setTopRewards([])
+            return
+        }
+
+        // 3. Buscar nomes das empresas
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', eligibleCompanyIds)
+
+        // 4. Buscar prêmios ativos destas empresas
+        const { data: rewardsData } = await supabase
+            .from('rewards')
+            .select('*')
+            .in('user_id', eligibleCompanyIds)
+            .eq('is_active', true)
+
+        // 5. Buscar transações de resgate para contar
+        const { data: redeemTransactions } = await supabase
+            .from('loyalty_transactions')
+            .select('reward_id')
+            .in('user_id', eligibleCompanyIds)
+            .eq('type', 'redeem')
+
+        // 6. Buscar todas as transações para volume (engajamento)
+        const { data: txSummary } = await supabase
+            .from('loyalty_transactions')
+            .select('user_id')
+            .in('user_id', eligibleCompanyIds)
+
+        const redeemCounts: Record<string, number> = {}
+        if (redeemTransactions) {
+            redeemTransactions.forEach(tx => {
+                if (tx.reward_id) {
+                    redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
+                }
+            })
+        }
+
+        const companyVolumes: Record<string, number> = {}
+        if (txSummary) {
+            txSummary.forEach(tx => {
+                if (tx.user_id) {
+                    companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
+                }
+            })
+        }
+
+        const rewardsWithStats = (rewardsData || []).map(r => {
+            const company = (profiles || []).find(p => p.id === r.user_id)
+            return {
+                ...r,
+                company_name: company?.full_name || 'Empresa Parceira',
+                resgates: redeemCounts[r.id] || 0,
+                volume_empresa: companyVolumes[r.user_id] || 0,
+            }
+        })
+
+        const selectedRewards: any[] = []
+        const selectedCompanyIds = new Set<string>()
+
+        const tryAddRewards = (candidates: any[], checkCompany = true) => {
+            for (const item of candidates) {
+                if (selectedRewards.length >= 3) break
+                if (!checkCompany || !selectedCompanyIds.has(item.user_id)) {
+                    selectedRewards.push(item)
+                    selectedCompanyIds.add(item.user_id)
+                }
+            }
+        }
+
+        // Critério 1: resgates > 0
+        const crit1 = [...rewardsWithStats]
+            .filter(r => r.resgates > 0)
+            .sort((a, b) => b.resgates - a.resgates)
+        tryAddRewards(crit1)
+
+        // Critério 2: engajamento desc
+        if (selectedRewards.length < 3) {
+            const crit2 = [...rewardsWithStats]
+                .filter(r => r.volume_empresa > 0)
+                .sort((a, b) => b.volume_empresa - a.volume_empresa)
+            tryAddRewards(crit2)
+        }
+
+        // Critério 3: pontos asc
+        if (selectedRewards.length < 3) {
+            const crit3 = [...rewardsWithStats]
+                .sort((a, b) => a.points_required - b.points_required)
+            tryAddRewards(crit3)
+        }
+
+        // Se ainda não tiver 3, permitir repetir empresa
+        if (selectedRewards.length < 3) {
+            const remainingCandidates = [...rewardsWithStats]
+                .filter(r => !selectedRewards.some(sr => sr.id === r.id))
+                .sort((a, b) => {
+                    if (b.resgates !== a.resgates) return b.resgates - a.resgates
+                    if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa
+                    return a.points_required - b.points_required
+                })
+            tryAddRewards(remainingCandidates, false)
+        }
+
+        setTopRewards(selectedRewards)
+    }
+
     const [cart, setCart] = useState<CartItem[]>([])
     const [isCartOpen, setIsCartOpen] = useState(false)
     const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
@@ -348,6 +496,9 @@ export default function CustomerDashboard() {
                 await fetchCompanies()
             }
         }
+
+        // Carregar Top Recompensas para o cliente
+        await fetchTopRewards(user.id)
 
         setLoading(false)
     }
@@ -1212,6 +1363,69 @@ export default function CustomerDashboard() {
                                     </Card>
                                 )
                             })}
+                        </div>
+                    )}
+
+                    {/* Top Recompensas para o cliente */}
+                    {topRewards.length > 0 && (
+                        <div className="pt-8 border-t border-slate-100 space-y-6">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                    <Trophy className="h-6 w-6" />
+                                </div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase italic">Top Recompensas</h2>
+                            </div>
+
+                            <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden max-w-md">
+                                <CardHeader className="p-6 border-b border-slate-50">
+                                    <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
+                                    <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
+                                </CardHeader>
+                                <CardContent className="p-6">
+                                    <div className="space-y-6">
+                                        {topRewards.map((reward, index) => {
+                                            const rank = index + 1
+                                            return (
+                                                <div key={reward.id} className="flex items-center gap-4 group">
+                                                    <div className={cn(
+                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
+                                                        rank === 1 
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
+                                                            : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                    )}>
+                                                        {rank === 1 ? '🥇' : rank}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                            {reward.title}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                            {reward.company_name}
+                                                        </p>
+                                                        <div className="flex items-center justify-between mt-1.5">
+                                                            <span className="text-xs font-bold text-slate-500 italic">
+                                                                {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                            </span>
+                                                            <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
+                                                                {reward.points_required} pts
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                        <div className="pt-4 border-t border-slate-50">
+                                            <Button 
+                                                variant="ghost" 
+                                                className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5"
+                                                onClick={() => router.push('/qrido/customer/rewards')}
+                                            >
+                                                VER TODOS OS PRÊMIOS
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
                     )}
                 </div>

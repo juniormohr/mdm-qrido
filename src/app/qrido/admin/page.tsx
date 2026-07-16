@@ -314,6 +314,22 @@ function AdminContent() {
             tryAddRewards(crit3)
         }
 
+        // Se ainda faltar prêmios para completar 3 e houver outros prêmios cadastrados, adicionamos sem a restrição de empresa única
+        if (selectedRewards.length < 3) {
+            const remainingCandidates = [...rewardsWithStats]
+                .filter(r => !selectedRewards.some(sr => sr.id === r.id)) // não duplicar o mesmo prêmio
+                .sort((a, b) => {
+                    if (b.resgates !== a.resgates) return b.resgates - a.resgates
+                    if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa
+                    return a.points_required - b.points_required
+                })
+
+            for (const item of remainingCandidates) {
+                if (selectedRewards.length >= 3) break
+                selectedRewards.push(item)
+            }
+        }
+
         setTopRewards(selectedRewards)
 
         // 4. Calculate Stats
@@ -566,7 +582,7 @@ function AdminContent() {
                         <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
                             <CardHeader className="p-8 border-b border-slate-50">
                                 <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                                <p className="text-xs text-slate-400 font-medium">Os prêmios mais desejados da rede.</p>
+                                <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
                             </CardHeader>
                             <CardContent className="p-8">
                                 <div className="space-y-6">
@@ -577,11 +593,15 @@ function AdminContent() {
                                     ) : (
                                         topRewards.map((reward, index) => {
                                             const rank = index + 1
-                                            const progressWidth = 90 - index * 25
                                             return (
                                                 <div key={reward.id} className="flex items-center gap-4 group">
-                                                    <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-400 text-lg group-hover:bg-brand-blue group-hover:text-white transition-all">
-                                                        {rank}
+                                                    <div className={cn(
+                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
+                                                        rank === 1 
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
+                                                            : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                    )}>
+                                                        {rank === 1 ? '🥇' : rank}
                                                     </div>
                                                     <div className="flex-1">
                                                         <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
@@ -590,14 +610,11 @@ function AdminContent() {
                                                         <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
                                                             {reward.company_name}
                                                         </p>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
-                                                                <div className="h-full bg-brand-blue" style={{ width: `${progressWidth}%` }} />
-                                                            </div>
-                                                            <span className="text-[10px] font-black text-brand-blue italic">
+                                                        <div className="flex items-center justify-between mt-1.5">
+                                                            <span className="text-xs font-bold text-slate-500 italic">
                                                                 {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
                                                             </span>
-                                                            <span className="text-[9px] text-slate-400 font-bold ml-auto bg-slate-50 px-2 py-0.5 rounded-full">
+                                                            <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
                                                                 {reward.points_required} pts
                                                             </span>
                                                         </div>
@@ -610,7 +627,7 @@ function AdminContent() {
                                         <Button 
                                             variant="ghost" 
                                             className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5"
-                                            onClick={() => router.push('/qrido/rewards')}
+                                            onClick={() => router.push('/qrido/admin/rewards')}
                                         >
                                             VER TODOS OS PRÊMIOS
                                         </Button>

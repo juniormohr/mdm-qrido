@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -25,6 +25,131 @@ export default function CompanyDashboard() {
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
     const [tier, setTier] = useState<string>('basic')
     const [companyType, setCompanyType] = useState<'store' | 'mall'>('store')
+    const [topRewards, setTopRewards] = useState<any[]>([])
+
+    async function fetchTopRewards(companyId: string, type: 'store' | 'mall') {
+        const supabase = createClient()
+
+        // 1. Obter a lista de empresas elegíveis (a própria loja ou as lojas do grupo)
+        const eligibleCompanyIds = [companyId]
+        if (type === 'mall') {
+            const { data: groupStores } = await supabase
+                .from('company_groups')
+                .select('store_id')
+                .eq('mall_id', companyId)
+                .eq('status', 'accepted')
+
+            if (groupStores) {
+                groupStores.forEach(s => {
+                    if (s.store_id) eligibleCompanyIds.push(s.store_id)
+                })
+            }
+        }
+
+        // 2. Buscar profiles das empresas elegíveis para ter o nome
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', eligibleCompanyIds)
+
+        // 3. Buscar recompensas ativas
+        const { data: rewardsData } = await supabase
+            .from('rewards')
+            .select('*')
+            .in('user_id', eligibleCompanyIds)
+            .eq('is_active', true)
+
+        // 4. Buscar transações de resgate
+        const { data: redeemTransactions } = await supabase
+            .from('loyalty_transactions')
+            .select('reward_id, user_id')
+            .in('user_id', eligibleCompanyIds)
+            .eq('type', 'redeem')
+
+        // 5. Buscar todas as transações para calcular volume (engajamento) das empresas
+        const { data: txSummary } = await supabase
+            .from('loyalty_transactions')
+            .select('user_id, type')
+            .in('user_id', eligibleCompanyIds)
+
+        // Count redemptions per reward
+        const redeemCounts: Record<string, number> = {}
+        if (redeemTransactions) {
+            redeemTransactions.forEach(tx => {
+                if (tx.reward_id) {
+                    redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
+                }
+            })
+        }
+
+        // Count total company transaction volume (for engagement metric)
+        const companyVolumes: Record<string, number> = {}
+        if (txSummary) {
+            txSummary.forEach(tx => {
+                if (tx.user_id) {
+                    companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
+                }
+            })
+        }
+
+        const rewardsWithStats = (rewardsData || []).map(r => {
+            const company = (profiles || []).find(p => p.id === r.user_id)
+            return {
+                ...r,
+                company_name: company?.full_name || 'Minha Loja',
+                resgates: redeemCounts[r.id] || 0,
+                volume_empresa: companyVolumes[r.user_id] || 0,
+            }
+        })
+
+        const selectedRewards: any[] = []
+        const selectedCompanyIds = new Set<string>()
+
+        const tryAddRewards = (candidates: any[], checkCompany = true) => {
+            for (const item of candidates) {
+                if (selectedRewards.length >= 3) break
+                if (!checkCompany || !selectedCompanyIds.has(item.user_id)) {
+                    selectedRewards.push(item)
+                    selectedCompanyIds.add(item.user_id)
+                }
+            }
+        }
+
+        // Critério 1: prêmios mais resgatados (resgates > 0), ordenados por resgates desc
+        const crit1 = [...rewardsWithStats]
+            .filter(r => r.resgates > 0)
+            .sort((a, b) => b.resgates - a.resgates)
+        tryAddRewards(crit1)
+
+        // Critério 2: prêmios de empresas mais engajadas (volume_empresa > 0), ordenados por volume_empresa desc
+        if (selectedRewards.length < 3) {
+            const crit2 = [...rewardsWithStats]
+                .filter(r => r.volume_empresa > 0)
+                .sort((a, b) => b.volume_empresa - a.volume_empresa)
+            tryAddRewards(crit2)
+        }
+
+        // Critério 3: prêmios mais fáceis de resgatar (menor pontuação), ordenados por points_required asc
+        if (selectedRewards.length < 3) {
+            const crit3 = [...rewardsWithStats]
+                .sort((a, b) => a.points_required - b.points_required)
+            tryAddRewards(crit3)
+        }
+
+        // Se ainda não tiver 3 e houver mais prêmios cadastrados, permitir repetir empresa
+        if (selectedRewards.length < 3) {
+            const remainingCandidates = [...rewardsWithStats]
+                .filter(r => !selectedRewards.some(sr => sr.id === r.id))
+                .sort((a, b) => {
+                    if (b.resgates !== a.resgates) return b.resgates - a.resgates
+                    if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa
+                    return a.points_required - b.points_required
+                })
+            tryAddRewards(remainingCandidates, false)
+        }
+
+        setTopRewards(selectedRewards)
+    }
 
     async function fetchStats(userId: string) {
         const supabase = createClient()
@@ -221,9 +346,12 @@ export default function CompanyDashboard() {
             subscribeToTransactions(companyId)
             subscribeToCustomers(companyId)
 
+            const compType = profile?.company_type || 'store'
+            fetchTopRewards(companyId, compType as 'store' | 'mall')
+
             if (profile) {
                 setTier(profile.subscription_tier || 'basic')
-                setCompanyType(profile.company_type || 'store')
+                setCompanyType(compType as 'store' | 'mall')
             }
         }
 
@@ -573,164 +701,235 @@ export default function CompanyDashboard() {
                 )}
             </div>
 
-            {/* Solicitações Pendentes Section */}
-            <div id="solicitacoes-pendentes" className="space-y-6 pt-8 border-t border-slate-100">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange">
-                        <Plus className="h-6 w-6" />
+            {/* Grid de Conteúdo: Aguardando Confirmação e Top Recompensas */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-slate-100">
+                {/* Solicitações Pendentes Section */}
+                <div id="solicitacoes-pendentes" className="lg:col-span-2 space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange">
+                            <Plus className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase italic">Aguardando Confirmação</h2>
                     </div>
-                    <h2 className="text-2xl font-black text-slate-900 uppercase italic">Aguardando Confirmação</h2>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {(() => {
-                        // Mesclar solicitações pendentes com itens em transição
-                        const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
-                        Object.keys(transitioningItems).forEach(id => {
-                            allRequestsMap[id] = transitioningItems[id]
-                        })
-                        const displayRequests = [
-                            ...Object.values(allRequestsMap),
-                            ...pendingInvites
-                        ].sort((a: any, b: any) =>
-                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                        )
-
-                        if (displayRequests.length === 0) {
-                            return (
-                                <div className="col-span-full py-12 text-center bg-white/50 rounded-[40px] border-2 border-dashed border-slate-100 italic font-bold text-slate-300">
-                                    Nenhuma solicitação nova por enquanto.
-                                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {(() => {
+                            // Mesclar solicitações pendentes com itens em transição
+                            const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
+                            Object.keys(transitioningItems).forEach(id => {
+                                allRequestsMap[id] = transitioningItems[id]
+                            })
+                            const displayRequests = [
+                                ...Object.values(allRequestsMap),
+                                ...pendingInvites
+                            ].sort((a: any, b: any) =>
+                                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                             )
-                        }
 
-                        return displayRequests.map((req: any) => {
-                            if (req.isInvite) {
+                            if (displayRequests.length === 0) {
                                 return (
-                                    <Card key={req.id} className="border-none shadow-2xl rounded-[40px] overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 text-white animate-in zoom-in-95 duration-200 p-6 flex flex-col justify-between min-h-[260px]">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-2 bg-white/20 rounded-2xl w-fit">
-                                                    <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
-                                                </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Novo Convite de Grupo</span>
-                                            </div>
-                                            <div>
-                                                <h3 className="text-xl font-black italic uppercase leading-tight">{req.mall?.full_name || 'Grupo Desconhecido'}</h3>
-                                                <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.mall?.phone || 'Sem telefone'}</p>
-                                                <p className="text-xs font-bold text-white/90 leading-relaxed mt-3">
-                                                    Este grupo deseja te associar para que compras na sua loja gerem pontos também para os clientes deste grupo.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
-                                            <Button
-                                                onClick={() => handleRespondInvite(req.id, 'accepted')}
-                                                className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
-                                            >
-                                                Aceitar
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => handleRespondInvite(req.id, 'rejected')}
-                                                className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
-                                            >
-                                                Recusar
-                                            </Button>
-                                        </div>
-                                    </Card>
+                                    <div className="col-span-full py-12 text-center bg-white/50 rounded-[40px] border-2 border-dashed border-slate-100 italic font-bold text-slate-300">
+                                        Nenhuma solicitação nova por enquanto.
+                                    </div>
                                 )
                             }
 
-                            const isRedeem = req.type === 'redeem'
-                            return (
-                                <Card key={req.id} className={cn(
-                                    "border-none shadow-xl rounded-[40px] overflow-hidden animate-in zoom-in-95 duration-200",
-                                    isRedeem ? "bg-amber-50/50 border border-amber-100" : "bg-white"
-                                )}>
-                                    <CardHeader className={cn("p-6 border-b", isRedeem ? "bg-amber-100/20 border-amber-100/50" : "bg-slate-50/50 border-slate-100")}>
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1">
-                                                <p className={cn("text-[10px] font-black uppercase tracking-widest italic", isRedeem ? "text-amber-600" : "text-brand-blue")}>
-                                                    {req.customer?.full_name}
-                                                </p>
-                                                <p className="text-xs text-slate-500 font-bold">{req.customer?.phone}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-[10px] font-black uppercase text-slate-400">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
-                                                <p className={cn("text-lg font-black italic leading-none", isRedeem ? "text-amber-600" : "text-brand-blue")}>
-                                                    {isRedeem ? 'PONTOS' : `R$ ${req.total_amount}`}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="p-6 space-y-4">
-                                        <div className="space-y-2">
-                                            {req.items.map((item: any, idx: number) => (
-                                                <div key={idx} className="flex justify-between text-xs font-bold text-slate-600 italic">
-                                                    <span>{item.qty}x {item.name}</span>
-                                                    <span className="text-slate-400">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
+                            return displayRequests.map((req: any) => {
+                                if (req.isInvite) {
+                                    return (
+                                        <Card key={req.id} className="border-none shadow-2xl rounded-[40px] overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 text-white animate-in zoom-in-95 duration-200 p-6 flex flex-col justify-between min-h-[260px]">
+                                            <div className="space-y-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-2 bg-white/20 rounded-2xl w-fit">
+                                                        <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Novo Convite de Grupo</span>
                                                 </div>
-                                            ))}
-                                        </div>
-                                        <div className="pt-4 border-t border-slate-100 flex flex-col gap-4">
-                                            <div className={cn("flex justify-between items-center", isRedeem ? "text-amber-600" : "text-brand-orange")}>
-                                                <span className="text-[10px] font-black uppercase italic">{isRedeem ? 'Pontos a descontar' : 'Pontos a receber'}</span>
-                                                <span className="text-xl font-black">{isRedeem ? '-' : '+'}{req.total_points} PTS</span>
+                                                <div>
+                                                    <h3 className="text-xl font-black italic uppercase leading-tight">{req.mall?.full_name || 'Grupo Desconhecido'}</h3>
+                                                    <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.mall?.phone || 'Sem telefone'}</p>
+                                                    <p className="text-xs font-bold text-white/90 leading-relaxed mt-3">
+                                                        Este grupo deseja te associar para que compras na sua loja gerem pontos também para os clientes deste grupo.
+                                                    </p>
+                                                </div>
                                             </div>
+                                            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
+                                                <Button
+                                                    onClick={() => handleRespondInvite(req.id, 'accepted')}
+                                                    className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
+                                                >
+                                                    Aceitar
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleRespondInvite(req.id, 'rejected')}
+                                                    className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
+                                                >
+                                                    Recusar
+                                                </Button>
+                                            </div>
+                                        </Card>
+                                    )
+                                }
 
-                                            {req.transitionStatus === 'rejected' ? (
-                                                <div className="h-12 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300">
-                                                    Pedido Recusado
+                                const isRedeem = req.type === 'redeem'
+                                return (
+                                    <Card key={req.id} className={cn(
+                                        "border-none shadow-xl rounded-[40px] overflow-hidden animate-in zoom-in-95 duration-200",
+                                        isRedeem ? "bg-amber-50/50 border border-amber-100" : "bg-white"
+                                    )}>
+                                        <CardHeader className={cn("p-6 border-b", isRedeem ? "bg-amber-100/20 border-amber-100/50" : "bg-slate-50/50 border-slate-100")}>
+                                            <div className="flex justify-between items-start">
+                                                <div className="space-y-1">
+                                                    <p className={cn("text-[10px] font-black uppercase tracking-widest italic", isRedeem ? "text-amber-600" : "text-brand-blue")}>
+                                                        {req.customer?.full_name}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 font-bold">{req.customer?.phone}</p>
                                                 </div>
-                                            ) : req.transitionStatus === 'confirmed' ? (
-                                                <div className={cn(
-                                                    "h-12 flex items-center justify-center rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300",
-                                                    isRedeem ? "bg-amber-100 text-amber-600" : "bg-emerald-50 text-emerald-500"
-                                                )}>
-                                                    {isRedeem ? 'Resgate Confirmado!' : 'Pontos Enviados!'}
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black uppercase text-slate-400">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
+                                                    <p className={cn("text-lg font-black italic leading-none", isRedeem ? "text-amber-600" : "text-brand-blue")}>
+                                                        {isRedeem ? 'PONTOS' : `R$ ${req.total_amount}`}
+                                                    </p>
                                                 </div>
-                                            ) : (
-                                                req.type === 'redeem' ? (
-                                                    <div className="space-y-3">
-                                                        <Button
-                                                            onClick={() => handleConfirmRedemption(req.id)}
-                                                            className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-blue-100"
-                                                        >
-                                                            Confirmar Resgate
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            onClick={() => handleRejectRequest(req.id)}
-                                                            className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                                        >
-                                                            Recusar Resgate
-                                                        </Button>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent className="p-6 space-y-4">
+                                            <div className="space-y-2">
+                                                {req.items.map((item: any, idx: number) => (
+                                                    <div key={idx} className="flex justify-between text-xs font-bold text-slate-600 italic">
+                                                        <span>{item.qty}x {item.name}</span>
+                                                        <span className="text-slate-400">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="pt-4 border-t border-slate-100 flex flex-col gap-4">
+                                                <div className={cn("flex justify-between items-center", isRedeem ? "text-amber-600" : "text-brand-orange")}>
+                                                    <span className="text-[10px] font-black uppercase italic">{isRedeem ? 'Pontos a descontar' : 'Pontos a receber'}</span>
+                                                    <span className="text-xl font-black">{isRedeem ? '-' : '+'}{req.total_points} PTS</span>
+                                                </div>
+
+                                                {req.transitionStatus === 'rejected' ? (
+                                                    <div className="h-12 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300">
+                                                        Pedido Recusado
+                                                    </div>
+                                                ) : req.transitionStatus === 'confirmed' ? (
+                                                    <div className={cn(
+                                                        "h-12 flex items-center justify-center rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300",
+                                                        isRedeem ? "bg-amber-100 text-amber-600" : "bg-emerald-50 text-emerald-500"
+                                                    )}>
+                                                        {isRedeem ? 'Resgate Confirmado!' : 'Pontos Enviados!'}
                                                     </div>
                                                 ) : (
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <Button
-                                                            onClick={() => handleConfirmRequest(req.id)}
-                                                            className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
-                                                        >
-                                                            Confirmar
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            onClick={() => handleRejectRequest(req.id)}
-                                                            className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
-                                                        >
-                                                            Recusar
-                                                        </Button>
+                                                    req.type === 'redeem' ? (
+                                                        <div className="space-y-3">
+                                                            <Button
+                                                                onClick={() => handleConfirmRedemption(req.id)}
+                                                                className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-blue-100"
+                                                            >
+                                                                Confirmar Resgate
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => handleRejectRequest(req.id)}
+                                                                className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                            >
+                                                                Recusar Resgate
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <Button
+                                                                onClick={() => handleConfirmRequest(req.id)}
+                                                                className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                                            >
+                                                                Confirmar
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => handleRejectRequest(req.id)}
+                                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                                                            >
+                                                                Recusar
+                                                            </Button>
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )
+                            })
+                        })()}
+                    </div>
+                </div>
+
+                {/* Top Recompensas Section */}
+                <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                            <Trophy className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase italic">Top Recompensas</h2>
+                    </div>
+
+                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                        <CardHeader className="p-6 border-b border-slate-50">
+                            <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
+                            <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <div className="space-y-6">
+                                {topRewards.length === 0 ? (
+                                    <div className="text-center py-6 text-slate-400 text-sm font-medium">
+                                        Nenhum prêmio disponível no momento.
+                                    </div>
+                                ) : (
+                                    topRewards.map((reward, index) => {
+                                        const rank = index + 1
+                                        return (
+                                            <div key={reward.id} className="flex items-center gap-4 group">
+                                                <div className={cn(
+                                                    "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
+                                                    rank === 1 
+                                                        ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
+                                                        : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                )}>
+                                                    {rank === 1 ? '🥇' : rank}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                        {reward.title}
+                                                    </p>
+                                                    {companyType === 'mall' && (
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                            {reward.company_name}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center justify-between mt-1.5">
+                                                        <span className="text-xs font-bold text-slate-500 italic">
+                                                            {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                        </span>
+                                                        <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
+                                                            {reward.points_required} pts
+                                                        </span>
                                                     </div>
-                                                )
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )
-                        })
-                    })()}
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
+                                <div className="pt-4 border-t border-slate-50">
+                                    <Link 
+                                        href="/qrido/rewards"
+                                        className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5 h-10 flex items-center justify-center rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                                    >
+                                        VER TODOS OS PRÊMIOS
+                                    </Link>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
 
