@@ -88,8 +88,7 @@ export default function DashboardLayout({
                         .single()
 
                     const isPartnership = prof?.subscription_tier === 'partnership' && 
-                                         prof.partnership_end_date && 
-                                         new Date(prof.partnership_end_date) > new Date()
+                                         (!prof.partnership_end_date || new Date(prof.partnership_end_date) > new Date())
 
                     const hasActiveSubscription = (!!sub && sub.plan !== 'start') || isPartnership
 

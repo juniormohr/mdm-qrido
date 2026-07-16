@@ -17,8 +17,8 @@ export async function checkSubscription() {
         .single()
 
     // If they have a valid partnership
-    if (profile?.subscription_tier === 'partnership' && profile.partnership_end_date) {
-        const isPartnershipActive = new Date(profile.partnership_end_date) > new Date()
+    if (profile?.subscription_tier === 'partnership') {
+        const isPartnershipActive = !profile.partnership_end_date || new Date(profile.partnership_end_date) > new Date()
         if (isPartnershipActive) return { authorized: true, plan: 'partnership' }
     }
 
