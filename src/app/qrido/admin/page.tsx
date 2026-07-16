@@ -83,6 +83,7 @@ function AdminContent() {
     const [companies, setCompanies] = useState<any[]>([])
     const [allCustomers, setAllCustomers] = useState<Customer[]>([])
     const [allTransactions, setAllTransactions] = useState<any[]>([])
+    const [topRewards, setTopRewards] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
@@ -237,6 +238,83 @@ function AdminContent() {
             .limit(100)
 
         if (transactions) setAllTransactions(transactions)
+
+        // 3.1. Fetch rewards and calculate Top Recompensas dynamic ranking
+        const { data: rewardsData } = await supabase
+            .from('rewards')
+            .select('*')
+            .eq('is_active', true)
+
+        const { data: redeemTransactions } = await supabase
+            .from('loyalty_transactions')
+            .select('reward_id, user_id')
+            .eq('type', 'redeem')
+
+        // Count redemptions per reward
+        const redeemCounts: Record<string, number> = {}
+        if (redeemTransactions) {
+            redeemTransactions.forEach(tx => {
+                if (tx.reward_id) {
+                    redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
+                }
+            })
+        }
+
+        // Count total company transaction volume (for engagement metric)
+        const companyVolumes: Record<string, number> = {}
+        if (txSummary) {
+            txSummary.forEach(tx => {
+                if (tx.user_id) {
+                    companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
+                }
+            })
+        }
+
+        const rewardsWithStats = (rewardsData || []).map(r => {
+            const company = (profiles || []).find(p => p.id === r.user_id)
+            return {
+                ...r,
+                company_name: company?.full_name || 'Empresa Parceira',
+                resgates: redeemCounts[r.id] || 0,
+                volume_empresa: companyVolumes[r.user_id] || 0,
+            }
+        })
+
+        const selectedRewards: any[] = []
+        const selectedCompanyIds = new Set<string>()
+
+        const tryAddRewards = (candidates: any[]) => {
+            for (const item of candidates) {
+                if (selectedRewards.length >= 3) break
+                if (!selectedCompanyIds.has(item.user_id)) {
+                    selectedRewards.push(item)
+                    selectedCompanyIds.add(item.user_id)
+                }
+            }
+        }
+
+        // Critério 1: prêmios mais resgatados (resgates > 0), ordenados por resgates desc
+        const crit1 = [...rewardsWithStats]
+            .filter(r => r.resgates > 0)
+            .sort((a, b) => b.resgates - a.resgates)
+        tryAddRewards(crit1)
+
+        // Critério 2: prêmios de empresas mais engajadas (volume_empresa > 0), ordenados por volume_empresa desc
+        if (selectedRewards.length < 3) {
+            const crit2 = [...rewardsWithStats]
+                .filter(r => r.volume_empresa > 0)
+                .sort((a, b) => b.volume_empresa - a.volume_empresa)
+            tryAddRewards(crit2)
+        }
+
+        // Critério 3: prêmios mais fáceis de resgatar (menor pontuação), ordenados por points_required asc
+        if (selectedRewards.length < 3) {
+            const crit3 = [...rewardsWithStats]
+                .sort((a, b) => a.points_required - b.points_required)
+            tryAddRewards(crit3)
+        }
+
+        setTopRewards(selectedRewards)
 
         // 4. Calculate Stats
         const now = new Date()
@@ -492,24 +570,50 @@ function AdminContent() {
                             </CardHeader>
                             <CardContent className="p-8">
                                 <div className="space-y-6">
-                                    {[1, 2, 3].map(i => (
-                                        <div key={i} className="flex items-center gap-4 group">
-                                            <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-400 text-lg group-hover:bg-brand-blue group-hover:text-white transition-all">
-                                                {i}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-slate-800 italic uppercase leading-none">Prêmio Exemplo #{i}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-brand-blue" style={{ width: `${80 - i * 15}%` }} />
-                                                    </div>
-                                                    <span className="text-[10px] font-black text-brand-blue italic">{40 - i * 7} Resgates</span>
-                                                </div>
-                                            </div>
+                                    {topRewards.length === 0 ? (
+                                        <div className="text-center py-6 text-slate-400 text-sm font-medium">
+                                            Nenhum prêmio disponível na rede.
                                         </div>
-                                    ))}
+                                    ) : (
+                                        topRewards.map((reward, index) => {
+                                            const rank = index + 1
+                                            const progressWidth = 90 - index * 25
+                                            return (
+                                                <div key={reward.id} className="flex items-center gap-4 group">
+                                                    <div className="h-12 w-12 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-400 text-lg group-hover:bg-brand-blue group-hover:text-white transition-all">
+                                                        {rank}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                            {reward.title}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                            {reward.company_name}
+                                                        </p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <div className="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-brand-blue" style={{ width: `${progressWidth}%` }} />
+                                                            </div>
+                                                            <span className="text-[10px] font-black text-brand-blue italic">
+                                                                {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-400 font-bold ml-auto bg-slate-50 px-2 py-0.5 rounded-full">
+                                                                {reward.points_required} pts
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
                                     <div className="pt-4 border-t border-slate-50">
-                                        <Button variant="ghost" className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5">VER TODOS OS PRÊMIOS</Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5"
+                                            onClick={() => router.push('/qrido/rewards')}
+                                        >
+                                            VER TODOS OS PRÊMIOS
+                                        </Button>
                                     </div>
                                 </div>
                             </CardContent>
