@@ -81,27 +81,20 @@ export default function DashboardLayout({
                         .in('status', ['active', 'trialing'])
                         .maybeSingle()
 
-                    const { data: prof, error: profError } = await supabase
+                    const { data: prof } = await supabase
                         .from('profiles')
-                        .select('subscription_tier, partnership_end_date, unit_count')
+                        .select('subscription_tier, partnership_end_date')
                         .eq('id', companyId)
                         .single()
-
-                    console.log('--- QRido Subscription Validation Debug ---')
-                    console.log('companyId:', companyId)
-                    console.log('sub:', sub, 'subError:', subError)
-                    console.log('prof:', prof, 'profError:', profError)
 
                     const isPartnership = prof?.subscription_tier === 'partnership' && 
                                          (!prof.partnership_end_date || new Date(prof.partnership_end_date) > new Date())
 
                     const hasActiveSubscription = (!!sub && sub.plan !== 'start') || isPartnership
-                    console.log('isPartnership:', isPartnership)
-                    console.log('hasActiveSubscription:', hasActiveSubscription)
-                    console.log('---------------------------------------------')
 
                     if (!hasActiveSubscription) {
-                        if (prof?.unit_count && prof.unit_count > 1) {
+                        const unitCount = user.user_metadata?.unit_count || 1
+                        if (unitCount > 1) {
                             window.location.href = '/qrido/select-plan/group-contact'
                         } else {
                             window.location.href = '/qrido/pricing'
