@@ -15,7 +15,7 @@ function SubmitButton({ isLogin }: { isLogin: boolean }) {
             disabled={pending}
             className="btn-blue w-full h-14 rounded-2xl text-base font-black italic uppercase tracking-widest disabled:opacity-50"
         >
-            {pending ? 'Processando...' : (isLogin ? 'Entrar no Ecossistema' : 'Começar Agora')}
+            {pending ? 'Processando...' : (isLogin ? 'Entrar' : 'Começar Agora')}
         </button>
     )
 }
@@ -205,17 +205,17 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-[#FDF5ED] p-4">
-            <div className="w-full max-w-md space-y-8 rounded-[40px] bg-white p-10 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-500">
+        <div className="flex min-h-screen items-center justify-center bg-[#FF6B00] p-4">
+            <div className="w-full max-w-md space-y-8 rounded-[40px] bg-[#FFC709] p-10 shadow-2xl border border-amber-400 animate-in fade-in zoom-in duration-500">
                 <div className="text-center space-y-2">
-                    <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-slate-50 border border-slate-100 mb-2">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">MDM Marketing Ecosystem</span>
+                    <div className="inline-flex items-center justify-center px-4 py-1 rounded-full bg-slate-900/10 border border-slate-900/20 mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 italic">MDM Marketing Ecosystem</span>
                     </div>
-                    <h2 className="text-4xl font-black italic uppercase tracking-tight text-brand-blue leading-tight">
-                        {isLogin ? 'Bem-vindo de Volta' : 'Criar Nova Conta'}
+                    <h2 className="text-4xl font-black italic uppercase tracking-tight text-slate-900 leading-tight">
+                        {isLogin ? 'Você está no Qrido' : 'Criar Nova Conta'}
                     </h2>
-                    <p className="text-sm font-medium text-slate-400 italic">
-                        {isLogin ? 'Entre para gerenciar seu ecossistema' : 'Comece sua jornada no marketing agora'}
+                    <p className="text-sm font-medium text-slate-700 italic">
+                        {isLogin ? 'o jeito mais Qrido de fidelizar' : 'Comece sua jornada no marketing agora'}
                     </p>
                 </div>
 
@@ -242,7 +242,7 @@ export default function LoginPage() {
                                     onClick={() => setUserRole('customer')}
                                     className={cn(
                                         "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                                        userRole === 'customer' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                                        userRole === 'customer' ? "bg-white text-brand-blue shadow-sm" : "text-slate-700 hover:text-slate-600"
                                     )}
                                 >
                                     Sou Cliente
@@ -252,7 +252,7 @@ export default function LoginPage() {
                                     onClick={() => setUserRole('company')}
                                     className={cn(
                                         "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                                        userRole === 'company' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                                        userRole === 'company' ? "bg-white text-brand-blue shadow-sm" : "text-slate-700 hover:text-slate-600"
                                     )}
                                 >
                                     Sou Empresa
@@ -264,7 +264,7 @@ export default function LoginPage() {
                         {!isLogin && (
                             <>
                                 <div className="space-y-2">
-                                    <label htmlFor="full-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                    <label htmlFor="full-name" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
                                         {userRole === 'company' ? 'Nome da Empresa / Responsável' : 'Seu Nome Completo'}
                                     </label>
                                     <input
@@ -287,7 +287,7 @@ export default function LoginPage() {
                                     {fieldErrors.full_name && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.full_name}</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">WhatsApp de Contato</label>
+                                    <label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">WhatsApp de Contato</label>
                                     <input
                                         id="phone"
                                         name="phone"
@@ -308,7 +308,7 @@ export default function LoginPage() {
                                 </div>
                                 {userRole === 'company' && (
                                     <div className="space-y-2">
-                                        <label htmlFor="unit_count" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                        <label htmlFor="unit_count" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
                                             Quantidade de Unidades (Lojas)
                                         </label>
                                         <input
@@ -332,14 +332,14 @@ export default function LoginPage() {
                                             )}
                                         />
                                         {fieldErrors.unit_count && <p className="text-[11px] font-medium text-red-500 ml-2 mt-1">{fieldErrors.unit_count}</p>}
-                                        <p className="text-[9px] text-slate-400 font-medium italic ml-2">* Acima de 1 unidade, seu perfil será configurado como GRUPO.</p>
+                                        <p className="text-[9px] text-slate-700 font-medium italic ml-2">* Acima de 1 unidade, seu perfil será configurado como GRUPO.</p>
                                     </div>
                                 )}
                             </>
                         )}
                         {!isLogin && (
                             <div className="space-y-2">
-                                <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                                <label htmlFor="email-address" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
                                     E-mail <span className="text-[9px] lowercase italic font-medium">(para recuperação)</span>
                                 </label>
                                 <input
@@ -363,7 +363,7 @@ export default function LoginPage() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <label htmlFor="document-field" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                            <label htmlFor="document-field" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
                                 {!isLogin ? (userRole === 'customer' || noCnpj ? 'Seu CPF' : 'CNPJ da Empresa') : 'CPF ou CNPJ'}
                             </label>
                             <input
@@ -405,7 +405,7 @@ export default function LoginPage() {
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between ml-1">
-                                <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Senha</label>
+                                <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-700">Senha</label>
                                 {isLogin && (
                                     <a
                                         href="/forgot-password"
@@ -436,7 +436,7 @@ export default function LoginPage() {
                         </div>
                         {!isLogin && (
                             <div className="space-y-2">
-                                <label htmlFor="confirm_password" className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Confirmar Senha</label>
+                                <label htmlFor="confirm_password" className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Confirmar Senha</label>
                                 <input
                                     id="confirm_password"
                                     name="confirm_password"
@@ -465,7 +465,7 @@ export default function LoginPage() {
                     {/* 
                     <div className="relative flex items-center justify-center my-4">
                         <div className="border-t border-slate-200 w-full"></div>
-                        <span className="absolute bg-white px-3 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">ou</span>
+                        <span className="absolute bg-white px-3 text-[10px] font-black uppercase tracking-widest text-slate-700 italic">ou</span>
                     </div>
 
                     <button
@@ -505,7 +505,7 @@ export default function LoginPage() {
                                     unit_count: '1'
                                 })
                             }}
-                            className="text-xs font-black uppercase italic tracking-widest text-slate-400 hover:text-brand-blue transition-colors"
+                            className="text-xs font-black uppercase italic tracking-widest text-slate-700 hover:text-brand-blue transition-colors"
                             type="button"
                         >
                             {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já possui conta? Faça o Login'}
