@@ -103,33 +103,83 @@ export default function DashboardLayout({
                     }
                 }
 
-                // Fetch company details (name, CNPJ/CPF)
+                // Fetch company details (name, CNPJ/CPF, type)
                 const { data: compProfile } = await supabase
                     .from('profiles')
-                    .select('full_name, cpf_cnpj')
+                    .select('full_name, cpf_cnpj, company_type')
                     .eq('id', companyId)
                     .single()
-                
-                // Fetch total customers
-                const { count } = await supabase
-                    .from('customers')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', companyId)
 
-                // Fetch total sales
-                const { data: salesData } = await supabase
-                    .from('loyalty_transactions')
-                    .select('sale_amount')
-                    .eq('user_id', companyId)
-                    .eq('type', 'earn')
-                
-                const totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+                const isMall = compProfile?.company_type === 'mall'
+                let totalCustomers = 0
+                let totalSalesAmount = 0
 
+                if (isMall) {
+                    // Buscar lojas parceiras aceitas no grupo
+                    const { data: groupStores } = await supabase
+                        .from('company_groups')
+                        .select('store_id, created_at')
+                        .eq('mall_id', companyId)
+                        .eq('status', 'accepted')
+
+                    if (groupStores && groupStores.length > 0) {
+                        for (const store of groupStores) {
+                            if (!store.store_id) continue
+                            const joinedAt = store.created_at
+
+                            // Clientes fidelizados do grupo (criados após a adesão OU que transacionaram após a adesão)
+                            const { data: newCusts } = await supabase
+                                .from('customers')
+                                .select('id')
+                                .eq('user_id', store.store_id)
+                                .gte('created_at', joinedAt)
+
+                            const { data: activeCustsData } = await supabase
+                                .from('loyalty_transactions')
+                                .select('customer_id')
+                                .eq('user_id', store.store_id)
+                                .gte('created_at', joinedAt)
+
+                            const uniqueCustIds = new Set<string>()
+                            newCusts?.forEach(c => uniqueCustIds.add(c.id))
+                            activeCustsData?.forEach(t => uniqueCustIds.add(t.customer_id))
+                            
+                            totalCustomers += uniqueCustIds.size
+
+                            // Vendas em R$ (acumuladas históricas a partir da adesão)
+                            const { data: storeSales } = await supabase
+                                .from('loyalty_transactions')
+                                .select('sale_amount')
+                                .eq('user_id', store.store_id)
+                                .eq('type', 'earn')
+                                .gte('created_at', joinedAt)
+
+                            totalSalesAmount += storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+                        }
+                    }
+                } else {
+                    // Fetch total customers for single store
+                    const { count } = await supabase
+                        .from('customers')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', companyId)
+                    totalCustomers = count || 0
+
+                    // Fetch total sales for single store
+                    const { data: salesData } = await supabase
+                        .from('loyalty_transactions')
+                        .select('sale_amount')
+                        .eq('user_id', companyId)
+                        .eq('type', 'earn')
+                    
+                    totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+                }
+                
                 setCompanyInfo({
                     name: compProfile?.full_name || 'Minha Empresa',
                     cpfCnpj: compProfile?.cpf_cnpj || '',
                     totalSales: totalSalesAmount,
-                    totalCustomers: count || 0,
+                    totalCustomers: totalCustomers,
                     show: !isOnboarding
                 })
             }

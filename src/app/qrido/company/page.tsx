@@ -188,14 +188,24 @@ export default function CompanyDashboard() {
                     if (!store.store_id) continue
                     const joinedAt = store.created_at
 
-                    // 1. Clientes Fidelizados (criados após a adesão)
-                    const { data: loyalData } = await supabase
+                    // 1. Clientes Fidelizados (criados após a adesão OU que transacionaram após a adesão)
+                    const { data: newCusts } = await supabase
                         .from('customers')
                         .select('id')
                         .eq('user_id', store.store_id)
                         .gte('created_at', joinedAt)
+
+                    const { data: activeCustsData } = await supabase
+                        .from('loyalty_transactions')
+                        .select('customer_id')
+                        .eq('user_id', store.store_id)
+                        .gte('created_at', joinedAt)
+
+                    const uniqueCustIds = new Set<string>()
+                    newCusts?.forEach(c => uniqueCustIds.add(c.id))
+                    activeCustsData?.forEach(t => uniqueCustIds.add(t.customer_id))
                     
-                    totalLoyal += loyalData?.length || 0
+                    totalLoyal += uniqueCustIds.size
 
                     // 2. Vendas em R$ (mês atual E criadas após adesão)
                     const salesSince = joinedAt > monthStartIso ? joinedAt : monthStartIso
