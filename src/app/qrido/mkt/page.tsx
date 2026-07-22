@@ -87,6 +87,13 @@ export default function MarketingSettings() {
         if (error) {
             setMessage({ type: 'error', text: `Erro: ${error.message}` })
         } else {
+            // Se ativou os pontos em dobro na loja toda, ativa em todos os produtos automaticamente
+            if (config.double_points_active) {
+                await supabase
+                    .from('products')
+                    .update({ double_points_active: true })
+                    .eq('company_id', user.id)
+            }
             setMessage({ type: 'success', text: 'Configurações de MKT atualizadas com sucesso!' })
         }
         setSaving(false)

@@ -19,6 +19,9 @@ interface Product {
     points_reward: number
     image_url: string | null
     is_active: boolean
+    highlight_active?: boolean
+    highlight_expires_at?: string | null
+    double_points_active?: boolean
 }
 
 export default function ProductManagementPage() {
@@ -68,6 +71,75 @@ export default function ProductManagementPage() {
 
         if (data) setProducts(data)
         setLoading(false)
+    }
+
+    async function handleToggleHighlight(product: Product) {
+        const isCurrentlyActive = product.highlight_active && product.highlight_expires_at 
+            ? new Date(product.highlight_expires_at) > new Date() 
+            : false;
+
+        const supabase = createClient()
+        if (isCurrentlyActive) {
+            const { error } = await supabase
+                .from('products')
+                .update({
+                    highlight_active: false,
+                    highlight_expires_at: null
+                })
+                .eq('id', product.id)
+            
+            if (!error) {
+                fetchProducts()
+            } else {
+                alert('Erro ao remover destaque: ' + error.message)
+            }
+        } else {
+            setSelectedProductForHighlight(product)
+            setShowHighlightModal(true)
+        }
+    }
+
+    async function handleActivateHighlight(duration: 'day' | 'week') {
+        if (!selectedProductForHighlight) return
+        
+        const expiresAt = new Date()
+        if (duration === 'day') {
+            expiresAt.setDate(expiresAt.getDate() + 1)
+        } else {
+            expiresAt.setDate(expiresAt.getDate() + 7)
+        }
+
+        const supabase = createClient()
+        const { error } = await supabase
+            .from('products')
+            .update({
+                highlight_active: true,
+                highlight_expires_at: expiresAt.toISOString()
+            })
+            .eq('id', selectedProductForHighlight.id)
+
+        if (!error) {
+            setShowHighlightModal(false)
+            fetchProducts()
+            alert(`Destaque de 1 ${duration === 'day' ? 'dia' : 'semana'} ativado com sucesso!`)
+        } else {
+            alert('Erro ao ativar destaque: ' + error.message)
+        }
+    }
+
+    async function handleToggleProductDoublePoints(product: Product) {
+        const supabase = createClient()
+        const newValue = product.double_points_active === false ? true : false
+        const { error } = await supabase
+            .from('products')
+            .update({ double_points_active: newValue })
+            .eq('id', product.id)
+        
+        if (!error) {
+            fetchProducts()
+        } else {
+            alert('Erro ao atualizar pontos em dobro do produto: ' + error.message)
+        }
     }
 
     async function handleAddProduct(e: React.FormEvent) {
@@ -317,27 +389,42 @@ export default function ProductManagementPage() {
                                 <div>
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{product.name}</h3>
                                     <p className="text-slate-400 text-sm mt-1 font-medium line-clamp-2">{product.description || 'Sem descrição'}</p>
-                                </div>
-                                <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50">
-                                    <div className="space-y-0.5">
-                                        <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
-                                            <Sparkles className="h-3 w-3 text-brand-orange animate-pulse" />
-                                            Destacar Produto
-                                        </span>
-                                        <p className="text-[9px] text-slate-400 font-medium">Impulsione no topo do feed</p>
+                                    <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50 mt-2">
+                                        <div className="space-y-0.5">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
+                                                <Sparkles className="h-3 w-3 text-brand-orange animate-pulse" />
+                                                Destacar Produto
+                                            </span>
+                                            <p className="text-[9px] text-slate-400 font-medium">Impulsione no topo do feed</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={product.highlight_active && product.highlight_expires_at ? new Date(product.highlight_expires_at) > new Date() : false}
+                                                onChange={() => handleToggleHighlight(product)}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-blue"></div>
+                                        </label>
                                     </div>
-                                    <label className="relative inline-flex items-center cursor-pointer select-none">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={false}
-                                            onChange={() => {
-                                                setSelectedProductForHighlight(product)
-                                                setShowHighlightModal(true)
-                                            }}
-                                        />
-                                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-blue"></div>
-                                    </label>
+                                    <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50 mt-2">
+                                        <div className="space-y-0.5">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
+                                                <Zap className="h-3 w-3 text-amber-500 animate-pulse" />
+                                                Pontos em Dobro
+                                            </span>
+                                            <p className="text-[9px] text-slate-400 font-medium">Permitir pontuar em dobro</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={product.double_points_active !== false}
+                                                onChange={() => handleToggleProductDoublePoints(product)}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-50">
                                     <div className="flex flex-col">
@@ -388,13 +475,15 @@ export default function ProductManagementPage() {
                             </div>
                             <div className="text-right flex flex-col items-end gap-2">
                                 <span className="text-lg font-black text-brand-blue">R$ 15,00</span>
-                                <a 
-                                    href="https://checkout.qridoapp.com.br/pay/destaque-1-dia-qrido" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
+                                <Button 
+                                    className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl"
+                                    onClick={() => {
+                                        handleActivateHighlight('day')
+                                        window.open('https://checkout.qridoapp.com.br/pay/destaque-1-dia-qrido', '_blank')
+                                    }}
                                 >
-                                    <Button className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl">Destacar</Button>
-                                </a>
+                                    Destacar
+                                </Button>
                             </div>
                         </div>
 
@@ -431,13 +520,15 @@ export default function ProductManagementPage() {
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-2">
                                         <span className="text-lg font-black text-brand-blue">R$ 30,00</span>
-                                        <a 
-                                            href="https://checkout.qridoapp.com.br/pay/destaque-1-semana-qrido" 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
+                                        <Button 
+                                            className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl"
+                                            onClick={() => {
+                                                handleActivateHighlight('week')
+                                                window.open('https://checkout.qridoapp.com.br/pay/destaque-1-semana-qrido', '_blank')
+                                            }}
                                         >
-                                            <Button className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl">Destacar</Button>
-                                        </a>
+                                            Destacar
+                                        </Button>
                                     </div>
                                 </div>
                             )

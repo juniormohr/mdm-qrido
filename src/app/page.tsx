@@ -63,6 +63,8 @@ interface Product {
     price: number
     points_reward: number
     is_top_seller?: boolean
+    highlight_active?: boolean
+    highlight_expires_at?: string | null
 }
 
 const GoldCoinsIcon = () => (
@@ -150,18 +152,95 @@ export default function CustomerDashboard() {
                 .filter(c => loyaltyConfigs[c.id]?.double_points_active)
                 .map(c => c.id)
 
-            const sorted = [...data].sort((a, b) => {
-                const aDouble = promotedCompanyIds.includes(a.company_id) ? 1 : 0
-                const bDouble = promotedCompanyIds.includes(b.company_id) ? 1 : 0
-                
-                if (aDouble !== bDouble) {
-                    return bDouble - aDouble
+            // Agrupar produtos por empresa e escolher o melhor único produto de cada
+            const companyProductsMap: { [companyId: string]: Product[] } = {}
+            data.forEach(p => {
+                if (!companyProductsMap[p.company_id]) {
+                    companyProductsMap[p.company_id] = []
                 }
-                
+                companyProductsMap[p.company_id].push(p)
+            })
+
+            const singleProductsPerCompany: Product[] = []
+
+            Object.keys(companyProductsMap).forEach(companyId => {
+                const companyProducts = companyProductsMap[companyId]
+                const companyHasDouble = promotedCompanyIds.includes(companyId)
+
+                // Ordenar os produtos desta empresa específica para escolher o melhor
+                const sortedCompanyProducts = [...companyProducts].sort((a, b) => {
+                    const aHighlighted = a.highlight_active && a.highlight_expires_at 
+                        ? new Date(a.highlight_expires_at) > new Date() 
+                        : false
+                    const bHighlighted = b.highlight_active && b.highlight_expires_at 
+                        ? new Date(b.highlight_expires_at) > new Date() 
+                        : false
+                    const aDouble = companyHasDouble && a.double_points_active !== false
+                    const bDouble = companyHasDouble && b.double_points_active !== false
+
+                    const getLocalScore = (highlighted: boolean, doublePoints: boolean) => {
+                        if (highlighted && doublePoints) return 3
+                        if (highlighted) return 2
+                        if (doublePoints) return 1
+                        return 0
+                    }
+
+                    const aScore = getLocalScore(aHighlighted, aDouble)
+                    const bScore = getLocalScore(bHighlighted, bDouble)
+
+                    if (aScore !== bScore) {
+                        return bScore - aScore
+                    }
+
+                    // Se empatar em score local (ex: ambos são normais ou ambos são double), desempata por recompensa de pontos
+                    return b.points_reward - a.points_reward
+                })
+
+                if (sortedCompanyProducts.length > 0) {
+                    singleProductsPerCompany.push(sortedCompanyProducts[0])
+                }
+            })
+
+            const sorted = [...singleProductsPerCompany].sort((a, b) => {
+                // Calcular Score de Prioridade
+                const aHighlighted = a.highlight_active && a.highlight_expires_at 
+                    ? new Date(a.highlight_expires_at) > new Date() 
+                    : false
+                const bHighlighted = b.highlight_active && b.highlight_expires_at 
+                    ? new Date(b.highlight_expires_at) > new Date() 
+                    : false
+                const aDouble = promotedCompanyIds.includes(a.company_id) && a.double_points_active !== false
+                const bDouble = promotedCompanyIds.includes(b.company_id) && b.double_points_active !== false
+
+                const getScore = (highlighted: boolean, doublePoints: boolean) => {
+                    if (highlighted && doublePoints) return 3
+                    if (highlighted) return 2
+                    if (doublePoints) return 1
+                    return 0
+                }
+
+                const aScore = getScore(aHighlighted, aDouble)
+                const bScore = getScore(bHighlighted, bDouble)
+
+                if (aScore !== bScore) {
+                    return bScore - aScore
+                }
+
+                // Desempate 1: Distância (mais perto primeiro)
+                const aComp = companies.find(c => c.id === a.company_id)
+                const bComp = companies.find(c => c.id === b.company_id)
+                const aDist = aComp?.distance !== undefined ? aComp.distance : 999999
+                const bDist = bComp?.distance !== undefined ? bComp.distance : 999999
+
+                if (aDist !== bDist) {
+                    return aDist - bDist
+                }
+
+                // Desempate 2: Maior pontuação de recompensa
                 return b.points_reward - a.points_reward
             })
 
-            setFeaturedProducts(sorted.slice(0, 20))
+            setFeaturedProducts(sorted.slice(0, 50))
         }
         setFeaturedProductsLoading(false)
     }
@@ -922,17 +1001,22 @@ export default function CustomerDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const pointsMultiplier = loyaltyConfigs[selectedCompany.id]?.double_points_active ? 2 : 1
         const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-        const totalPoints = cart.reduce((acc, item) => acc + (item.product.points_reward * pointsMultiplier * item.quantity), 0)
+        const totalPoints = cart.reduce((acc, item) => {
+            const itemMultiplier = (loyaltyConfigs[selectedCompany.id]?.double_points_active && item.product.double_points_active !== false) ? 2 : 1
+            return acc + (item.product.points_reward * itemMultiplier * item.quantity)
+        }, 0)
 
-        const items = cart.map(item => ({
-            id: item.product.id,
-            name: item.product.name,
-            qty: item.quantity,
-            price: item.product.price,
-            points: item.product.points_reward * pointsMultiplier
-        }))
+        const items = cart.map(item => {
+            const itemMultiplier = (loyaltyConfigs[selectedCompany.id]?.double_points_active && item.product.double_points_active !== false) ? 2 : 1
+            return {
+                id: item.product.id,
+                name: item.product.name,
+                qty: item.quantity,
+                price: item.product.price,
+                points: item.product.points_reward * itemMultiplier
+            }
+        })
 
         const payload = {
             company_id: selectedCompany.id,
@@ -1174,7 +1258,7 @@ export default function CustomerDashboard() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                             {featuredProducts.map((product) => {
                                 const company = companies.find(c => c.id === product.company_id)
-                                const pointsMultiplier = loyaltyConfigs[product.company_id]?.double_points_active ? 2 : 1
+                                const pointsMultiplier = (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) ? 2 : 1
                                 
                                 return (
                                     <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
@@ -1678,7 +1762,10 @@ export default function CustomerDashboard() {
                                         <p className="text-xs font-black text-[#E9592C] uppercase tracking-widest italic">Total de Pontos</p>
                                         <div className="flex items-center gap-2">
                                             <Award className="h-5 w-5 text-[#E9592C]" />
-                                            <p className={cn("text-2xl font-black italic", cartPointsMultiplier > 1 ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => acc + (i.product.points_reward * cartPointsMultiplier * i.quantity), 0)} PTS {cartPointsMultiplier > 1 && '🔥'}</p>
+                                            <p className={cn("text-2xl font-black italic", (cartPointsMultiplier > 1 && cart.some(i => i.product.double_points_active !== false)) ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => {
+                                                const itemMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active && i.product.double_points_active !== false) ? 2 : 1
+                                                return acc + (i.product.points_reward * itemMultiplier * i.quantity)
+                                            }, 0)} PTS {(cartPointsMultiplier > 1 && cart.some(i => i.product.double_points_active !== false)) && '🔥'}</p>
                                         </div>
                                     </div>
                                 </div>
