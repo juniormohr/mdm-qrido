@@ -863,6 +863,19 @@ export default function CustomerDashboard() {
     }
 
     const handleAddToCart = (product: Product) => {
+        if (!selectedCompany || selectedCompany.id !== product.company_id) {
+            if (cart.length > 0) {
+                const changeCompany = window.confirm('Seu carrinho possui itens de outra empresa. Deseja limpá-lo para adicionar este produto?')
+                if (!changeCompany) return
+                setCart([])
+            }
+            const comp = companies.find(c => c.id === product.company_id) || { id: product.company_id, full_name: 'Parceiro' }
+            setSelectedCompany(comp)
+            fetchProducts(product.company_id)
+            fetchRewards(product.company_id)
+            fetchCustomerBalance(product.company_id)
+        }
+
         setCart(currentCart => {
             const existingIndex = currentCart.findIndex(item => item.product.id === product.id)
             if (existingIndex > -1) {

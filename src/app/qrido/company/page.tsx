@@ -154,47 +154,120 @@ export default function CompanyDashboard() {
     async function fetchStats(userId: string) {
         const supabase = createClient()
         
+        // 0. Descobrir o tipo da empresa
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('company_type')
+            .eq('id', userId)
+            .single()
+            
+        const isMall = profile?.company_type === 'mall'
+
         const startOfMonth = new Date()
         startOfMonth.setDate(1)
         startOfMonth.setHours(0, 0, 0, 0)
         const monthStartIso = startOfMonth.toISOString()
 
-        // 1. Clientes Fidelizados (Total de clientes cadastrados para a empresa)
-        const { data: loyalData } = await supabase
-            .from('customers')
-            .select('id')
-            .eq('user_id', userId)
+        let totalLoyal = 0
+        let totalSalesAmount = 0
+        let totalPointsDistributed = 0
+        let redemptionsCount = 0
+        let redemptionsPoints = 0
 
-        const totalLoyal = loyalData?.length || 0
+        if (isMall) {
+            // 1. Obter todas as lojas parceiras aceitas no grupo
+            const { data: groupStores } = await supabase
+                .from('company_groups')
+                .select('store_id, created_at')
+                .eq('mall_id', userId)
+                .eq('status', 'accepted')
 
-        // 2. Vendas em R$ feitas pelo qrido (base do mês atual)
-        const { data: salesData } = await supabase
-            .from('loyalty_transactions')
-            .select('sale_amount')
-            .eq('user_id', userId)
-            .eq('type', 'earn')
-            .gte('created_at', monthStartIso)
-        
-        const totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+            if (groupStores && groupStores.length > 0) {
+                // Para cada loja, buscar os dados criados após ela se associar ao grupo
+                for (const store of groupStores) {
+                    if (!store.store_id) continue
+                    const joinedAt = store.created_at
 
-        // 3. Pontos distribuídos através das vendas (total acumulado histórico)
-        const { data: pointsData } = await supabase
-            .from('loyalty_transactions')
-            .select('points')
-            .eq('user_id', userId)
-            .eq('type', 'earn')
-        
-        const totalPointsDistributed = pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+                    // 1. Clientes Fidelizados (criados após a adesão)
+                    const { data: loyalData } = await supabase
+                        .from('customers')
+                        .select('id')
+                        .eq('user_id', store.store_id)
+                        .gte('created_at', joinedAt)
+                    
+                    totalLoyal += loyalData?.length || 0
 
-        // 4. Resgates Realizados (total acumulado histórico)
-        const { data: redemptionsData } = await supabase
-            .from('loyalty_transactions')
-            .select('points')
-            .eq('user_id', userId)
-            .eq('type', 'redeem')
+                    // 2. Vendas em R$ (mês atual E criadas após adesão)
+                    const salesSince = joinedAt > monthStartIso ? joinedAt : monthStartIso
+                    const { data: salesData } = await supabase
+                        .from('loyalty_transactions')
+                        .select('sale_amount')
+                        .eq('user_id', store.store_id)
+                        .eq('type', 'earn')
+                        .gte('created_at', salesSince)
 
-        const redemptionsCount = redemptionsData?.length || 0
-        const redemptionsPoints = redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+                    totalSalesAmount += salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+
+                    // 3. Pontos distribuídos (criados após adesão)
+                    const { data: pointsData } = await supabase
+                        .from('loyalty_transactions')
+                        .select('points')
+                        .eq('user_id', store.store_id)
+                        .eq('type', 'earn')
+                        .gte('created_at', joinedAt)
+
+                    totalPointsDistributed += pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+
+                    // 4. Resgates realizados (criados após adesão)
+                    const { data: redemptionsData } = await supabase
+                        .from('loyalty_transactions')
+                        .select('points')
+                        .eq('user_id', store.store_id)
+                        .eq('type', 'redeem')
+                        .gte('created_at', joinedAt)
+
+                    redemptionsCount += redemptionsData?.length || 0
+                    redemptionsPoints += redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+                }
+            }
+        } else {
+            // 1. Clientes Fidelizados (Total de clientes cadastrados para a empresa)
+            const { data: loyalData } = await supabase
+                .from('customers')
+                .select('id')
+                .eq('user_id', userId)
+
+            totalLoyal = loyalData?.length || 0
+
+            // 2. Vendas em R$ feitas pelo qrido (base do mês atual)
+            const { data: salesData } = await supabase
+                .from('loyalty_transactions')
+                .select('sale_amount')
+                .eq('user_id', userId)
+                .eq('type', 'earn')
+                .gte('created_at', monthStartIso)
+            
+            totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+
+            // 3. Pontos distribuídos através das vendas (total acumulado histórico)
+            const { data: pointsData } = await supabase
+                .from('loyalty_transactions')
+                .select('points')
+                .eq('user_id', userId)
+                .eq('type', 'earn')
+            
+            totalPointsDistributed = pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+
+            // 4. Resgates Realizados (total acumulado histórico)
+            const { data: redemptionsData } = await supabase
+                .from('loyalty_transactions')
+                .select('points')
+                .eq('user_id', userId)
+                .eq('type', 'redeem')
+
+            redemptionsCount = redemptionsData?.length || 0
+            redemptionsPoints = redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+        }
 
         setStats({
             totalLeads: totalLoyal,
@@ -222,26 +295,12 @@ export default function CompanyDashboard() {
         const supabase = createClient()
         const { data, error } = await supabase
             .from('company_groups')
-            .select('id, status, created_at, mall_id')
+            .select('*, mall:mall_id(full_name)')
             .eq('store_id', userId)
             .eq('status', 'pending')
 
-        if (data && data.length > 0) {
-            const mallIds = data.map(i => i.mall_id)
-            const { data: profilesData } = await supabase
-                .from('profiles')
-                .select('id, full_name, phone')
-                .in('id', mallIds)
-
-            const mapped = data.map(invite => ({
-                ...invite,
-                isInvite: true,
-                mall: profilesData?.find(p => p.id === invite.mall_id)
-            }))
-            setPendingInvites(mapped)
-        } else {
-            setPendingInvites([])
-        }
+        if (error) console.error('Erro ao buscar convites pendentes:', error)
+        if (data) setPendingInvites(data)
     }
 
     async function handleRespondInvite(inviteId: string, status: 'accepted' | 'rejected') {
@@ -252,11 +311,14 @@ export default function CompanyDashboard() {
             .eq('id', inviteId)
 
         if (error) {
-            alert('Erro ao responder: ' + error.message)
+            console.error('Erro ao responder convite:', error)
         } else {
-            alert(status === 'accepted' ? 'Parceria aceita!' : 'Parceria recusada!')
-            if (activeCompanyId) {
-                fetchPendingInvites(activeCompanyId)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                const { data: profile } = await supabase.from('profiles').select('company_id, role').eq('id', user.id).single()
+                const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+                fetchPendingInvites(companyId)
+                fetchStats(companyId)
             }
         }
     }
@@ -277,7 +339,7 @@ export default function CompanyDashboard() {
             .subscribe()
     }
 
-    function subscribeToRequests(userId: string) {
+    function subscribeToRequests(userId: string, isMall: boolean) {
         const supabase = createClient()
         return supabase
             .channel('purchase_requests_changes')
@@ -285,7 +347,7 @@ export default function CompanyDashboard() {
                 event: '*',
                 schema: 'public',
                 table: 'purchase_requests',
-                filter: `company_id=eq.${userId}`
+                ...(isMall ? {} : { filter: `company_id=eq.${userId}` })
             }, () => {
                 console.log('Realtime: mudança detectada em purchase_requests!')
                 fetchPendingRequests(userId)
@@ -294,7 +356,7 @@ export default function CompanyDashboard() {
             .subscribe()
     }
 
-    function subscribeToTransactions(userId: string) {
+    function subscribeToTransactions(userId: string, isMall: boolean) {
         const supabase = createClient()
         return supabase
             .channel('loyalty_transactions_changes')
@@ -302,7 +364,7 @@ export default function CompanyDashboard() {
                 event: '*',
                 schema: 'public',
                 table: 'loyalty_transactions',
-                filter: `user_id=eq.${userId}`
+                ...(isMall ? {} : { filter: `user_id=eq.${userId}` })
             }, () => {
                 console.log('Realtime: mudança detectada em loyalty_transactions!')
                 fetchStats(userId)
@@ -310,7 +372,7 @@ export default function CompanyDashboard() {
             .subscribe()
     }
 
-    function subscribeToCustomers(userId: string) {
+    function subscribeToCustomers(userId: string, isMall: boolean) {
         const supabase = createClient()
         return supabase
             .channel('customers_changes')
@@ -318,7 +380,7 @@ export default function CompanyDashboard() {
                 event: '*',
                 schema: 'public',
                 table: 'customers',
-                filter: `user_id=eq.${userId}`
+                ...(isMall ? {} : { filter: `user_id=eq.${userId}` })
             }, () => {
                 console.log('Realtime: mudança detectada em customers!')
                 fetchStats(userId)
@@ -338,20 +400,22 @@ export default function CompanyDashboard() {
             const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
             setActiveCompanyId(companyId)
 
+            const compType = profile?.company_type || 'store'
+            setCompanyType(compType as 'store' | 'mall')
+            const isMall = compType === 'mall'
+
             fetchStats(companyId)
             fetchPendingRequests(companyId)
             fetchPendingInvites(companyId)
-            subscribeToRequests(companyId)
+            subscribeToRequests(companyId, isMall)
             subscribeToInvites(companyId)
-            subscribeToTransactions(companyId)
-            subscribeToCustomers(companyId)
+            subscribeToTransactions(companyId, isMall)
+            subscribeToCustomers(companyId, isMall)
 
-            const compType = profile?.company_type || 'store'
             fetchTopRewards(companyId, compType as 'store' | 'mall')
 
             if (profile) {
                 setTier(profile.subscription_tier || 'basic')
-                setCompanyType(compType as 'store' | 'mall')
             }
         }
 

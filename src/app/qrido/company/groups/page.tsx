@@ -20,13 +20,16 @@ export default function GroupsPage() {
     const supabase = createClient()
 
     useEffect(() => {
-        fetchInitialData()
+        fetchInitialData(false)
     }, [])
 
-    async function fetchInitialData() {
-        setLoading(true)
+    async function fetchInitialData(silent = false) {
+        if (!silent) setLoading(true)
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) {
+            if (!silent) setLoading(false)
+            return
+        }
 
         // Descobrir o tipo de empresa
         const { data: profile } = await supabase
@@ -43,7 +46,7 @@ export default function GroupsPage() {
         
         const { data: groupsData } = await supabase
             .from('company_groups')
-            .select('id, status, created_at, mall_id, store_id, double_points')
+            .select('id, status, created_at, mall_id, store_id, double_points, event_start_date, event_end_date')
             .eq(roleColumn, user.id)
 
         if (groupsData && groupsData.length > 0) {
@@ -66,7 +69,7 @@ export default function GroupsPage() {
         } else {
             setGroups([])
         }
-        setLoading(false)
+        if (!silent) setLoading(false)
     }
 
     async function handleSearch() {
@@ -101,7 +104,7 @@ export default function GroupsPage() {
             alert('Convite enviado com sucesso!')
             setSearchTerm('')
             setSearchResult([])
-            fetchInitialData()
+            fetchInitialData(true)
         }
     }
 
@@ -114,7 +117,7 @@ export default function GroupsPage() {
         if (error) {
             alert('Erro ao responder: ' + error.message)
         } else {
-            fetchInitialData()
+            fetchInitialData(true)
         }
     }
 
@@ -131,7 +134,7 @@ export default function GroupsPage() {
         if (error) {
             alert('Erro ao atualizar configurações: ' + error.message)
         } else {
-            fetchInitialData()
+            fetchInitialData(true)
         }
     }
 
