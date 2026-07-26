@@ -3,14 +3,14 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction } from './actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,6 +24,7 @@ interface Company {
     email?: string
     partnership_months?: number
     partnership_end_date?: string
+    is_active?: boolean
     created_at: string
 }
 
@@ -87,6 +88,7 @@ function AdminContent() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
+    const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
     // Modal states
     const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -370,6 +372,20 @@ function AdminContent() {
         fetchAllData()
     }
 
+    const handleToggleCompanyStatus = async (id: string, currentStatus: boolean) => {
+        const newStatus = !currentStatus
+        const confirmMsg = newStatus 
+            ? 'Deseja reativar esta empresa?' 
+            : 'Deseja inativar esta empresa? Ela deixará de aparecer para os clientes.'
+        if (!confirm(confirmMsg)) return
+        setLoading(true)
+        const result = await toggleCompanyStatusAction(id, newStatus)
+        if (result?.error) {
+            alert('Erro ao alterar status: ' + result.error)
+        }
+        fetchAllData()
+    }
+
     const handleDeleteCustomer = async (id: string) => {
         if (!confirm('Remover este cliente desta loja?')) return
         const supabase = createClient()
@@ -403,10 +419,18 @@ function AdminContent() {
         }
     }
 
-    const filteredCompanies = companies.filter(c =>
-        c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.id.includes(searchTerm)
-    )
+    const filteredCompanies = companies.filter(c => {
+        const matchesSearch = c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.phone?.includes(searchTerm) ||
+            c.id.includes(searchTerm)
+
+        const matchesStatus = companyStatusFilter === 'all' ? true :
+            companyStatusFilter === 'active' ? c.is_active !== false :
+            c.is_active === false
+
+        return matchesSearch && matchesStatus
+    })
 
     const filteredCustomers = allCustomers.filter(c => {
         const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -651,11 +675,40 @@ function AdminContent() {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+                        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0">
+                            <button
+                                onClick={() => setCompanyStatusFilter('all')}
+                                className={cn(
+                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                                )}
+                            >
+                                Todas ({companies.length})
+                            </button>
+                            <button
+                                onClick={() => setCompanyStatusFilter('active')}
+                                className={cn(
+                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'active' ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-emerald-600"
+                                )}
+                            >
+                                Ativas ({companies.filter(c => c.is_active !== false).length})
+                            </button>
+                            <button
+                                onClick={() => setCompanyStatusFilter('inactive')}
+                                className={cn(
+                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
+                                )}
+                            >
+                                Inativas ({companies.filter(c => c.is_active === false).length})
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredCompanies.map(comp => (
-                            <Card key={comp.id} className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all">
+                            <Card key={comp.id} className={cn("border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all", comp.is_active === false && "opacity-75 bg-slate-50/80")}>
                                 <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue font-black uppercase italic">
@@ -693,7 +746,20 @@ function AdminContent() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => handleToggleCompanyStatus(comp.id, comp.is_active !== false)}
+                                            className={cn(
+                                                "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border cursor-pointer shrink-0",
+                                                comp.is_active !== false 
+                                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20" 
+                                                    : "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20"
+                                            )}
+                                            title={comp.is_active !== false ? "Clique para inativar loja" : "Clique para ativar loja"}
+                                        >
+                                            <span className={cn("h-1.5 w-1.5 rounded-full", comp.is_active !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                                            {comp.is_active !== false ? 'ATIVA' : 'INATIVA'}
+                                        </button>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
                                             <Edit2 className="h-3.5 w-3.5" />
                                         </Button>

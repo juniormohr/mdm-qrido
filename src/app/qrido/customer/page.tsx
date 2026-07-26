@@ -39,7 +39,10 @@ import {
     Heart,
     MapPin,
     Flame,
-    Trophy
+    Trophy,
+    Share2,
+    Copy,
+    MessageCircle
 } from 'lucide-react'
 
 interface CartItem {
@@ -108,6 +111,9 @@ export default function CustomerDashboard() {
     const [verificationCode, setVerificationCode] = useState('')
     const [customerBalance, setCustomerBalance] = useState(0)
     const [globalScore, setGlobalScore] = useState(0)
+    const [allTimeScore, setAllTimeScore] = useState(0)
+    const [showReferralModal, setShowReferralModal] = useState(false)
+    const [referralCopied, setReferralCopied] = useState(false)
     const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
     const userPhoneRef = useRef<string | null>(null)
 
@@ -756,14 +762,17 @@ export default function CustomerDashboard() {
 
             const finalStoresList = Object.values(storesMap)
             const totalScore = finalStoresList.reduce((acc, s) => acc + (s.points_balance || 0), 0)
-            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore)
+            const totalAllTime = allTxs?.filter(t => t.type === 'earn').reduce((acc, t) => acc + (Number(t.points) || 0), 0) || 0
+            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore, 'Total Acumulado:', totalAllTime)
 
             setMyStores(finalStoresList)
-            setGlobalScore(totalScore) // Set global score here
+            setGlobalScore(totalScore)
+            setAllTimeScore(totalAllTime)
         } else {
             console.warn('fetchMyStores: Nenhum registro encontrado para searchTerms:', searchTerms)
             setMyStores([])
-            setGlobalScore(0) // Reset global score if no records
+            setGlobalScore(0)
+            setAllTimeScore(0)
         }
     }
 
@@ -1297,7 +1306,7 @@ export default function CustomerDashboard() {
                         <>
                             <div className="flex justify-between items-start mb-4">
                                 <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Total de Pontos Ativos</p>
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-6xl font-black text-white italic tracking-tighter">
                                             {showScore ? globalScore : '••••'}
@@ -1310,6 +1319,9 @@ export default function CustomerDashboard() {
                                             {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                                         </button>
                                     </div>
+                                    <p className="text-xs font-bold italic text-white/70 mt-1">
+                                        ({showScore ? allTimeScore : '••••'} pts acumulados no total)
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() => setActiveTab('rewards')}
@@ -1319,13 +1331,16 @@ export default function CustomerDashboard() {
                                 </button>
                             </div>
 
-                            <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                                <div className="flex items-center gap-2 text-white/60">
+                            <button
+                                onClick={() => setShowReferralModal(true)}
+                                className="flex items-center justify-between w-full pt-6 border-t border-white/10 hover:opacity-80 transition-opacity text-left cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2 text-white/80">
                                     <Plus className="h-4 w-4" />
                                     <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-white/40" />
-                            </div>
+                            </button>
                         </>
                     ) : (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -2131,6 +2146,66 @@ export default function CustomerDashboard() {
                             >
                                 Continuar Navegando
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Indicar um Amigo */}
+            {showReferralModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[40px] p-8 max-w-md w-full border border-slate-100 shadow-2xl space-y-6 text-center relative animate-in zoom-in-95 duration-300">
+                        <button
+                            onClick={() => setShowReferralModal(false)}
+                            className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                        <div className="h-16 w-16 bg-brand-blue/10 rounded-3xl flex items-center justify-center mx-auto text-brand-blue border border-brand-blue/20">
+                            <Share2 className="h-8 w-8 text-brand-blue" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-slate-900">
+                                Indique um Amigo
+                            </h3>
+                            <p className="text-slate-500 font-bold italic text-xs">
+                                Compartilhe seu link exclusivo abaixo! Seus amigos se cadastram e acumulam pontos de fidelidade nas melhores lojas da rede.
+                            </p>
+                        </div>
+
+                        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 flex items-center justify-between gap-2">
+                            <input
+                                type="text"
+                                readOnly
+                                value={typeof window !== 'undefined' ? `${window.location.origin}/login?role=customer&ref=${userProfile?.phone?.replace(/\D/g, '') || ''}` : ''}
+                                className="bg-transparent text-xs font-bold text-slate-600 border-none outline-none w-full truncate"
+                            />
+                            <button
+                                onClick={() => {
+                                    const url = `${window.location.origin}/login?role=customer&ref=${userProfile?.phone?.replace(/\D/g, '') || ''}`
+                                    navigator.clipboard.writeText(url)
+                                    setReferralCopied(true)
+                                    setTimeout(() => setReferralCopied(false), 2500)
+                                }}
+                                className="px-3 py-2 bg-brand-blue text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-brand-blue/90 transition-all shrink-0 flex items-center gap-1.5"
+                            >
+                                {referralCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                                {referralCopied ? 'Copiado!' : 'Copiar'}
+                            </button>
+                        </div>
+
+                        <div className="flex flex-col gap-3 pt-2">
+                            <Button
+                                onClick={() => {
+                                    const url = `${window.location.origin}/login?role=customer&ref=${userProfile?.phone?.replace(/\D/g, '') || ''}`
+                                    const text = `Olá! Use o meu link para se cadastrar no QRIDO e acumular pontos e prêmios incríveis nas melhores lojas: ${url}`
+                                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
+                                }}
+                                className="w-full h-14 rounded-2xl text-xs font-black italic uppercase tracking-widest bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                            >
+                                <MessageCircle className="h-5 w-5" />
+                                Compartilhar no WhatsApp
+                            </Button>
                         </div>
                     </div>
                 </div>

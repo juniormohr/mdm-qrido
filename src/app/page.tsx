@@ -1146,7 +1146,7 @@ export default function CustomerDashboard() {
                         <>
                             <div className="flex justify-between items-start mb-4">
                                 <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Meu Score Total</p>
+                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Total de Pontos Ativos</p>
                                     <div className="flex items-center gap-3">
                                         <h2 className="text-6xl font-black text-white italic tracking-tighter">
                                             {showScore ? globalScore : '••••'}
@@ -1168,8 +1168,11 @@ export default function CustomerDashboard() {
                                 </button>
                             </div>
 
-                            <div className="flex items-center justify-between pt-6 border-t border-white/10">
-                                <div className="flex items-center gap-2 text-white/60">
+                            <div
+                                onClick={() => router.push('/qrido/customer')}
+                                className="flex items-center justify-between pt-6 border-t border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                            >
+                                <div className="flex items-center gap-2 text-white/80">
                                     <Plus className="h-4 w-4" />
                                     <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
                                 </div>

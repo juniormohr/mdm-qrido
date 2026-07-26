@@ -120,3 +120,22 @@ export async function deleteCompanyAction(id: string) {
     return { error: err.message || 'Erro interno ao deletar empresa.' }
   }
 }
+
+export async function toggleCompanyStatusAction(id: string, isActive: boolean) {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const { error } = await supabaseAdmin
+      .from('profiles')
+      .update({ is_active: isActive })
+      .eq('id', id)
+
+    if (error) {
+      return { error: 'Erro ao alterar status da empresa: ' + error.message }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Erro interno ao alterar status da empresa.' }
+  }
+}
+
