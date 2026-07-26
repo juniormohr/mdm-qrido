@@ -191,19 +191,18 @@ function AdminContent() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Fetch Companies with some basic metrics
+        // 1. Fetch Companies with basic metrics (incluindo perfis do tipo company, group, mall, store)
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*, partnership_months, partnership_end_date, is_active, cpf_cnpj')
-            .eq('role', 'company')
+            .in('role', ['company', 'group', 'mall', 'store'])
             .order('created_at', { ascending: false })
 
         if (profilesError) {
             console.error('Admin Dashboard: Error fetching companies', profilesError)
         }
 
-        // To calculate "engagement" (chama icon), we'd usually fetch transaction counts
-        // for each company. For now, let's fetch transaction summary.
+        // To calculate "engagement" (chama icon), fetch transaction summary.
         const { data: txSummary } = await supabase
             .from('loyalty_transactions')
             .select('user_id, type')
@@ -212,7 +211,7 @@ function AdminContent() {
             const companyTransactions = txSummary?.filter(t => t.user_id === p.id) || []
             const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
             const volume = companyTransactions.length
-            const isEngaged = volume > 10 // Arbitrary threshold for "chama"
+            const isEngaged = volume > 10
 
             return {
                 ...p,
@@ -224,25 +223,41 @@ function AdminContent() {
 
         if (companyMetrics) setCompanies(companyMetrics)
 
-        // 2. Fetch All Customers (Links for the table)
-        const { data: customers } = await supabase
-            .from('customers')
-            .select('*, profiles(full_name)')
+        // 2. Fetch End User Profiles (role = 'customer') para a métrica e tabela de Clientes Globais
+        const { data: endUserProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone, created_at, email')
+            .eq('role', 'customer')
             .order('created_at', { ascending: false })
 
-        if (customers) {
-            const formatted = customers.map(c => ({
+        // 2.1 Fetch Store Customer links
+        const { data: storeCustomers } = await supabase
+            .from('customers')
+            .select('*, profiles:user_id(full_name)')
+            .order('created_at', { ascending: false })
+
+        // Unificar clientes globais para garantir que a tabela coincida exatamente com a métrica de usuários finais
+        let combinedCustomers: Customer[] = []
+        if (endUserProfiles && endUserProfiles.length > 0) {
+            combinedCustomers = endUserProfiles.map(u => {
+                const linked = storeCustomers?.find(sc => sc.customer_user_id === u.id || (u.phone && sc.phone && u.phone.replace(/\D/g, '') === sc.phone.replace(/\D/g, '')))
+                return {
+                    id: linked?.id || u.id,
+                    user_id: linked?.user_id || '',
+                    name: u.full_name || linked?.name || 'Cliente Sem Nome',
+                    phone: u.phone || linked?.phone || '-',
+                    points_balance: linked?.points_balance || 0,
+                    created_at: u.created_at,
+                    company_name: linked?.profiles?.full_name || 'Sem Loja Vinculada'
+                }
+            })
+        } else if (storeCustomers && storeCustomers.length > 0) {
+            combinedCustomers = storeCustomers.map(c => ({
                 ...c,
                 company_name: c.profiles?.full_name || 'Grupo Desconhecido'
             }))
-            setAllCustomers(formatted)
         }
-
-        // 2.1 Fetch End User Profiles for the Metric
-        const { data: endUserProfiles } = await supabase
-            .from('profiles')
-            .select('id, created_at')
-            .eq('role', 'customer')
+        setAllCustomers(combinedCustomers)
 
         // 3. Fetch All Transactions
         const { data: transactions } = await supabase
@@ -253,7 +268,7 @@ function AdminContent() {
 
         if (transactions) setAllTransactions(transactions)
 
-        // 3.1. Fetch rewards and calculate Top Recompensas dynamic ranking
+        // 3.1. Fetch rewards e calcular Top Recompensas filtrando empresas ativas e existentes
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
@@ -284,15 +299,21 @@ function AdminContent() {
             })
         }
 
-        const rewardsWithStats = (rewardsData || []).map(r => {
-            const company = (profiles || []).find(p => p.id === r.user_id)
-            return {
-                ...r,
-                company_name: company?.full_name || 'Empresa Parceira',
-                resgates: redeemCounts[r.id] || 0,
-                volume_empresa: companyVolumes[r.user_id] || 0,
-            }
-        })
+        // Filtrar apenas recompensas cujas empresas existam e estejam ATIVAS
+        const rewardsWithStats = (rewardsData || [])
+            .filter(r => {
+                const company = (profiles || []).find(p => p.id === r.user_id)
+                return company && company.is_active !== false
+            })
+            .map(r => {
+                const company = (profiles || []).find(p => p.id === r.user_id)
+                return {
+                    ...r,
+                    company_name: company?.full_name || 'Empresa Parceira',
+                    resgates: redeemCounts[r.id] || 0,
+                    volume_empresa: companyVolumes[r.user_id] || 0,
+                }
+            })
 
         const selectedRewards: any[] = []
         const selectedCompanyIds = new Set<string>()
@@ -331,7 +352,7 @@ function AdminContent() {
         // Se ainda faltar prêmios para completar 3 e houver outros prêmios cadastrados, adicionamos sem a restrição de empresa única
         if (selectedRewards.length < 3) {
             const remainingCandidates = [...rewardsWithStats]
-                .filter(r => !selectedRewards.some(sr => sr.id === r.id)) // não duplicar o mesmo prêmio
+                .filter(r => !selectedRewards.some(sr => sr.id === r.id))
                 .sort((a, b) => {
                     if (b.resgates !== a.resgates) return b.resgates - a.resgates
                     if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa

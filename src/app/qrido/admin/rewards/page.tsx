@@ -22,16 +22,20 @@ export default function AdminRewardsPage() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Buscar todas as empresas/perfis para associar o nome da loja
+        // 1. Buscar todas as empresas/perfis ativas para associar o nome da loja
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, full_name')
-            .eq('role', 'company')
+            .select('id, full_name, is_active')
+            .in('role', ['company', 'group', 'mall', 'store'])
+
+        const activeProfiles = (profiles || []).filter(p => p.is_active !== false)
+        const activeCompanyIds = new Set(activeProfiles.map(p => p.id))
 
         // 2. Buscar todos os prêmios ativos
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
+            .eq('is_active', true)
 
         // 3. Buscar todas as transações de resgate (type === 'redeem')
         const { data: redeemTransactions } = await supabase
@@ -49,15 +53,17 @@ export default function AdminRewardsPage() {
             })
         }
 
-        // Formatar prêmios
-        const formatted = (rewardsData || []).map(r => {
-            const company = (profiles || []).find(p => p.id === r.user_id)
-            return {
-                ...r,
-                company_name: company?.full_name || 'Empresa Parceira',
-                resgates: redeemCounts[r.id] || 0
-            }
-        })
+        // Formatar prêmios apenas de empresas ativas e existentes
+        const formatted = (rewardsData || [])
+            .filter(r => activeCompanyIds.has(r.user_id))
+            .map(r => {
+                const company = activeProfiles.find(p => p.id === r.user_id)
+                return {
+                    ...r,
+                    company_name: company?.full_name || 'Empresa Parceira',
+                    resgates: redeemCounts[r.id] || 0
+                }
+            })
 
         // Ordenar por resgates decrescente
         formatted.sort((a, b) => b.resgates - a.resgates)

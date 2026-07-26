@@ -97,15 +97,25 @@ export async function deleteCompanyAction(id: string) {
   try {
     const supabaseAdmin = createAdminClient()
 
-    // 1. Deletar o usuário do Supabase Auth (isso também remove do profiles se houver cascade,
-    // mas vamos rodar a remoção no profiles e em outras tabelas se necessário).
+    // 1. Remover recompensas da empresa antes de deletar o perfil
+    await supabaseAdmin
+      .from('rewards')
+      .delete()
+      .eq('user_id', id)
+
+    // 2. Remover vínculos de clientes da empresa
+    await supabaseAdmin
+      .from('customers')
+      .delete()
+      .eq('user_id', id)
+
+    // 3. Deletar o usuário do Supabase Auth
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
     if (authError) {
-      // Se der erro porque o usuário já não existe no Auth por algum motivo, podemos tentar deletar direto no profiles
       console.error('Erro ao deletar do Auth, tentando deletar apenas da tabela profiles:', authError.message)
     }
 
-    // 2. Deletar do profiles por segurança
+    // 4. Deletar do profiles por segurança
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .delete()
@@ -132,6 +142,12 @@ export async function toggleCompanyStatusAction(id: string, isActive: boolean) {
     if (error) {
       return { error: 'Erro ao alterar status da empresa: ' + error.message }
     }
+
+    // Atualizar status das recompensas da empresa
+    await supabaseAdmin
+      .from('rewards')
+      .update({ is_active: isActive })
+      .eq('user_id', id)
 
     return { success: true }
   } catch (err: any) {

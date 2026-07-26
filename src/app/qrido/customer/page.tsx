@@ -161,7 +161,8 @@ export default function CustomerDashboard() {
             const { data: allCompanies } = await supabase
                 .from('profiles')
                 .select('id')
-                .eq('role', 'company')
+                .in('role', ['company', 'group', 'mall', 'store'])
+                .neq('is_active', false)
 
             if (allCompanies) {
                 eligibleCompanyIds = allCompanies.map(c => c.id)
@@ -173,31 +174,39 @@ export default function CustomerDashboard() {
             return
         }
 
-        // 3. Buscar nomes das empresas
+        // 3. Buscar nomes e status das empresas elegíveis
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, full_name')
+            .select('id, full_name, is_active')
             .in('id', eligibleCompanyIds)
+
+        const activeProfiles = (profiles || []).filter(p => p.is_active !== false)
+        const activeCompanyIds = new Set(activeProfiles.map(p => p.id))
+
+        if (activeCompanyIds.size === 0) {
+            setTopRewards([])
+            return
+        }
 
         // 4. Buscar prêmios ativos destas empresas
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
-            .in('user_id', eligibleCompanyIds)
+            .in('user_id', Array.from(activeCompanyIds))
             .eq('is_active', true)
 
         // 5. Buscar transações de resgate para contar
         const { data: redeemTransactions } = await supabase
             .from('loyalty_transactions')
             .select('reward_id')
-            .in('user_id', eligibleCompanyIds)
+            .in('user_id', Array.from(activeCompanyIds))
             .eq('type', 'redeem')
 
         // 6. Buscar todas as transações para volume (engajamento)
         const { data: txSummary } = await supabase
             .from('loyalty_transactions')
             .select('user_id')
-            .in('user_id', eligibleCompanyIds)
+            .in('user_id', Array.from(activeCompanyIds))
 
         const redeemCounts: Record<string, number> = {}
         if (redeemTransactions) {
@@ -217,15 +226,17 @@ export default function CustomerDashboard() {
             })
         }
 
-        const rewardsWithStats = (rewardsData || []).map(r => {
-            const company = (profiles || []).find(p => p.id === r.user_id)
-            return {
-                ...r,
-                company_name: company?.full_name || 'Empresa Parceira',
-                resgates: redeemCounts[r.id] || 0,
-                volume_empresa: companyVolumes[r.user_id] || 0,
-            }
-        })
+        const rewardsWithStats = (rewardsData || [])
+            .filter(r => activeCompanyIds.has(r.user_id))
+            .map(r => {
+                const company = activeProfiles.find(p => p.id === r.user_id)
+                return {
+                    ...r,
+                    company_name: company?.full_name || 'Empresa Parceira',
+                    resgates: redeemCounts[r.id] || 0,
+                    volume_empresa: companyVolumes[r.user_id] || 0,
+                }
+            })
 
         const selectedRewards: any[] = []
         const selectedCompanyIds = new Set<string>()
