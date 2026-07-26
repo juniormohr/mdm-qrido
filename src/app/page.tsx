@@ -65,6 +65,7 @@ interface Product {
     is_top_seller?: boolean
     highlight_active?: boolean
     highlight_expires_at?: string | null
+    double_points_active?: boolean
 }
 
 const GoldCoinsIcon = () => (
