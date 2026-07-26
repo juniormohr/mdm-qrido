@@ -1238,16 +1238,18 @@ export default function CustomerDashboard() {
 
             {activeTab === 'offers' ? (
                 <div className="animate-in fade-in duration-500 space-y-6 pb-10">
-                    <div className="bg-gradient-to-r from-amber-500 to-[#E9592C] p-5 rounded-3xl text-white shadow-lg relative overflow-hidden flex items-center justify-between">
-                        <div className="relative z-10 flex items-center gap-3">
-                            <GoldCoinsIcon />
-                            <div>
-                                <h3 className="text-lg font-black italic uppercase tracking-wide leading-none">Hoje tem ponto em dobro no Qrido!</h3>
-                                <p className="text-white/90 font-medium italic text-[11px] mt-1">Aproveite para pontuar em dobro nos produtos sinalizados abaixo.</p>
+                    {featuredProducts.some(product => loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) && (
+                        <div className="bg-gradient-to-r from-amber-500 to-[#E9592C] p-5 rounded-3xl text-white shadow-lg relative overflow-hidden flex items-center justify-between">
+                            <div className="relative z-10 flex items-center gap-3">
+                                <GoldCoinsIcon />
+                                <div>
+                                    <h3 className="text-lg font-black italic uppercase tracking-wide leading-none">Hoje tem ponto em dobro no Qrido!</h3>
+                                    <p className="text-white/90 font-medium italic text-[11px] mt-1">Aproveite para pontuar em dobro nos produtos sinalizados abaixo.</p>
+                                </div>
                             </div>
+                            <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-1/3" />
                         </div>
-                        <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-1/3" />
-                    </div>
+                    )}
 
                     {featuredProductsLoading ? (
                         <div className="flex justify-center py-12">

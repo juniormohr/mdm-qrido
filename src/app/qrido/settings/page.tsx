@@ -128,7 +128,8 @@ export default function QRidoSettings() {
         // 2. Atualizar perfil
         const updateData: any = {
             full_name: profile.full_name,
-            phone: profile.phone
+            phone: profile.phone,
+            cpf_cnpj: profile.cpf_cnpj ? profile.cpf_cnpj.replace(/\D/g, '') : null
         }
 
         // 3. Se a empresa tinha apenas CPF e preencheu o CNPJ, salvamos
@@ -242,16 +243,26 @@ export default function QRidoSettings() {
                         </div>
 
                         {/* Exibição e inclusão de CPF / CNPJ */}
-                        {profile.role === 'customer' && (
+                        {(profile.role === 'customer' || profile.role === 'admin') && (
                             <div className="space-y-2">
-                                <Label htmlFor="cpf-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">CPF (Inalterável)</Label>
+                                <Label htmlFor="cpf-admin-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
+                                    {profile.role === 'admin' ? 'CPF / CNPJ' : 'CPF (Inalterável)'}
+                                </Label>
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                     <Input
-                                        id="cpf-locked"
+                                        id="cpf-admin-locked"
                                         value={formatCpfCnpj(profile.cpf_cnpj)}
-                                        disabled
-                                        className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 text-slate-400"
+                                        onChange={(e) => {
+                                            let val = e.target.value.replace(/\D/g, '')
+                                            if (val.length > 14) val = val.substring(0, 14)
+                                            let masked = val
+                                            if (val.length > 11) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5')
+                                            else if (val.length > 0) masked = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
+                                            setProfile({ ...profile, cpf_cnpj: masked })
+                                        }}
+                                        placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                                        className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold"
                                     />
                                 </div>
                             </div>
@@ -333,106 +344,103 @@ export default function QRidoSettings() {
             </Card>
 
             {profile.role === 'company' && (
-                <>
-                    {/* Plano e Limites */}
-                    <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
-                        <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-row items-center justify-between">
-                            <CardTitle className="text-xl font-black italic uppercase text-brand-orange flex items-center gap-3">
-                                <Zap className="h-6 w-6" />
-                                Meu Plano e Limites
-                            </CardTitle>
-                            <div className="px-4 py-1.5 rounded-full bg-brand-orange/10 text-brand-orange text-[10px] font-black uppercase tracking-widest flex items-center justify-center min-w-[124px]">
-                                Plano {
-                                    profile.subscription_tier === 'start' || profile.subscription_tier === 'basic' || profile.subscription_tier?.includes('qridinho') ? 'Qridinho' :
-                                    profile.subscription_tier === 'pro' || profile.subscription_tier?.includes('qrido') ? 'Qrido' :
-                                    profile.subscription_tier === 'master' || profile.subscription_tier?.includes('qridao') ? 'Qridão' :
-                                    profile.subscription_tier === 'partnership' ? 'Parceria' :
-                                    profile.subscription_tier
-                                }
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-8 space-y-8">
-                            <div className="grid gap-8 md:grid-cols-2">
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-700">Produtos</span>
-                                            <span className="text-xs font-medium text-slate-400">{limits.products.count} / {limits.products.limit}</span>
-                                        </div>
-                                        <span className="text-xs font-black text-slate-900">{Math.round(limits.products.percentage)}%</span>
+                <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
+                    <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-row items-center justify-between">
+                        <CardTitle className="text-xl font-black italic uppercase text-brand-orange flex items-center gap-3">
+                            <Zap className="h-6 w-6" />
+                            Meu Plano e Limites
+                        </CardTitle>
+                        <div className="px-4 py-1.5 rounded-full bg-brand-orange/10 text-brand-orange text-[10px] font-black uppercase tracking-widest flex items-center justify-center min-w-[124px]">
+                            Plano {
+                                profile.subscription_tier === 'start' || profile.subscription_tier === 'basic' || profile.subscription_tier?.includes('qridinho') ? 'Qridinho' :
+                                profile.subscription_tier === 'pro' || profile.subscription_tier?.includes('qrido') ? 'Qrido' :
+                                profile.subscription_tier === 'master' || profile.subscription_tier?.includes('qridao') ? 'Qridão' :
+                                profile.subscription_tier === 'partnership' ? 'Parceria' :
+                                profile.subscription_tier
+                            }
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-8 space-y-8">
+                        <div className="grid gap-8 md:grid-cols-2">
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-slate-700">Produtos</span>
+                                        <span className="text-xs font-medium text-slate-400">{limits.products.count} / {limits.products.limit}</span>
                                     </div>
-                                    <Progress value={limits.products.percentage} className="h-2 rounded-full bg-slate-100" />
+                                    <span className="text-xs font-black text-slate-900">{Math.round(limits.products.percentage)}%</span>
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-700">Qridos (Contatos)</span>
-                                            <span className="text-xs font-medium text-slate-400">{limits.customers.count} / {limits.customers.limit}</span>
-                                        </div>
-                                        <span className="text-xs font-black text-slate-900">{Math.round(limits.customers.percentage)}%</span>
+                                <Progress value={limits.products.percentage} className="h-2 rounded-full bg-slate-100" />
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-bold text-slate-700">Qridos (Contatos)</span>
+                                        <span className="text-xs font-medium text-slate-400">{limits.customers.count} / {limits.customers.limit}</span>
                                     </div>
-                                    <Progress value={limits.customers.percentage} className="h-2 rounded-full bg-slate-100" />
+                                    <span className="text-xs font-black text-slate-900">{Math.round(limits.customers.percentage)}%</span>
                                 </div>
+                                <Progress value={limits.customers.percentage} className="h-2 rounded-full bg-slate-100" />
                             </div>
+                        </div>
 
-                            <div className="bg-brand-blue/5 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-brand-blue/10">
-                                <div className="text-center sm:text-left">
-                                    <h4 className="font-black text-brand-blue uppercase italic">Precisa de mais espaço?</h4>
-                                    <p className="text-sm text-slate-500 font-medium">Faça o upgrade agora e desbloqueie novos limites.</p>
-                                </div>
-                                <Link href="/qrido/pricing" className="w-full sm:w-auto">
-                                    <Button className="btn-blue gap-2 h-14 sm:h-11 px-8 sm:px-6 text-xs w-full">
-                                        UPGRADE PLANO
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Button>
-                                </Link>
+                        <div className="bg-brand-blue/5 rounded-[32px] p-6 flex flex-col sm:flex-row items-center justify-between gap-6 border border-brand-blue/10">
+                            <div className="text-center sm:text-left">
+                                <h4 className="font-black text-brand-blue uppercase italic">Precisa de mais espaço?</h4>
+                                <p className="text-sm text-slate-500 font-medium">Faça o upgrade agora e desbloqueie novos limites.</p>
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Segurança */}
-                    <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
-                        <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100">
-                            <CardTitle className="text-xl font-black italic uppercase text-slate-700 flex items-center gap-3">
-                                <Lock className="h-6 w-6" />
-                                Segurança e Senha
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-8 space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-black uppercase text-slate-400 ml-1">Nova Senha</Label>
-                                    <Input
-                                        type="password"
-                                        placeholder="••••••••"
-                                        value={password.new}
-                                        onChange={(e) => setPassword({ ...password, new: e.target.value })}
-                                        className="h-12 rounded-2xl border-slate-100"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-black uppercase text-slate-400 ml-1">Confirmar Senha</Label>
-                                    <Input
-                                        type="password"
-                                        placeholder="••••••••"
-                                        value={password.confirm}
-                                        onChange={(e) => setPassword({ ...password, confirm: e.target.value })}
-                                        className="h-12 rounded-2xl border-slate-100"
-                                    />
-                                </div>
-                            </div>
-                            <Button
-                                onClick={handleUpdatePassword}
-                                disabled={saving}
-                                variant="outline"
-                                className="w-full h-12 rounded-2xl font-bold border-slate-200 hover:bg-slate-50"
-                            >
-                                ALTERAR SENHA
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </>
+                            <Link href="/qrido/pricing" className="w-full sm:w-auto">
+                                <Button className="btn-blue gap-2 h-14 sm:h-11 px-8 sm:px-6 text-xs w-full">
+                                    UPGRADE PLANO
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </Link>
+                        </div>
+                    </CardContent>
+                </Card>
             )}
+
+            {/* Segurança e Senha para todos os perfis */}
+            <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
+                <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100">
+                    <CardTitle className="text-xl font-black italic uppercase text-slate-700 flex items-center gap-3">
+                        <Lock className="h-6 w-6" />
+                        Segurança e Senha
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-black uppercase text-slate-400 ml-1">Nova Senha</Label>
+                            <Input
+                                type="password"
+                                placeholder="••••••••"
+                                value={password.new}
+                                onChange={(e) => setPassword({ ...password, new: e.target.value })}
+                                className="h-12 rounded-2xl border-slate-100"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-black uppercase text-slate-400 ml-1">Confirmar Senha</Label>
+                            <Input
+                                type="password"
+                                placeholder="••••••••"
+                                value={password.confirm}
+                                onChange={(e) => setPassword({ ...password, confirm: e.target.value })}
+                                className="h-12 rounded-2xl border-slate-100"
+                            />
+                        </div>
+                    </div>
+                    <Button
+                        onClick={handleUpdatePassword}
+                        disabled={saving}
+                        variant="outline"
+                        className="w-full h-12 rounded-2xl font-bold border-slate-200 hover:bg-slate-50"
+                    >
+                        ALTERAR SENHA
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
     )
 }

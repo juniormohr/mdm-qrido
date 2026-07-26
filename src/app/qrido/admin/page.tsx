@@ -10,11 +10,22 @@ import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from '@/lib/utils'
+
+function formatCpfCnpj(value?: string) {
+    if (!value) return ''
+    const clean = value.replace(/\D/g, '')
+    if (clean.length === 11) {
+        return clean.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
+    } else if (clean.length === 14) {
+        return clean.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
+    }
+    return value
+}
 
 interface Company {
     id: string
@@ -22,6 +33,7 @@ interface Company {
     subscription_tier: string
     phone?: string
     email?: string
+    cpf_cnpj?: string
     partnership_months?: number
     partnership_end_date?: string
     is_active?: boolean
@@ -182,7 +194,7 @@ function AdminContent() {
         // 1. Fetch Companies with some basic metrics
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
-            .select('*, partnership_months, partnership_end_date')
+            .select('*, partnership_months, partnership_end_date, is_active, cpf_cnpj')
             .eq('role', 'company')
             .order('created_at', { ascending: false })
 
@@ -769,7 +781,13 @@ function AdminContent() {
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-2 border-b border-slate-50 pb-4">
+                                    <div className="space-y-1.5 border-b border-slate-50 pb-4">
+                                        {comp.cpf_cnpj && (
+                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
+                                                <Building className="h-3 w-3 text-slate-400" />
+                                                CNPJ: {formatCpfCnpj(comp.cpf_cnpj)}
+                                            </div>
+                                        )}
                                         {comp.email && (
                                             <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold lowercase">
                                                 <Mail className="h-3 w-3 text-slate-300" />
@@ -791,15 +809,6 @@ function AdminContent() {
                                         <div className="bg-slate-50/50 p-3 rounded-2xl">
                                             <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">VENDAS</p>
                                             <p className="text-xl font-black text-brand-blue italic">{comp.volume || 0}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2 pt-2">
-                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
-                                            <Mail className="h-3 w-3" /> {comp.email || 'N/A'}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
-                                            <Phone className="h-3 w-3" /> {comp.phone || 'N/A'}
                                         </div>
                                     </div>
                                 </CardContent>
