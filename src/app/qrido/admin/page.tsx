@@ -4,13 +4,14 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction } from './actions'
+import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -51,6 +52,8 @@ interface Customer {
 }
 
 interface AdminStats {
+    totalHoldings: number
+    totalGroups: number
     totalCompanies: number
     newCompaniesThisMonth: number
     totalCustomers: number
@@ -59,6 +62,8 @@ interface AdminStats {
     totalRedemptions: number
     estimatedRevenue: number
 }
+
+type AdminTab = 'overview' | 'holdings' | 'groups' | 'companies' | 'customers'
 
 const TIER_PRICES = {
     start: 49.99,
@@ -70,21 +75,38 @@ const TIER_PRICES = {
 function AdminContent() {
     const searchParams = useSearchParams()
     const router = useRouter()
-    const tabParam = searchParams.get('tab') as 'overview' | 'companies' | 'customers' | null
-    const [activeTab, setActiveTab] = useState<'overview' | 'companies' | 'customers'>('overview')
+    const tabParam = searchParams.get('tab') as AdminTab | null
+    const [activeTab, setActiveTab] = useState<AdminTab>('overview')
 
     useEffect(() => {
-        if (tabParam && ['overview', 'companies', 'customers'].includes(tabParam)) {
+        if (tabParam && ['overview', 'holdings', 'groups', 'companies', 'customers'].includes(tabParam)) {
             setActiveTab(tabParam)
         }
     }, [tabParam])
 
-    const handleTabChange = (tab: 'overview' | 'companies' | 'customers') => {
+    const handleTabChange = (tab: AdminTab) => {
         setActiveTab(tab)
         router.push(`/qrido/admin?tab=${tab}`)
     }
 
+    const get30DaysAgo = () => {
+        const d = new Date()
+        d.setDate(d.getDate() - 30)
+        return d.toISOString().split('T')[0]
+    }
+    const getToday = () => {
+        return new Date().toISOString().split('T')[0]
+    }
+
+    const [startDate, setStartDate] = useState<string>(get30DaysAgo())
+    const [endDate, setEndDate] = useState<string>(getToday())
+    const [selectedGroupId, setSelectedGroupId] = useState<string>('all')
+    const [selectedStoreId, setSelectedStoreId] = useState<string>('all')
+    const [heatmapData, setHeatmapData] = useState<DailyDataPoint[]>([])
+
     const [stats, setStats] = useState<AdminStats>({
+        totalHoldings: 0,
+        totalGroups: 0,
         totalCompanies: 0,
         newCompaniesThisMonth: 0,
         totalCustomers: 0,
@@ -191,11 +213,11 @@ function AdminContent() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Fetch Companies with basic metrics (incluindo perfis do tipo company, group, mall, store)
+        // 1. Fetch Companies with basic metrics (incluindo perfis do tipo company, group, mall, store, holding)
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*')
-            .in('role', ['company', 'group', 'mall', 'store'])
+            .in('role', ['company', 'group', 'mall', 'store', 'holding'])
             .order('created_at', { ascending: false })
 
         if (profilesError) {
@@ -374,6 +396,10 @@ function AdminContent() {
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
 
+        const totalHoldings = profiles?.filter(p => p.role === 'holding' || p.company_type === 'holding').length || 0
+        const totalGroups = profiles?.filter(p => p.company_type === 'mall' || p.role === 'mall' || p.role === 'group').length || 0
+        const totalStores = profiles?.filter(p => p.company_type === 'store' || (!p.company_type && p.role === 'company')).length || 0
+
         const revenue = profiles?.reduce((acc, p) => {
             const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
             return acc + (TIER_PRICES[tier] || 0)
@@ -383,7 +409,9 @@ function AdminContent() {
         const totalRedemptions = transactions?.filter(t => t.type === 'redeem').length || 0
 
         setStats({
-            totalCompanies: profiles?.length || 0,
+            totalHoldings,
+            totalGroups,
+            totalCompanies: totalStores,
             newCompaniesThisMonth: newComps,
             totalCustomers: endUserProfiles?.length || 0,
             newCustomersThisMonth: newCusts,
@@ -391,6 +419,25 @@ function AdminContent() {
             totalRedemptions,
             estimatedRevenue: revenue
         })
+
+        // Acumular dados diários para o Mapa de Calor em Pixels
+        const dailyMap = new Map<string, { sales: number; transactions: number }>()
+        if (transactions) {
+            transactions.forEach((t: any) => {
+                const dateStr = new Date(t.created_at).toISOString().split('T')[0]
+                const amount = Number(t.sale_amount || 0)
+                const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
+                curr.sales += amount
+                curr.transactions += 1
+                dailyMap.set(dateStr, curr)
+            })
+        }
+        const calculatedHeatmap: DailyDataPoint[] = Array.from(dailyMap.entries()).map(([date, d]) => ({
+            date,
+            sales: d.sales,
+            transactions: d.transactions,
+        }))
+        setHeatmapData(calculatedHeatmap)
 
         setLoading(false)
     }
@@ -503,58 +550,166 @@ function AdminContent() {
                 </div>
             </div>
 
-            {/* Tabs Navigation */}
-            <div className="flex flex-wrap gap-2 bg-slate-100/50 p-1.5 rounded-2xl w-fit">
+            {/* Tabs Navigation matching User Reference Image 2 */}
+            <div className="flex flex-wrap gap-2 bg-slate-100/70 p-1.5 rounded-2xl w-fit border border-slate-200/50">
                 <button
                     onClick={() => handleTabChange('overview')}
                     className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
                         activeTab === 'overview' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    Dashboard
+                    DASHBOARD
+                </button>
+                <button
+                    onClick={() => handleTabChange('holdings')}
+                    className={cn(
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        activeTab === 'holdings' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                >
+                    HOLDINGS
+                </button>
+                <button
+                    onClick={() => handleTabChange('groups')}
+                    className={cn(
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                        activeTab === 'groups' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                >
+                    GRUPOS
                 </button>
                 <button
                     onClick={() => handleTabChange('companies')}
                     className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
                         activeTab === 'companies' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    Empresas
+                    EMPRESAS
                 </button>
                 <button
                     onClick={() => handleTabChange('customers')}
                     className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all",
+                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
                         activeTab === 'customers' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
                     )}
                 >
-                    Clientes Globais
+                    CLIENTES GLOBAIS
                 </button>
             </div>
 
             {activeTab === 'overview' && (
                 <div className="space-y-8 animate-in fade-in duration-500">
-                    {/* Metrics Grid */}
+                    {/* Top Filter Card matching User Reference Image 1 */}
+                    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Grupo / Mercado */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Building className="w-4 h-4 text-[#297CCB]" /> Grupo / Mercado
+                                </label>
+                                <select
+                                    value={selectedGroupId}
+                                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                >
+                                    <option value="all">Todos os Grupos</option>
+                                    {companies
+                                        .filter((c: any) => c.company_type === 'mall' || c.role === 'mall' || c.role === 'group')
+                                        .map((g: any) => (
+                                            <option key={g.id} value={g.id}>
+                                                {g.full_name}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            {/* Loja Específica */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Store className="w-4 h-4 text-[#167657]" /> Loja Específica
+                                </label>
+                                <select
+                                    value={selectedStoreId}
+                                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                >
+                                    <option value="all">Todas as Lojas</option>
+                                    {companies
+                                        .filter((c: any) => c.company_type === 'store' || (!c.company_type && c.role === 'company'))
+                                        .map((s: any) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.full_name}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            {/* Data Início */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Calendar className="w-4 h-4 text-amber-500" /> Data Início
+                                </label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                />
+                            </div>
+
+                            {/* Data Fim */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Calendar className="w-4 h-4 text-amber-500" /> Data Fim
+                                </label>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Metrics Grid (Hierarchical Counts) */}
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                        <Card className="border-none shadow-xl bg-brand-blue rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                        {/* Holdings Count */}
+                        <Card className="border-none shadow-xl bg-[#167657] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Total Faturamento</CardTitle>
-                                <DollarSign className="h-5 w-5 text-white/40" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Holdings Cadastradas</CardTitle>
+                                <Building className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-white italic">R$ {stats.estimatedRevenue.toLocaleString('pt-br', { minimumFractionDigits: 2 })}</div>
+                                <div className="text-3xl font-black text-white italic">{stats.totalHoldings}</div>
                                 <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
-                                    <ArrowUpRight className="h-3 w-3" />
-                                    <span>Assinaturas ativas</span>
+                                    <Shield className="h-3 w-3" />
+                                    <span>Nível Superior Admin</span>
                                 </div>
                             </CardContent>
                         </Card>
 
+                        {/* Grupos Count */}
+                        <Card className="border-none shadow-xl bg-[#297CCB] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Grupos & Mercados</CardTitle>
+                                <Store className="h-5 w-5 text-white/40" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-3xl font-black text-white italic">{stats.totalGroups}</div>
+                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
+                                    <Building className="h-3 w-3" />
+                                    <span>Mercados Conveniados</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Lojas Count */}
                         <Card className="border-none shadow-xl bg-brand-orange rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas Parceiras</CardTitle>
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas (Lojas)</CardTitle>
                                 <Store className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
@@ -566,31 +721,30 @@ function AdminContent() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none shadow-xl bg-brand-green rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
+                        {/* Clientes Globais Count */}
+                        <Card className="border-none shadow-xl bg-[#f7aa1c] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Usuários Finais</CardTitle>
-                                <Users className="h-5 w-5 text-white/40" />
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900/60">Clientes Globais</CardTitle>
+                                <Users className="h-5 w-5 text-slate-900/40" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-3xl font-black text-white italic">{stats.totalCustomers}</div>
-                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
+                                <div className="text-3xl font-black text-slate-900 italic">{stats.totalCustomers}</div>
+                                <div className="flex items-center gap-1 mt-2 text-slate-900/50 text-[10px] font-black uppercase italic">
                                     <Plus className="h-3 w-3" />
                                     <span>{stats.newCustomersThisMonth} novos este mês</span>
                                 </div>
                             </CardContent>
                         </Card>
-
-                        <Card className="border-none shadow-xl bg-brand-yellow rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-brand-dark/40">Resgates Totais</CardTitle>
-                                <Wallet className="h-5 w-5 text-brand-dark/20" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-black text-brand-dark italic">{stats.totalRedemptions}</div>
-                                <p className="text-[10px] text-brand-dark/30 mt-2 font-black uppercase italic leading-none">Prêmios resgatados rede</p>
-                            </CardContent>
-                        </Card>
                     </div>
+
+                    {/* Heatmap Pixel Matrix Component inside Dashboard */}
+                    <HeatmapPixelChart
+                        data={heatmapData}
+                        startDate={startDate || get30DaysAgo()}
+                        endDate={endDate || getToday()}
+                        title="Performance in Pixels"
+                        subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial Qrido"
+                    />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Recent Transactions Audit */}
@@ -692,6 +846,106 @@ function AdminContent() {
                                 </div>
                             </CardContent>
                         </Card>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'holdings' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic">Holdings Administradoras</h2>
+                            <p className="text-xs text-slate-500">Gestão dos grupos empresariais cadastrados no Qrido</p>
+                        </div>
+                        <Button className="btn-blue h-10 px-4 text-xs font-bold rounded-xl" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                            <Plus className="h-4 w-4 mr-1" /> Nova Holding
+                        </Button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-700">
+                                <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
+                                    <tr>
+                                        <th className="py-3 px-4">Holding</th>
+                                        <th className="py-3 px-4">E-mail</th>
+                                        <th className="py-3 px-4">Telefone</th>
+                                        <th className="py-3 px-4">CNPJ / CPF</th>
+                                        <th className="py-3 px-4">Data Cadastro</th>
+                                        <th className="py-3 px-4 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium">
+                                    {companies.filter((c: any) => c.role === 'holding' || c.company_type === 'holding').map((holding: any) => (
+                                        <tr key={holding.id} className="hover:bg-slate-50/80 transition-colors">
+                                            <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
+                                                <Building className="w-4 h-4 text-[#167657]" />
+                                                {holding.full_name}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-slate-600">{holding.email || '-'}</td>
+                                            <td className="py-3.5 px-4 text-slate-600">{holding.phone || '-'}</td>
+                                            <td className="py-3.5 px-4 font-mono text-slate-600">{formatCpfCnpj(holding.cpf_cnpj)}</td>
+                                            <td className="py-3.5 px-4 text-slate-500">{new Date(holding.created_at).toLocaleDateString('pt-BR')}</td>
+                                            <td className="py-3.5 px-4 text-right">
+                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteCompany(holding.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'groups' && (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic">Grupos & Mercados</h2>
+                            <p className="text-xs text-slate-500">Gestão dos mercados e grupos com lojas conveniadas</p>
+                        </div>
+                        <Button className="btn-blue h-10 px-4 text-xs font-bold rounded-xl" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                            <Plus className="h-4 w-4 mr-1" /> Novo Grupo
+                        </Button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-700">
+                                <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
+                                    <tr>
+                                        <th className="py-3 px-4">Grupo / Mercado</th>
+                                        <th className="py-3 px-4">E-mail</th>
+                                        <th className="py-3 px-4">Telefone</th>
+                                        <th className="py-3 px-4">CNPJ / CPF</th>
+                                        <th className="py-3 px-4">Data Cadastro</th>
+                                        <th className="py-3 px-4 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 font-medium">
+                                    {companies.filter((c: any) => c.company_type === 'mall' || c.role === 'mall' || c.role === 'group').map((group: any) => (
+                                        <tr key={group.id} className="hover:bg-slate-50/80 transition-colors">
+                                            <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
+                                                <Store className="w-4 h-4 text-[#297CCB]" />
+                                                {group.full_name}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-slate-600">{group.email || '-'}</td>
+                                            <td className="py-3.5 px-4 text-slate-600">{group.phone || '-'}</td>
+                                            <td className="py-3.5 px-4 font-mono text-slate-600">{formatCpfCnpj(group.cpf_cnpj)}</td>
+                                            <td className="py-3.5 px-4 text-slate-500">{new Date(group.created_at).toLocaleDateString('pt-BR')}</td>
+                                            <td className="py-3.5 px-4 text-right">
+                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteCompany(group.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1021,7 +1275,8 @@ function AdminContent() {
                                         className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
                                     >
                                         <option value="store">Loja Padrão</option>
-                                        <option value="mall">Grupo (Pode Convidar Lojas)</option>
+                                        <option value="mall">Grupo / Mercado (Pode Convidar Lojas)</option>
+                                        <option value="holding">Holding (Administra Grupos e Lojas)</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">
