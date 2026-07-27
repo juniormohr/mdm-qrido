@@ -1274,9 +1274,9 @@ function AdminContent() {
                                         defaultValue={currentEntity?.company_type || 'store'}
                                         className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue"
                                     >
-                                        <option value="store">Loja Padrão</option>
-                                        <option value="mall">Grupo / Mercado (Pode Convidar Lojas)</option>
-                                        <option value="holding">Holding (Administra Grupos e Lojas)</option>
+                                        <option value="store">Loja</option>
+                                        <option value="mall">Grupo</option>
+                                        <option value="holding">Holding</option>
                                     </select>
                                 </div>
                                 <div className="space-y-2">

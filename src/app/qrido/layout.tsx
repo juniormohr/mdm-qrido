@@ -69,7 +69,7 @@ export default function DashboardLayout({
                 }
             }
 
-            if (profile?.role === 'company' || profile?.role === 'company_staff') {
+            if (profile?.role === 'company' || profile?.role === 'company_staff' || profile?.role === 'holding') {
                 const companyId = (profile.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
                 
                 // Validação de assinatura se não for rota de onboarding
@@ -90,15 +90,11 @@ export default function DashboardLayout({
                     const isPartnership = prof?.subscription_tier === 'partnership' && 
                                          (!prof.partnership_end_date || new Date(prof.partnership_end_date) > new Date())
 
-                    const hasActiveSubscription = (!!sub && sub.plan !== 'start') || isPartnership
+                    const hasActiveSubscription = (!!sub && sub.plan !== 'start' && sub.status === 'active') || isPartnership
 
                     if (!hasActiveSubscription) {
-                        const unitCount = user.user_metadata?.unit_count || 1
-                        if (unitCount > 1) {
-                            window.location.href = '/qrido/select-plan/group-contact'
-                        } else {
-                            window.location.href = '/qrido/pricing'
-                        }
+                        const targetPlan = prof?.subscription_tier || 'basic'
+                        window.location.href = `/qrido/checkout?plan=${targetPlan}`
                         return
                     }
                 }

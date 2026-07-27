@@ -89,6 +89,17 @@ export async function createCompanyAction(data: {
       return { error: 'Usuário criado, mas erro ao atualizar o perfil: ' + updateError.message }
     }
 
+    // 4. Garantir que a assinatura inicial fique como unpaid (pendente de pagamento) para forçar o checkout no primeiro login
+    const initialStatus = data.subscriptionTier === 'partnership' ? 'active' : 'unpaid'
+    await supabaseAdmin
+      .from('subscriptions')
+      .upsert({
+        user_id: userId,
+        status: initialStatus,
+        plan: data.subscriptionTier === 'partnership' ? 'master' : (data.subscriptionTier || 'start'),
+        updated_at: new Date().toISOString()
+      })
+
     return { success: true }
   } catch (err: any) {
     return { error: err.message || 'Erro interno ao cadastrar empresa.' }
