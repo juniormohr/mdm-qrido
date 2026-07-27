@@ -57,7 +57,6 @@ export default function CustomerRewardsPage() {
                 .from('profiles')
                 .select('id')
                 .in('role', ['company', 'group', 'mall', 'store'])
-                .neq('is_active', false)
 
             if (allCompanies) {
                 eligibleCompanyIds = allCompanies.map(c => c.id)
@@ -73,10 +72,10 @@ export default function CustomerRewardsPage() {
         // 5. Buscar perfis das empresas elegíveis e ATIVAS para obter os nomes
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, full_name, is_active')
+            .select('id, full_name')
             .in('id', eligibleCompanyIds)
 
-        const activeProfiles = (profiles || []).filter(p => p.is_active !== false)
+        const activeProfiles = profiles || []
         const activeCompanyIds = new Set(activeProfiles.map(p => p.id))
 
         if (activeCompanyIds.size === 0) {

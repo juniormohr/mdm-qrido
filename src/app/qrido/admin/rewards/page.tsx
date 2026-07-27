@@ -25,10 +25,10 @@ export default function AdminRewardsPage() {
         // 1. Buscar todas as empresas/perfis ativas para associar o nome da loja
         const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, full_name, is_active')
+            .select('id, full_name')
             .in('role', ['company', 'group', 'mall', 'store'])
 
-        const activeProfiles = (profiles || []).filter(p => p.is_active !== false)
+        const activeProfiles = profiles || []
         const activeCompanyIds = new Set(activeProfiles.map(p => p.id))
 
         // 2. Buscar todos os prêmios ativos

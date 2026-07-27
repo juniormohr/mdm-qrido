@@ -134,20 +134,24 @@ export async function deleteCompanyAction(id: string) {
 export async function toggleCompanyStatusAction(id: string, isActive: boolean) {
   try {
     const supabaseAdmin = createAdminClient()
-    const { error } = await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ is_active: isActive })
       .eq('id', id)
 
-    if (error) {
-      return { error: 'Erro ao alterar status da empresa: ' + error.message }
+    if (profileError && !profileError.message?.includes('is_active')) {
+      return { error: 'Erro ao alterar status da empresa: ' + profileError.message }
     }
 
     // Atualizar status das recompensas da empresa
-    await supabaseAdmin
+    const { error: rewardError } = await supabaseAdmin
       .from('rewards')
       .update({ is_active: isActive })
       .eq('user_id', id)
+
+    if (rewardError) {
+      return { error: 'Erro ao alterar status das recompensas da empresa: ' + rewardError.message }
+    }
 
     return { success: true }
   } catch (err: any) {

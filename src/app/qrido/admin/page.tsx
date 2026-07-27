@@ -194,7 +194,7 @@ function AdminContent() {
         // 1. Fetch Companies with basic metrics (incluindo perfis do tipo company, group, mall, store)
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
-            .select('*, partnership_months, partnership_end_date, is_active, cpf_cnpj')
+            .select('*')
             .in('role', ['company', 'group', 'mall', 'store'])
             .order('created_at', { ascending: false })
 
