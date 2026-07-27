@@ -10,19 +10,36 @@ import { Label } from '@/components/ui/label'
 import { Loader2, CreditCard, ShieldCheck, User, MapPin, Phone, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
+const EXTERNAL_CHECKOUT_LINKS: Record<string, string> = {
+    holding: 'https://checkout.qridoapp.com.br/subscribe/holding-qrido',
+    holding_qrido: 'https://checkout.qridoapp.com.br/subscribe/holding-qrido',
+    grupo: 'https://checkout.qridoapp.com.br/subscribe/grupo-qrido',
+    grupo_qrido: 'https://checkout.qridoapp.com.br/subscribe/grupo-qrido',
+    mall: 'https://checkout.qridoapp.com.br/subscribe/grupo-qrido',
+}
+
 const PLAN_DETAILS: Record<string, { name: string; price: string; period: string; desc: string }> = {
     qridinho_mensal: { name: 'Qridinho Mensal', price: 'R$ 49,90', period: '/mês', desc: 'Até 10 produtos, 100 clientes e 2 usuários.' },
     qrido_mensal: { name: 'Qrido Mensal', price: 'R$ 89,90', period: '/mês', desc: 'Até 30 produtos, 300 clientes e 5 usuários.' },
     qridao_mensal: { name: 'Qridão Mensal', price: 'R$ 199,90', period: '/mês', desc: 'Até 100 produtos, 1000 clientes e 10 usuários.' },
     qridinho_anual: { name: 'Qridinho Anual', price: 'R$ 39,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
     qrido_anual: { name: 'Qrido Anual', price: 'R$ 71,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
-    qridao_anual: { name: 'Qridão Anual', price: 'R$ 159,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' }
+    qridao_anual: { name: 'Qridão Anual', price: 'R$ 159,90', period: '/mês', desc: 'Versão anual com fidelidade de 12 meses.' },
+    grupo: { name: 'Grupo QRido', price: 'R$ 690,00', period: '/mês', desc: 'Acesso completo ao agrupador de lojas e rede de mercado.' },
+    holding: { name: 'Holding QRido', price: 'R$ 990,00', period: '/mês', desc: 'Acesso máster para gestão multi-grupo com analytics em pixels.' }
 }
 
 function CheckoutContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const planId = searchParams.get('plan') || 'qridinho_mensal'
+
+    useEffect(() => {
+        const externalUrl = EXTERNAL_CHECKOUT_LINKS[planId]
+        if (externalUrl) {
+            window.location.href = externalUrl
+        }
+    }, [planId])
 
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)

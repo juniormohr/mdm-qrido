@@ -91,7 +91,11 @@ const GURU_CHECKOUT_LINKS: Record<string, string> = {
     qrido_mensal: 'https://checkout.qridoapp.com.br/subscribe/qrido-mensal',
     qrido_anual: 'https://checkout.qridoapp.com.br/subscribe/qrido-anual',
     qridao_mensal: 'https://checkout.qridoapp.com.br/subscribe/qridao-mensal',
-    qridao_anual: 'https://checkout.qridoapp.com.br/subscribe/qridao-anual'
+    qridao_anual: 'https://checkout.qridoapp.com.br/subscribe/qridao-anual',
+    grupo: 'https://checkout.qridoapp.com.br/subscribe/grupo-qrido',
+    grupo_qrido: 'https://checkout.qridoapp.com.br/subscribe/grupo-qrido',
+    holding: 'https://checkout.qridoapp.com.br/subscribe/holding-qrido',
+    holding_qrido: 'https://checkout.qridoapp.com.br/subscribe/holding-qrido'
 }
 
 export default function SelectPlanPage() {
