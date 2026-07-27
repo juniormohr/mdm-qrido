@@ -965,14 +965,15 @@ export default function CustomerDashboard() {
                     id: d.company_id,
                     full_name: d.company_name,
                     distance: d.distance_km,
-                    address: d.city ? `${d.city}, ${d.state}` : ''
+                    address: d.city ? `${d.city}, ${d.state}` : '',
+                    company_type: d.company_type
                 }))
             }
         } else {
             const { data: profiles } = await supabase
                 .from('profiles')
-                .select('id, full_name')
-                .eq('role', 'company')
+                .select('id, full_name, company_type')
+                .in('role', ['company', 'mall', 'holding'])
 
             if (profiles) {
                 rawCompanies = profiles as Company[]

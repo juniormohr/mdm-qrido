@@ -71,6 +71,8 @@ export async function createCompanyAction(data: {
       partnership_end_date = end.toISOString()
     }
 
+    const targetRole = data.companyType === 'holding' ? 'holding' : 'company'
+
     // 3. Atualizar o profile com os campos de assinatura e tipo
     const { error: updateError } = await supabaseAdmin
       .from('profiles')
@@ -79,7 +81,7 @@ export async function createCompanyAction(data: {
         subscription_tier: data.subscriptionTier,
         partnership_months: data.subscriptionTier === 'partnership' ? data.partnershipMonths : null,
         partnership_end_date: partnership_end_date,
-        role: 'company'
+        role: targetRole
       })
       .eq('id', userId)
 

@@ -71,11 +71,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Clientes', href: '/qrido/admin?tab=customers', icon: Users },
     ]
 
+    const holdingNav = [
+        { name: 'Painel Holding', href: '/qrido/holding', icon: LayoutDashboard },
+        { name: 'Empresas & Lojas', href: '/qrido/company', icon: Store },
+        { name: 'Configurações', href: '/qrido/settings', icon: Settings },
+    ]
+
     const navItems = role === 'admin'
         ? [...adminNav, ...globalNav]
-        : (role === 'customer'
-            ? customerNav
-            : [...companyNav, ...globalNav])
+        : (role === 'holding'
+            ? holdingNav
+            : (role === 'customer'
+                ? customerNav
+                : [...companyNav, ...globalNav]))
 
     return (
         <>
