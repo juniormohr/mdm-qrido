@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { filterActiveCompanyIds } from '@/lib/subscription-utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Store, Flame, Zap, MapPin } from 'lucide-react'
@@ -69,11 +70,19 @@ export default function CustomerRewardsPage() {
             return
         }
 
-        // 5. Buscar perfis das empresas elegíveis e ATIVAS para obter os nomes
+        // 5. Buscar perfis das empresas elegíveis e ATIVAS com pagamento confirmado ou parceria
+        const activeCompanyIdsList = await filterActiveCompanyIds(supabase, eligibleCompanyIds)
+
+        if (activeCompanyIdsList.length === 0) {
+            setRewards([])
+            setLoading(false)
+            return
+        }
+
         const { data: profiles } = await supabase
             .from('profiles')
             .select('id, full_name')
-            .in('id', eligibleCompanyIds)
+            .in('id', activeCompanyIdsList)
 
         const activeProfiles = profiles || []
         const activeCompanyIds = new Set(activeProfiles.map(p => p.id))

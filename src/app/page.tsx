@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { filterActiveCompanyIds } from '@/lib/subscription-utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -149,13 +149,16 @@ export default function CustomerDashboard() {
         if (error) {
             console.error('Erro ao buscar produtos em destaque:', error)
         } else if (data) {
+            const activeCompanyIdsList = new Set(companies.map(c => c.id))
+            const validProducts = data.filter(p => activeCompanyIdsList.has(p.company_id))
+
             const promotedCompanyIds = companies
                 .filter(c => loyaltyConfigs[c.id]?.double_points_active)
                 .map(c => c.id)
 
             // Agrupar produtos por empresa e escolher o melhor único produto de cada
             const companyProductsMap: { [companyId: string]: Product[] } = {}
-            data.forEach(p => {
+            validProducts.forEach(p => {
                 if (!companyProductsMap[p.company_id]) {
                     companyProductsMap[p.company_id] = []
                 }
@@ -807,6 +810,11 @@ export default function CustomerDashboard() {
             if (profiles) {
                 rawCompanies = profiles as Company[]
             }
+        // Filtrar apenas empresas com pagamento confirmado ou status de parceria
+        if (rawCompanies.length > 0) {
+            const candidateIds = rawCompanies.map(c => c.id)
+            const activeIds = new Set(await filterActiveCompanyIds(supabase, candidateIds))
+            rawCompanies = rawCompanies.filter(c => activeIds.has(c.id))
         }
 
         // Ordenar: as empresas com pontos em dobro ativos vão para o topo
