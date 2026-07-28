@@ -106,9 +106,12 @@ function AdminContent() {
 
     const [startDate, setStartDate] = useState<string>(get30DaysAgo())
     const [endDate, setEndDate] = useState<string>(getToday())
+    const [selectedHoldingId, setSelectedHoldingId] = useState<string>('all')
     const [selectedGroupId, setSelectedGroupId] = useState<string>('all')
     const [selectedStoreId, setSelectedStoreId] = useState<string>('all')
     const [heatmapData, setHeatmapData] = useState<DailyDataPoint[]>([])
+    const [holdingGroupsMap, setHoldingGroupsMap] = useState<Record<string, string[]>>({})
+    const [groupStoresMap, setGroupStoresMap] = useState<Record<string, string[]>>({})
 
     const [stats, setStats] = useState<AdminStats>({
         totalHoldings: 0,
@@ -135,7 +138,6 @@ function AdminContent() {
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
     const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
 
-    // Modal states
     const [showCompanyModal, setShowCompanyModal] = useState(false)
     const [showCustomerModal, setShowCustomerModal] = useState(false)
     const [currentEntity, setCurrentEntity] = useState<any>(null)
@@ -145,38 +147,30 @@ function AdminContent() {
 
     const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '')
-        
-        // Comportamento dinâmico idêntico ao login:
-        // Se a quantidade de dígitos for maior que 11, tratamos como CNPJ (máximo 14), senão CPF (máximo 11)
         const maxLength = val.length > 11 ? 14 : 11;
         if (val.length > maxLength) val = val.substring(0, maxLength);
 
         let masked = val;
         if (val.length > 11) {
-            // CNPJ
             if (val.length > 12) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5')
             else if (val.length > 8) masked = val.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4')
             else if (val.length > 5) masked = val.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3')
             else if (val.length > 2) masked = val.replace(/(\d{2})(\d{1,3})/, '$1.$2')
         } else {
-            // CPF
             if (val.length > 9) masked = val.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4')
             else if (val.length > 6) masked = val.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3')
             else if (val.length > 3) masked = val.replace(/(\d{3})(\d{1,3})/, '$1.$2')
         }
-        
         setCpfCnpj(masked)
     }
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '')
         if (val.length > 11) val = val.substring(0, 11)
-        
         let masked = val
         if (val.length > 0) masked = '(' + val
         if (val.length > 2) masked = '(' + val.substring(0, 2) + ') ' + val.substring(2)
         if (val.length > 7) masked = '(' + val.substring(0, 2) + ') ' + val.substring(2, 7) + '-' + val.substring(7)
-        
         setPhone(masked)
     }
 
@@ -192,26 +186,18 @@ function AdminContent() {
 
     useEffect(() => {
         fetchAllData()
-
-        // Configure Realtime subscription
         const supabase = createClient()
         const channel = supabase
             .channel('admin-dashboard-changes')
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'profiles' },
-                () => {
-                    console.log('Realtime update: profiles changed')
-                    fetchAllData()
-                }
+                () => { fetchAllData() }
             )
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'customers' },
-                () => {
-                    console.log('Realtime update: customers changed')
-                    fetchAllData()
-                }
+                () => { fetchAllData() }
             )
             .subscribe()
 
@@ -224,24 +210,36 @@ function AdminContent() {
         setLoading(true)
         const supabase = createClient()
 
-        // 1. Fetch Companies with basic metrics (incluindo perfis do tipo company, group, mall, store, holding)
+        const { data: hgData } = await supabase.from('holding_groups').select('holding_id, group_id')
+        const { data: cgData } = await supabase.from('company_groups').select('mall_id, store_id')
+
+        const hgMap: Record<string, string[]> = {}
+        hgData?.forEach((item: any) => {
+            if (!hgMap[item.holding_id]) hgMap[item.holding_id] = []
+            hgMap[item.holding_id].push(item.group_id)
+        })
+        setHoldingGroupsMap(hgMap)
+
+        const cgMap: Record<string, string[]> = {}
+        cgData?.forEach((item: any) => {
+            if (!cgMap[item.mall_id]) cgMap[item.mall_id] = []
+            cgMap[item.mall_id].push(item.store_id)
+        })
+        setGroupStoresMap(cgMap)
+
         const { data: profiles, error: profilesError } = await supabase
             .from('profiles')
             .select('*')
             .in('role', ['company', 'group', 'mall', 'store', 'holding'])
             .order('created_at', { ascending: false })
 
-        if (profilesError) {
-            console.error('Admin Dashboard: Error fetching companies', profilesError)
-        }
+        if (profilesError) console.error('Admin Dashboard: Error fetching companies', profilesError)
 
-        // Fetch subscriptions to check paid statuses
         const { data: activeSubs } = await supabase
             .from('subscriptions')
             .select('user_id, plan, status')
             .in('status', ['active', 'trialing'])
 
-        // To calculate "engagement" (chama icon), fetch transaction summary.
         const { data: txSummary } = await supabase
             .from('loyalty_transactions')
             .select('user_id, type')
@@ -251,36 +249,26 @@ function AdminContent() {
             const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
             const volume = companyTransactions.length
             const isEngaged = volume > 10
-
             const isPartnership = p.subscription_tier === 'partnership' && (!p.partnership_end_date || new Date(p.partnership_end_date) > new Date())
             const hasPaidSub = activeSubs?.some(s => s.user_id === p.id && s.plan !== 'start' && (s.status === 'active' || s.status === 'trialing'))
             const hasActivePaidSub = hasPaidSub || isPartnership || p.subscription_tier === 'pro' || p.subscription_tier === 'master'
 
-            return {
-                ...p,
-                redemptions,
-                volume,
-                isEngaged,
-                hasActivePaidSub
-            }
+            return { ...p, redemptions, volume, isEngaged, hasActivePaidSub }
         })
 
         if (companyMetrics) setCompanies(companyMetrics)
 
-        // 2. Fetch End User Profiles (role = 'customer') para a métrica e tabela de Clientes Globais
         const { data: endUserProfiles } = await supabase
             .from('profiles')
             .select('id, full_name, phone, created_at, email')
             .eq('role', 'customer')
             .order('created_at', { ascending: false })
 
-        // 2.1 Fetch Store Customer links
         const { data: storeCustomers } = await supabase
             .from('customers')
             .select('*, profiles:user_id(full_name)')
             .order('created_at', { ascending: false })
 
-        // Unificar clientes globais para garantir que a tabela coincida exatamente com a métrica de usuários finais
         let combinedCustomers: Customer[] = []
         if (endUserProfiles && endUserProfiles.length > 0) {
             combinedCustomers = endUserProfiles.map(u => {
@@ -303,7 +291,6 @@ function AdminContent() {
         }
         setAllCustomers(combinedCustomers)
 
-        // 3. Fetch All Transactions
         const { data: transactions } = await supabase
             .from('loyalty_transactions')
             .select('*')
@@ -312,7 +299,6 @@ function AdminContent() {
 
         if (transactions) setAllTransactions(transactions)
 
-        // 3.1. Fetch rewards e calcular Top Recompensas filtrando empresas ativas e existentes
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
@@ -323,27 +309,20 @@ function AdminContent() {
             .select('reward_id, user_id')
             .eq('type', 'redeem')
 
-        // Count redemptions per reward
         const redeemCounts: Record<string, number> = {}
         if (redeemTransactions) {
             redeemTransactions.forEach(tx => {
-                if (tx.reward_id) {
-                    redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
-                }
+                if (tx.reward_id) redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
             })
         }
 
-        // Count total company transaction volume (for engagement metric)
         const companyVolumes: Record<string, number> = {}
         if (txSummary) {
             txSummary.forEach(tx => {
-                if (tx.user_id) {
-                    companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
-                }
+                if (tx.user_id) companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
             })
         }
 
-        // Filtrar apenas recompensas cujas empresas existam e estejam ATIVAS
         const rewardsWithStats = (rewardsData || [])
             .filter(r => {
                 const company = (profiles || []).find(p => p.id === r.user_id)
@@ -372,89 +351,54 @@ function AdminContent() {
             }
         }
 
-        // Critério 1: prêmios mais resgatados (resgates > 0), ordenados por resgates desc
-        const crit1 = [...rewardsWithStats]
-            .filter(r => r.resgates > 0)
-            .sort((a, b) => b.resgates - a.resgates)
+        const crit1 = [...rewardsWithStats].filter(r => r.resgates > 0).sort((a, b) => b.resgates - a.resgates)
         tryAddRewards(crit1)
-
-        // Critério 2: prêmios de empresas mais engajadas (volume_empresa > 0), ordenados por volume_empresa desc
         if (selectedRewards.length < 3) {
-            const crit2 = [...rewardsWithStats]
-                .filter(r => r.volume_empresa > 0)
-                .sort((a, b) => b.volume_empresa - a.volume_empresa)
+            const crit2 = [...rewardsWithStats].filter(r => r.volume_empresa > 0).sort((a, b) => b.volume_empresa - a.volume_empresa)
             tryAddRewards(crit2)
         }
-
-        // Critério 3: prêmios mais fáceis de resgatar (menor pontuação), ordenados por points_required asc
         if (selectedRewards.length < 3) {
-            const crit3 = [...rewardsWithStats]
-                .sort((a, b) => a.points_required - b.points_required)
+            const crit3 = [...rewardsWithStats].sort((a, b) => a.points_required - b.points_required)
             tryAddRewards(crit3)
         }
-
-        // Se ainda faltar prêmios para completar 3 e houver outros prêmios cadastrados, adicionamos sem a restrição de empresa única
         if (selectedRewards.length < 3) {
             const remainingCandidates = [...rewardsWithStats]
                 .filter(r => !selectedRewards.some(sr => sr.id === r.id))
                 .sort((a, b) => {
                     if (b.resgates !== a.resgates) return b.resgates - a.resgates
-                    if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa
                     return a.points_required - b.points_required
                 })
-
             for (const item of remainingCandidates) {
                 if (selectedRewards.length >= 3) break
                 selectedRewards.push(item)
             }
         }
-
         setTopRewards(selectedRewards)
 
-        // 4. Calculate Stats & Top Customers
         const now = new Date()
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
         const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-        let sales30Days = 0
-        let salesAccumulated = 0
-        let points30Days = 0
-        let pointsAccumulated = 0
-        let redemptions30Days = 0
-        let redemptionsAccumulated = 0
-
+        let sales30Days = 0, salesAccumulated = 0, points30Days = 0, pointsAccumulated = 0, redemptions30Days = 0, redemptionsAccumulated = 0
         const customerSpendMap = new Map<string, { customerId: string; totalSpent: number; totalPoints: number; companyId: string }>()
 
         if (transactions) {
             transactions.forEach(t => {
                 const is30Days = t.created_at >= thirtyDaysAgoIso
-                const amount = Number(t.sale_amount || 0)
-                const pts = Number(t.points || 0)
-
+                const amount = Number(t.sale_amount || 0), pts = Number(t.points || 0)
                 if (t.type === 'earn') {
                     salesAccumulated += amount
                     pointsAccumulated += pts
-                    if (is30Days) {
-                        sales30Days += amount
-                        points30Days += pts
-                    }
-
+                    if (is30Days) { sales30Days += amount; points30Days += pts }
                     if (t.customer_id) {
-                        const curr = customerSpendMap.get(t.customer_id) || {
-                            customerId: t.customer_id,
-                            totalSpent: 0,
-                            totalPoints: 0,
-                            companyId: t.user_id
-                        }
+                        const curr = customerSpendMap.get(t.customer_id) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
                         curr.totalSpent += amount
                         curr.totalPoints += pts
                         customerSpendMap.set(t.customer_id, curr)
                     }
                 } else if (t.type === 'redeem') {
                     redemptionsAccumulated += 1
-                    if (is30Days) {
-                        redemptions30Days += 1
-                    }
+                    if (is30Days) redemptions30Days += 1
                 }
             })
         }
@@ -474,38 +418,21 @@ function AdminContent() {
                     totalPoints: item.totalPoints
                 }
             })
-
         setTopCustomers(topCustomersList)
 
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
-
         const totalHoldings = profiles?.filter(p => p.role === 'holding' || p.company_type === 'holding').length || 0
         const totalGroups = profiles?.filter(p => p.company_type === 'mall' || p.role === 'mall' || p.role === 'group').length || 0
         const totalStores = profiles?.filter(p => !['holding', 'group', 'mall'].includes(p.role) && !['holding', 'mall'].includes(p.company_type)).length || 0
-
-        const revenue = profiles?.reduce((acc, p) => {
-            const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
-            return acc + (TIER_PRICES[tier] || 0)
-        }, 0) || 0
+        const revenue = profiles?.reduce((acc, p) => acc + (TIER_PRICES[(p.subscription_tier || 'basic') as keyof typeof TIER_PRICES] || 0), 0) || 0
 
         setStats({
-            totalHoldings,
-            totalGroups,
-            totalCompanies: totalStores,
-            newCompaniesThisMonth: newComps,
-            totalCustomers: endUserProfiles?.length || 0,
-            newCustomersThisMonth: newCusts,
-            sales30Days,
-            salesAccumulated,
-            points30Days,
-            pointsAccumulated,
-            redemptions30Days,
-            redemptionsAccumulated,
-            estimatedRevenue: revenue
+            totalHoldings, totalGroups, totalCompanies: totalStores, newCompaniesThisMonth: newComps,
+            totalCustomers: endUserProfiles?.length || 0, newCustomersThisMonth: newCusts,
+            sales30Days, salesAccumulated, points30Days, pointsAccumulated, redemptions30Days, redemptionsAccumulated, estimatedRevenue: revenue
         })
 
-        // Acumular dados diários para o Mapa de Calor em Pixels
         const dailyMap = new Map<string, { sales: number; transactions: number }>()
         if (transactions) {
             transactions.forEach((t: any) => {
@@ -517,13 +444,7 @@ function AdminContent() {
                 dailyMap.set(dateStr, curr)
             })
         }
-        const calculatedHeatmap: DailyDataPoint[] = Array.from(dailyMap.entries()).map(([date, d]) => ({
-            date,
-            sales: d.sales,
-            transactions: d.transactions,
-        }))
-        setHeatmapData(calculatedHeatmap)
-
+        setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
         setLoading(false)
     }
 
@@ -531,23 +452,16 @@ function AdminContent() {
         if (!confirm('Tem certeza? Isso removerá a empresa e todos os seus dados vinculados.')) return
         setLoading(true)
         const result = await deleteCompanyAction(id)
-        if (result?.error) {
-            alert('Erro ao excluir empresa: ' + result.error)
-        }
+        if (result?.error) alert('Erro ao excluir empresa: ' + result.error)
         fetchAllData()
     }
 
     const handleToggleCompanyStatus = async (id: string, currentStatus: boolean) => {
         const newStatus = !currentStatus
-        const confirmMsg = newStatus 
-            ? 'Deseja reativar esta empresa?' 
-            : 'Deseja inativar esta empresa? Ela deixará de aparecer para os clientes.'
-        if (!confirm(confirmMsg)) return
+        if (!confirm(newStatus ? 'Deseja reativar esta empresa?' : 'Deseja inativar esta empresa?')) return
         setLoading(true)
         const result = await toggleCompanyStatusAction(id, newStatus)
-        if (result?.error) {
-            alert('Erro ao alterar status: ' + result.error)
-        }
+        if (result?.error) alert('Erro ao alterar status: ' + result.error)
         fetchAllData()
     }
 
@@ -780,6 +694,38 @@ function AdminContent() {
         return matchesSearch && matchesCompany
     })
 
+    // Filter helper options based on active selection (Holding -> Group -> Store)
+    const availableGroups = companies.filter((c: any) => {
+        const isGroup = c.company_type === 'mall' || c.role === 'mall' || c.role === 'group'
+        if (!isGroup) return false
+        if (selectedHoldingId === 'all') return true
+        const allowedGroupIds = holdingGroupsMap[selectedHoldingId] || []
+        return allowedGroupIds.includes(c.id) || c.holding_id === selectedHoldingId
+    })
+
+    const availableStores = companies.filter((c: any) => {
+        const isStore = c.company_type === 'store' || (!c.company_type && c.role === 'company')
+        if (!isStore) return false
+
+        if (selectedGroupId !== 'all') {
+            const allowedStoreIds = groupStoresMap[selectedGroupId] || []
+            return allowedStoreIds.includes(c.id) || c.mall_id === selectedGroupId
+        }
+
+        if (selectedHoldingId !== 'all') {
+            const allowedGroupIds = holdingGroupsMap[selectedHoldingId] || []
+            let storeAllowed = false
+            allowedGroupIds.forEach(gId => {
+                const sIds = groupStoresMap[gId] || []
+                if (sIds.includes(c.id)) storeAllowed = true
+            })
+            if (storeAllowed || c.holding_id === selectedHoldingId) return true
+            return false
+        }
+
+        return true
+    })
+
     if (loading) return (
         <div className="h-[80vh] flex flex-col items-center justify-center space-y-4">
             <div className="h-12 w-12 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
@@ -808,60 +754,36 @@ function AdminContent() {
                 </div>
             </div>
 
-            {/* Tabs Navigation matching User Reference Image 2 */}
-            <div className="flex flex-wrap gap-2 bg-slate-100/70 p-1.5 rounded-2xl w-fit border border-slate-200/50">
-                <button
-                    onClick={() => handleTabChange('overview')}
-                    className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                        activeTab === 'overview' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    DASHBOARD
-                </button>
-                <button
-                    onClick={() => handleTabChange('holdings')}
-                    className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                        activeTab === 'holdings' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    HOLDINGS
-                </button>
-                <button
-                    onClick={() => handleTabChange('groups')}
-                    className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                        activeTab === 'groups' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    GRUPOS
-                </button>
-                <button
-                    onClick={() => handleTabChange('companies')}
-                    className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                        activeTab === 'companies' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    EMPRESAS
-                </button>
-                <button
-                    onClick={() => handleTabChange('customers')}
-                    className={cn(
-                        "px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                        activeTab === 'customers' ? "bg-white text-brand-blue shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                >
-                    CLIENTES GLOBAIS
-                </button>
-            </div>
-
             {activeTab === 'overview' && (
                 <div className="space-y-8 animate-in fade-in duration-500">
-                    {/* Top Filter Card matching User Reference Image 1 */}
+                    {/* Filter Card with Holding -> Group -> Store Cascade */}
                     <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-2">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* Holding */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Building className="w-4 h-4 text-[#167657]" /> Holding
+                                </label>
+                                <select
+                                    value={selectedHoldingId}
+                                    onChange={(e) => {
+                                        setSelectedHoldingId(e.target.value)
+                                        setSelectedGroupId('all')
+                                        setSelectedStoreId('all')
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]"
+                                >
+                                    <option value="all">Todas as Holdings</option>
+                                    {companies
+                                        .filter((c: any) => c.role === 'holding' || c.company_type === 'holding')
+                                        .map((h: any) => (
+                                            <option key={h.id} value={h.id}>
+                                                {h.full_name}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
                             {/* Grupo / Mercado */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -869,72 +791,122 @@ function AdminContent() {
                                 </label>
                                 <select
                                     value={selectedGroupId}
-                                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedGroupId(e.target.value)
+                                        setSelectedStoreId('all')
+                                    }}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
                                 >
                                     <option value="all">Todos os Grupos</option>
-                                    {companies
-                                        .filter((c: any) => c.company_type === 'mall' || c.role === 'mall' || c.role === 'group')
-                                        .map((g: any) => (
-                                            <option key={g.id} value={g.id}>
-                                                {g.full_name}
-                                            </option>
-                                        ))}
+                                    {availableGroups.map((g: any) => (
+                                        <option key={g.id} value={g.id}>
+                                            {g.full_name}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
                             {/* Loja Específica */}
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                    <Store className="w-4 h-4 text-[#167657]" /> Loja Específica
+                                    <Store className="w-4 h-4 text-brand-orange" /> Loja Específica
                                 </label>
                                 <select
                                     value={selectedStoreId}
                                     onChange={(e) => setSelectedStoreId(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-orange"
                                 >
                                     <option value="all">Todas as Lojas</option>
-                                    {companies
-                                        .filter((c: any) => c.company_type === 'store' || (!c.company_type && c.role === 'company'))
-                                        .map((s: any) => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.full_name}
-                                            </option>
-                                        ))}
+                                    {availableStores.map((s: any) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.full_name}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
 
-                            {/* Data Início */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-amber-500" /> Data Início
-                                </label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
-                                />
-                            </div>
-
-                            {/* Data Fim */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                    <Calendar className="w-4 h-4 text-amber-500" /> Data Fim
-                                </label>
-                                <input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
-                                />
+                            {/* Data Início & Fim */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <Calendar className="w-3.5 h-3.5 text-amber-500" /> Início
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                        <Calendar className="w-3.5 h-3.5 text-amber-500" /> Fim
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Metrics Grid (Hierarchical Counts) */}
+                    {/* 1. Desempenho Financeiro e Transacional (Vendas, Pontos, Resgates) - CARDS COLORIDOS */}
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {/* Vendas (R$) - Emerald Vivid Card */}
+                        <Card className="border-none shadow-xl bg-[#167657] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Vendas (R$)</span>
+                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
+                                    <DollarSign className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-white italic">
+                                R$ {stats.sales30Days.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                            <p className="text-[11px] font-bold text-white/70">
+                                ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">R$ {stats.salesAccumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                            </p>
+                        </Card>
+
+                        {/* Pontos Distribuídos - Brand Blue Vivid Card */}
+                        <Card className="border-none shadow-xl bg-[#297CCB] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Pontos Distribuídos</span>
+                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
+                                    <Zap className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-white italic">
+                                {stats.points30Days.toLocaleString('pt-BR')} <span className="text-sm font-bold text-white/80">pts</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-white/70">
+                                ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">{stats.pointsAccumulated.toLocaleString('pt-BR')} pts</strong>
+                            </p>
+                        </Card>
+
+                        {/* Resgates Realizados - Amber Vivid Card */}
+                        <Card className="border-none shadow-xl bg-brand-orange text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Resgates Realizados</span>
+                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
+                                    <Gift className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-3xl font-black text-white italic">
+                                {stats.redemptions30Days} <span className="text-sm font-bold text-white/80">resgates</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-white/70">
+                                ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">{stats.redemptionsAccumulated} resgates</strong>
+                            </p>
+                        </Card>
+                    </div>
+
+                    {/* 2. Hierarchical Count Cards (Holdings, Grupos, Empresas, Clientes) */}
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                        {/* Holdings Count */}
+                        {/* Holdings Cadastradas */}
                         <Card className="border-none shadow-xl bg-[#167657] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
                                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Holdings Cadastradas</CardTitle>
@@ -949,10 +921,10 @@ function AdminContent() {
                             </CardContent>
                         </Card>
 
-                        {/* Grupos Count */}
+                        {/* Grupos e Mercados */}
                         <Card className="border-none shadow-xl bg-[#297CCB] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Grupos & Mercados</CardTitle>
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Grupos e Mercados</CardTitle>
                                 <Store className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
@@ -964,10 +936,10 @@ function AdminContent() {
                             </CardContent>
                         </Card>
 
-                        {/* Lojas Count */}
+                        {/* Empresas */}
                         <Card className="border-none shadow-xl bg-brand-orange rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas (Lojas)</CardTitle>
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas</CardTitle>
                                 <Store className="h-5 w-5 text-white/40" />
                             </CardHeader>
                             <CardContent>
@@ -979,10 +951,10 @@ function AdminContent() {
                             </CardContent>
                         </Card>
 
-                        {/* Clientes Globais Count */}
+                        {/* Clientes */}
                         <Card className="border-none shadow-xl bg-[#f7aa1c] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900/60">Clientes Globais</CardTitle>
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900/60">Clientes</CardTitle>
                                 <Users className="h-5 w-5 text-slate-900/40" />
                             </CardHeader>
                             <CardContent>
@@ -995,63 +967,12 @@ function AdminContent() {
                         </Card>
                     </div>
 
-                    {/* Desempenho Financeiro e Transacional */}
-                    <div className="grid gap-6 md:grid-cols-3">
-                        {/* Vendas (R$) */}
-                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Vendas (R$)</span>
-                                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl">
-                                    <DollarSign className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-black text-slate-900 italic">
-                                R$ {stats.sales30Days.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </div>
-                            <p className="text-[11px] font-bold text-slate-400">
-                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">R$ {stats.salesAccumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-                            </p>
-                        </Card>
-
-                        {/* Pontos Distribuídos */}
-                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Pontos Distribuídos</span>
-                                <div className="p-2.5 bg-brand-blue/10 text-brand-blue rounded-2xl">
-                                    <Zap className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-black text-slate-900 italic">
-                                {stats.points30Days.toLocaleString('pt-BR')} <span className="text-sm font-bold text-brand-blue">pts</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-slate-400">
-                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">{stats.pointsAccumulated.toLocaleString('pt-BR')} pts</strong>
-                            </p>
-                        </Card>
-
-                        {/* Resgates Realizados */}
-                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Resgates Realizados</span>
-                                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl">
-                                    <Gift className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="text-2xl font-black text-slate-900 italic">
-                                {stats.redemptions30Days} <span className="text-sm font-bold text-amber-600">resgates</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-slate-400">
-                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">{stats.redemptionsAccumulated} resgates</strong>
-                            </p>
-                        </Card>
-                    </div>
-
-                    {/* Heatmap Pixel Matrix Component inside Dashboard */}
+                    {/* 3. Mapa de Calor */}
                     <HeatmapPixelChart
                         data={heatmapData}
                         startDate={startDate || get30DaysAgo()}
                         endDate={endDate || getToday()}
-                        title="Performance in Pixels"
+                        title="Mapa de Venda"
                         subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial Qrido"
                     />
 

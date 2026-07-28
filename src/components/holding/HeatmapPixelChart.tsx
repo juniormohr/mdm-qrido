@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface DailyDataPoint {
   date: string; // YYYY-MM-DD
@@ -16,29 +17,46 @@ interface HeatmapPixelChartProps {
   subtitle?: string;
 }
 
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+const WEEKDAYS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+
 export function HeatmapPixelChart({
   data,
   startDate,
   endDate,
-  title = "Performance em Pixels",
+  title = "Mapa de Venda",
   subtitle = "Mapa de calor do movimento diário de vendas",
 }: HeatmapPixelChartProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [hoveredDay, setHoveredDay] = useState<{
-    date: string;
+    dateStr: string;
     sales: number;
     transactions: number;
     level: "high" | "medium" | "low" | "none";
+    isInSelectedPeriod: boolean;
   } | null>(null);
+
+  // Parse initial view month based on endDate or current date
+  const initialDateObj = endDate ? new Date(endDate + "T00:00:00") : new Date();
+  const [viewYear, setViewYear] = useState<number>(
+    isNaN(initialDateObj.getFullYear()) ? new Date().getFullYear() : initialDateObj.getFullYear()
+  );
+  const [viewMonth, setViewMonth] = useState<number>(
+    isNaN(initialDateObj.getMonth()) ? new Date().getMonth() : initialDateObj.getMonth()
+  );
 
   // Map input data by date string for quick lookup
   const dataMap = new Map<string, DailyDataPoint>();
   data.forEach((item) => dataMap.set(item.date, item));
 
-  // Determine max sales volume across range to scale thresholds dynamically
+  // Determine max sales volume across dataset for color intensity threshold
   const maxSales = Math.max(...data.map((d) => d.sales), 1);
 
-  // Helper to categorize sales volume for a date
+  // Helper to categorize sales volume
   const getPerformanceLevel = (sales: number, transactions: number): "high" | "medium" | "low" | "none" => {
     if (sales === 0 && transactions === 0) return "none";
     const ratio = sales / maxSales;
@@ -48,8 +66,10 @@ export function HeatmapPixelChart({
   };
 
   // Color mapping according to exact Qrido Brand Palette
-  // High: #167657, Medium: #f7aa1c, Low: #e9592c, None: #2f2f2f
-  const getColor = (level: "high" | "medium" | "low" | "none") => {
+  const getColor = (level: "high" | "medium" | "low" | "none", isInSelectedPeriod: boolean) => {
+    if (!isInSelectedPeriod) {
+      return "#e2e8f0"; // Neutral grey for days outside selected period
+    }
     switch (level) {
       case "high":
         return "#167657";
@@ -59,118 +79,251 @@ export function HeatmapPixelChart({
         return "#e9592c";
       case "none":
       default:
-        return "#2f2f2f";
+        return "#cbd5e1";
     }
   };
 
-  // Generate date points between startDate and endDate
-  const daysList: { dateStr: string; dayNum: number; monthStr: string }[] = [];
-  const curr = new Date(startDate);
-  const end = new Date(endDate);
-  
-  while (curr <= end) {
-    const dateStr = curr.toISOString().split("T")[0];
-    const dayNum = curr.getDate();
-    const monthStr = curr.toLocaleDateString("pt-BR", { month: "short" });
-    daysList.push({ dateStr, dayNum, monthStr });
-    curr.setDate(curr.getDate() + 1);
+  // Calendar logic for viewYear and viewMonth
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1);
+  const startingDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sun, 1 = Mon ...
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  // Days in previous month to fill grid
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+  // Create grid items
+  const calendarCells = [];
+
+  // Previous month padding days
+  for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+    const dayNum = daysInPrevMonth - i;
+    const prevMonthDate = new Date(viewYear, viewMonth - 1, dayNum);
+    const dateStr = prevMonthDate.toISOString().split("T")[0];
+    calendarCells.push({
+      dateStr,
+      dayNum,
+      isCurrentMonth: false,
+    });
   }
 
-  // Calculate statistics for counters
+  // Current month days
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const monthFormatted = String(viewMonth + 1).padStart(2, "0");
+    const dayFormatted = String(dayNum).padStart(2, "0");
+    const dateStr = `${viewYear}-${monthFormatted}-${dayFormatted}`;
+    calendarCells.push({
+      dateStr,
+      dayNum,
+      isCurrentMonth: true,
+    });
+  }
+
+  // Next month padding days to complete grid rows
+  const remainingCells = (7 - (calendarCells.length % 7)) % 7;
+  for (let dayNum = 1; dayNum <= remainingCells; dayNum++) {
+    const nextMonthDate = new Date(viewYear, viewMonth + 1, dayNum);
+    const dateStr = nextMonthDate.toISOString().split("T")[0];
+    calendarCells.push({
+      dateStr,
+      dayNum,
+      isCurrentMonth: false,
+    });
+  }
+
+  // Check if date falls in requested filter range
+  const isDateInFilterRange = (dateStr: string) => {
+    if (!startDate || !endDate) return true;
+    return dateStr >= startDate && dateStr <= endDate;
+  };
+
+  // Calculate statistics for counters for current displayed view or filtered dataset
   let countHigh = 0;
   let countMedium = 0;
   let countLow = 0;
   let countNone = 0;
 
-  const processedDays = daysList.map((day) => {
-    const item = dataMap.get(day.dateStr);
+  const processedCells = calendarCells.map((cell) => {
+    const item = dataMap.get(cell.dateStr);
     const sales = item ? item.sales : 0;
     const transactions = item ? item.transactions : 0;
     const level = getPerformanceLevel(sales, transactions);
+    const isInSelectedPeriod = isDateInFilterRange(cell.dateStr);
 
-    if (level === "high") countHigh++;
-    else if (level === "medium") countMedium++;
-    else if (level === "low") countLow++;
-    else countNone++;
+    if (cell.isCurrentMonth && isInSelectedPeriod) {
+      if (level === "high") countHigh++;
+      else if (level === "medium") countMedium++;
+      else if (level === "low") countLow++;
+      else countNone++;
+    }
 
     return {
-      ...day,
-      date: day.dateStr,
+      ...cell,
       sales,
       transactions,
       level,
+      isInSelectedPeriod,
     };
   });
 
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(viewYear - 1);
+    } else {
+      setViewMonth(viewMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(viewYear + 1);
+    } else {
+      setViewMonth(viewMonth + 1);
+    }
+  };
+
+  // Selected date state
+  const [selectedDay, setSelectedDay] = useState<{
+    dateStr: string;
+    sales: number;
+    transactions: number;
+    level: "high" | "medium" | "low" | "none";
+    isInSelectedPeriod: boolean;
+  } | null>(null);
+
+  // Calculate monthly totals for the current viewMonth & viewYear
+  const monthCellsCurrentMonth = processedCells.filter((c) => c.isCurrentMonth);
+  const monthTotalSales = monthCellsCurrentMonth.reduce((acc, curr) => acc + curr.sales, 0);
+  const monthTotalTransactions = monthCellsCurrentMonth.reduce((acc, curr) => acc + curr.transactions, 0);
+
+  // Active detail item to display in fixed top bar
+  const activeSpecificDay = hoveredDay || selectedDay;
+
+  // Helper to format date string from YYYY-MM-DD to DD-MM-YYYY
+  const formatDateBR = (isoDateStr: string) => {
+    if (!isoDateStr || !isoDateStr.includes("-")) return isoDateStr;
+    const parts = isoDateStr.split("-");
+    if (parts.length !== 3) return isoDateStr;
+    const [year, month, day] = parts;
+    return `${day}-${month}-${year}`;
+  };
+
   return (
-    <div className="bg-[#18181b] border border-zinc-800 rounded-2xl p-6 shadow-xl text-white font-sans max-w-4xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-zinc-800 gap-2">
+    <div className="bg-[#fff5ed] border border-[#fbdcc4] rounded-3xl p-6 sm:p-8 shadow-sm text-slate-800 font-sans max-w-4xl mx-auto transition-all">
+      {/* Header & Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-[#fcd5b8] gap-4">
         <div>
-          <h3 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#167657] inline-block animate-pulse"></span>
+          <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+            <span className="w-3.5 h-3.5 rounded-full bg-[#167657] inline-block animate-pulse shadow-sm"></span>
             {title}
           </h3>
-          <p className="text-sm text-zinc-400 mt-0.5">{subtitle}</p>
+          <p className="text-sm font-medium text-slate-500 mt-0.5">{subtitle}</p>
         </div>
-        
-        {hoveredDay && (
-          <div className="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-lg text-xs flex items-center gap-4">
-            <div>
-              <span className="text-zinc-400">Data:</span>{" "}
-              <strong className="text-zinc-200">{hoveredDay.date}</strong>
-            </div>
-            <div>
-              <span className="text-zinc-400">Vendas:</span>{" "}
-              <strong className="text-[#167657]">
-                {hoveredDay.sales.toLocaleString("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                })}
-              </strong>
-            </div>
-            <div>
-              <span className="text-zinc-400">Transações:</span>{" "}
-              <strong className="text-[#f7aa1c]">{hoveredDay.transactions}</strong>
-            </div>
+
+        {/* Month Navigation */}
+        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm border border-[#fcd5b8] rounded-2xl px-4 py-2 shadow-xs">
+          <button
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded-lg hover:bg-[#fff5ed] text-slate-600 hover:text-slate-900 transition-colors"
+            title="Mês anterior"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="text-center min-w-[130px]">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block leading-none">
+              {viewYear}
+            </span>
+            <span className="text-base font-black text-slate-900 capitalize">
+              {MONTH_NAMES[viewMonth]}
+            </span>
           </div>
-        )}
+          <button
+            onClick={handleNextMonth}
+            className="p-1.5 rounded-lg hover:bg-[#fff5ed] text-slate-600 hover:text-slate-900 transition-colors"
+            title="Próximo mês"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      {/* Grid Display */}
-      <div className="py-6 overflow-x-auto">
-        <div className="grid grid-cols-7 sm:grid-cols-10 md:grid-cols-15 lg:grid-cols-31 gap-2.5 min-w-[320px]">
-          {processedDays.map((day) => {
-            const color = getColor(day.level);
+      {/* Fixed Info Bar (Displays Month Totals by default, or hovered/selected day details) */}
+      <div className="mt-4 bg-white/90 border border-[#fcd5b8] px-5 py-3 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs transition-all">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 font-semibold text-xs">
+            {activeSpecificDay ? "Data:" : "Período:"}
+          </span>{" "}
+          <strong className="text-slate-800 text-sm font-bold font-mono">
+            {activeSpecificDay
+              ? formatDateBR(activeSpecificDay.dateStr)
+              : `${MONTH_NAMES[viewMonth]} / ${viewYear}`}
+          </strong>
+        </div>
+        <div className="flex items-center gap-6">
+          <div>
+            <span className="text-slate-400 font-semibold">Vendas:</span>{" "}
+            <strong className="text-[#167657] font-extrabold text-sm sm:text-base ml-1">
+              {(activeSpecificDay ? activeSpecificDay.sales : monthTotalSales).toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </strong>
+          </div>
+          <div>
+            <span className="text-slate-400 font-semibold">Transações:</span>{" "}
+            <strong className="text-[#f7aa1c] font-extrabold text-sm sm:text-base ml-1">
+              {activeSpecificDay ? activeSpecificDay.transactions : monthTotalTransactions}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar Grid Container */}
+      <div className="py-6">
+        {/* Days of Week Header */}
+        <div className="grid grid-cols-7 gap-2 mb-3 text-center">
+          {WEEKDAYS.map((day) => (
+            <div key={day} className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Days */}
+        <div className="grid grid-cols-7 gap-2.5">
+          {processedCells.map((cell, idx) => {
+            const color = getColor(cell.level, cell.isInSelectedPeriod);
             const isDimmed =
-              selectedCategory !== null && selectedCategory !== day.level;
+              selectedCategory !== null && selectedCategory !== cell.level;
+            const isSelected = selectedDay?.dateStr === cell.dateStr;
 
             return (
               <div
-                key={day.dateStr}
-                onMouseEnter={() => setHoveredDay(day)}
+                key={`${cell.dateStr}-${idx}`}
+                onMouseEnter={() => setHoveredDay(cell)}
                 onMouseLeave={() => setHoveredDay(null)}
-                className={`relative group flex flex-col items-center cursor-pointer transition-all duration-200 transform hover:scale-125 ${
-                  isDimmed ? "opacity-20" : "opacity-100"
-                }`}
+                onClick={() => setSelectedDay(cell)}
+                className={`relative flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                  isSelected
+                    ? "border-[#167657] bg-emerald-50/80 shadow-sm ring-2 ring-[#167657]/30 scale-105"
+                    : !cell.isCurrentMonth
+                    ? "opacity-30 border-transparent bg-slate-100/40"
+                    : cell.isInSelectedPeriod
+                    ? "border-white/60 bg-white/70 shadow-xs hover:shadow-md hover:scale-105"
+                    : "border-slate-200/50 bg-slate-100/60"
+                } ${isDimmed ? "opacity-25" : ""}`}
               >
+                {/* Circle Indicator matching Reference UI */}
                 <div
-                  className="w-6 h-6 rounded-full shadow-inner border border-white/10 transition-colors"
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-transform shadow-xs ${
+                    cell.isInSelectedPeriod && cell.level !== "none"
+                      ? "text-white"
+                      : "text-slate-600"
+                  }`}
                   style={{ backgroundColor: color }}
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 font-mono">
-                  {day.dayNum}
-                </span>
-
-                {/* Tooltip on hover */}
-                <div className="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-20">
-                  <div className="bg-zinc-950 text-zinc-100 text-[11px] py-1.5 px-3 rounded-md shadow-2xl border border-zinc-700 whitespace-nowrap">
-                    <p className="font-semibold text-zinc-300">{day.dateStr}</p>
-                    <p className="text-emerald-400">
-                      R$ {day.sales.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-zinc-400">{day.transactions} transações</p>
-                  </div>
-                  <div className="w-2 h-2 bg-zinc-950 rotate-45 border-r border-b border-zinc-700 -mt-1" />
+                >
+                  {cell.dayNum}
                 </div>
               </div>
             );
@@ -178,23 +331,23 @@ export function HeatmapPixelChart({
         </div>
       </div>
 
-      {/* Interactive Legend with Exact Qrido Brand Palette */}
-      <div className="pt-6 border-t border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* Interactive Legend */}
+      <div className="pt-6 border-t border-[#fcd5b8] grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Alto Volume */}
         <button
           onClick={() =>
             setSelectedCategory(selectedCategory === "high" ? null : "high")
           }
-          className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
             selectedCategory === "high"
-              ? "bg-[#167657]/20 border-[#167657]"
-              : "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700"
+              ? "bg-[#167657]/15 border-[#167657] shadow-xs"
+              : "bg-white/80 border-[#fcd5b8] hover:border-[#167657]/50"
           }`}
         >
           <div className="w-4 h-4 rounded-full bg-[#167657] shadow-sm" />
           <div className="text-left">
-            <p className="text-lg font-bold text-[#167657] leading-none">{countHigh}</p>
-            <p className="text-xs text-zinc-400 mt-1">Alto volume</p>
+            <p className="text-base font-black text-[#167657] leading-none">{countHigh}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Alto volume</p>
           </div>
         </button>
 
@@ -203,16 +356,16 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "medium" ? null : "medium")
           }
-          className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
             selectedCategory === "medium"
-              ? "bg-[#f7aa1c]/20 border-[#f7aa1c]"
-              : "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700"
+              ? "bg-[#f7aa1c]/15 border-[#f7aa1c] shadow-xs"
+              : "bg-white/80 border-[#fcd5b8] hover:border-[#f7aa1c]/50"
           }`}
         >
           <div className="w-4 h-4 rounded-full bg-[#f7aa1c] shadow-sm" />
           <div className="text-left">
-            <p className="text-lg font-bold text-[#f7aa1c] leading-none">{countMedium}</p>
-            <p className="text-xs text-zinc-400 mt-1">Médio volume</p>
+            <p className="text-base font-black text-[#f7aa1c] leading-none">{countMedium}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Médio volume</p>
           </div>
         </button>
 
@@ -221,16 +374,16 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "low" ? null : "low")
           }
-          className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
             selectedCategory === "low"
-              ? "bg-[#e9592c]/20 border-[#e9592c]"
-              : "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700"
+              ? "bg-[#e9592c]/15 border-[#e9592c] shadow-xs"
+              : "bg-white/80 border-[#fcd5b8] hover:border-[#e9592c]/50"
           }`}
         >
           <div className="w-4 h-4 rounded-full bg-[#e9592c] shadow-sm" />
           <div className="text-left">
-            <p className="text-lg font-bold text-[#e9592c] leading-none">{countLow}</p>
-            <p className="text-xs text-zinc-400 mt-1">Baixo volume</p>
+            <p className="text-base font-black text-[#e9592c] leading-none">{countLow}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Baixo volume</p>
           </div>
         </button>
 
@@ -239,19 +392,20 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "none" ? null : "none")
           }
-          className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
             selectedCategory === "none"
-              ? "bg-zinc-700/30 border-zinc-600"
-              : "bg-zinc-900/60 border-zinc-800 hover:border-zinc-700"
+              ? "bg-slate-200 border-slate-400 shadow-xs"
+              : "bg-white/80 border-[#fcd5b8] hover:border-slate-400"
           }`}
         >
-          <div className="w-4 h-4 rounded-full bg-[#2f2f2f] border border-zinc-700 shadow-sm" />
+          <div className="w-4 h-4 rounded-full bg-[#cbd5e1] shadow-sm" />
           <div className="text-left">
-            <p className="text-lg font-bold text-zinc-400 leading-none">{countNone}</p>
-            <p className="text-xs text-zinc-400 mt-1">Sem movimento</p>
+            <p className="text-base font-black text-slate-600 leading-none">{countNone}</p>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Sem movimento</p>
           </div>
         </button>
       </div>
     </div>
   );
 }
+

@@ -481,7 +481,7 @@ export default function HoldingDashboardPage() {
         data={analyticsData.daily}
         startDate={startDate || "2026-07-01"}
         endDate={endDate || "2026-07-27"}
-        title="Performance in Pixels"
+        title="Mapa de Venda"
         subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial Qrido"
       />
 
