@@ -904,63 +904,71 @@ function AdminContent() {
                         </Card>
                     </div>
 
-                    {/* 2. Hierarchical Count Cards (Holdings, Grupos, Empresas, Clientes) */}
+                    {/* 2. Hierarchical Count Cards (Holdings, Grupos, Empresas, Clientes) - NEUTRAL CARDS */}
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                         {/* Holdings Cadastradas */}
-                        <Card className="border-none shadow-xl bg-[#167657] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Holdings Cadastradas</CardTitle>
-                                <Building className="h-5 w-5 text-white/40" />
+                        <Card className="border border-slate-200/80 shadow-sm bg-white rounded-3xl overflow-hidden p-5 hover:shadow-md transition-all duration-300">
+                            <CardHeader className="flex flex-row items-center justify-between p-0 pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Holdings Cadastradas</CardTitle>
+                                <div className="p-2 bg-emerald-50 text-[#167657] rounded-xl">
+                                    <Building className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-black text-white italic">{stats.totalHoldings}</div>
-                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
-                                    <Shield className="h-3 w-3" />
+                            <CardContent className="p-0">
+                                <div className="text-3xl font-black text-slate-900 italic">{stats.totalHoldings}</div>
+                                <div className="flex items-center gap-1 mt-1.5 text-slate-400 text-[10px] font-bold uppercase italic">
+                                    <Shield className="h-3 w-3 text-[#167657]" />
                                     <span>Nível Superior Admin</span>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Grupos e Mercados */}
-                        <Card className="border-none shadow-xl bg-[#297CCB] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Grupos e Mercados</CardTitle>
-                                <Store className="h-5 w-5 text-white/40" />
+                        <Card className="border border-slate-200/80 shadow-sm bg-white rounded-3xl overflow-hidden p-5 hover:shadow-md transition-all duration-300">
+                            <CardHeader className="flex flex-row items-center justify-between p-0 pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Grupos e Mercados</CardTitle>
+                                <div className="p-2 bg-blue-50 text-[#297CCB] rounded-xl">
+                                    <Store className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-black text-white italic">{stats.totalGroups}</div>
-                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
-                                    <Building className="h-3 w-3" />
+                            <CardContent className="p-0">
+                                <div className="text-3xl font-black text-slate-900 italic">{stats.totalGroups}</div>
+                                <div className="flex items-center gap-1 mt-1.5 text-slate-400 text-[10px] font-bold uppercase italic">
+                                    <Building className="h-3 w-3 text-[#297CCB]" />
                                     <span>Mercados Conveniados</span>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Empresas */}
-                        <Card className="border-none shadow-xl bg-brand-orange rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-white/60">Empresas</CardTitle>
-                                <Store className="h-5 w-5 text-white/40" />
+                        <Card className="border border-slate-200/80 shadow-sm bg-white rounded-3xl overflow-hidden p-5 hover:shadow-md transition-all duration-300">
+                            <CardHeader className="flex flex-row items-center justify-between p-0 pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Empresas</CardTitle>
+                                <div className="p-2 bg-orange-50 text-brand-orange rounded-xl">
+                                    <Store className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-3xl font-black text-white italic">{stats.totalCompanies}</div>
-                                <div className="flex items-center gap-1 mt-2 text-white/50 text-[10px] font-black uppercase italic">
-                                    <Plus className="h-3 w-3" />
+                            <CardContent className="p-0">
+                                <div className="text-3xl font-black text-slate-900 italic">{stats.totalCompanies}</div>
+                                <div className="flex items-center gap-1 mt-1.5 text-slate-400 text-[10px] font-bold uppercase italic">
+                                    <Plus className="h-3 w-3 text-brand-orange" />
                                     <span>{stats.newCompaniesThisMonth} novas este mês</span>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Clientes */}
-                        <Card className="border-none shadow-xl bg-[#f7aa1c] rounded-[32px] overflow-hidden group hover:scale-[1.02] transition-all duration-300">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-900/60">Clientes</CardTitle>
-                                <Users className="h-5 w-5 text-slate-900/40" />
+                        <Card className="border border-slate-200/80 shadow-sm bg-white rounded-3xl overflow-hidden p-5 hover:shadow-md transition-all duration-300">
+                            <CardHeader className="flex flex-row items-center justify-between p-0 pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Clientes</CardTitle>
+                                <div className="p-2 bg-amber-50 text-amber-500 rounded-xl">
+                                    <Users className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="p-0">
                                 <div className="text-3xl font-black text-slate-900 italic">{stats.totalCustomers}</div>
-                                <div className="flex items-center gap-1 mt-2 text-slate-900/50 text-[10px] font-black uppercase italic">
-                                    <Plus className="h-3 w-3" />
+                                <div className="flex items-center gap-1 mt-1.5 text-slate-400 text-[10px] font-bold uppercase italic">
+                                    <Plus className="h-3 w-3 text-amber-500" />
                                     <span>{stats.newCustomersThisMonth} novos este mês</span>
                                 </div>
                             </CardContent>
