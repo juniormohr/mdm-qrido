@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy, Building } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { HeatmapPixelChart, DailyDataPoint } from "@/components/holding/HeatmapPixelChart"
 
 function getExpiryDate() {
     return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
@@ -20,6 +21,8 @@ export default function CompanyDashboard() {
         redemptions: 0, // Resgates quantidade (mês atual)
         totalPoints: 0 // Resgates pontos (mês atual)
     })
+    const [heatmapData, setHeatmapData] = useState<DailyDataPoint[]>([])
+    const [topCustomers, setTopCustomers] = useState<any[]>([])
     const [pendingRequests, setPendingRequests] = useState<any[]>([])
     const [pendingInvites, setPendingInvites] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
@@ -286,6 +289,66 @@ export default function CompanyDashboard() {
             redemptions: redemptionsCount,
             totalPoints: redemptionsPoints
         })
+
+        fetchHeatmapAndTopCustomers(userId, isMall)
+    }
+
+    async function fetchHeatmapAndTopCustomers(userId: string, isMall: boolean) {
+        const supabase = createClient()
+        let companyIds = [userId]
+
+        if (isMall) {
+            const { data: groupStores } = await supabase
+                .from('company_groups')
+                .select('store_id')
+                .eq('mall_id', userId)
+                .eq('status', 'accepted')
+            if (groupStores) {
+                groupStores.forEach(s => { if (s.store_id) companyIds.push(s.store_id) })
+            }
+        }
+
+        // Fetch transactions for Heatmap and Top Customers
+        const { data: transactions } = await supabase
+            .from('loyalty_transactions')
+            .select('*, customer:customer_id(name, phone)')
+            .in('user_id', companyIds)
+
+        if (transactions) {
+            // Build daily heatmap map
+            const dailyMap = new Map<string, { sales: number, transactions: number }>()
+            transactions.forEach(t => {
+                const dateKey = new Date(t.created_at).toISOString().split('T')[0]
+                const current = dailyMap.get(dateKey) || { sales: 0, transactions: 0 }
+                if (t.type === 'earn') {
+                    current.sales += Number(t.sale_amount) || 0
+                }
+                current.transactions += 1
+                dailyMap.set(dateKey, current)
+            })
+            setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
+
+            // Build top customers map
+            const customerMap = new Map<string, { id: string, name: string, totalSpent: number, totalPoints: number, company_name: string }>()
+            transactions.forEach(t => {
+                const cId = t.customer_id
+                if (!cId) return
+                const cName = t.customer?.name || t.customer?.phone || 'Cliente'
+                const current = customerMap.get(cId) || { id: cId, name: cName, totalSpent: 0, totalPoints: 0, company_name: '' }
+                if (t.type === 'earn') {
+                    current.totalSpent += Number(t.sale_amount) || 0
+                    current.totalPoints += Number(t.points) || 0
+                }
+                customerMap.set(cId, current)
+            })
+
+            const sortedCusts = Array.from(customerMap.values())
+                .filter(c => c.totalSpent > 0 || c.totalPoints > 0)
+                .sort((a, b) => b.totalSpent - a.totalSpent)
+                .slice(0, 5)
+
+            setTopCustomers(sortedCusts)
+        }
     }
 
     async function fetchPendingRequests(userId: string) {
@@ -774,6 +837,62 @@ export default function CompanyDashboard() {
                     </Link>
                 )}
             </div>
+
+            {/* Heatmap (Mapa de Venda) */}
+            <HeatmapPixelChart
+                data={heatmapData}
+                title="Mapa de Venda"
+                subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial QRido"
+            />
+
+            {/* Top Clientes (Quem mais gasta) */}
+            <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Clientes</CardTitle>
+                        <p className="text-[11px] text-slate-400 font-medium">Clientes que mais consomem na loja.</p>
+                    </div>
+                    <Trophy className="h-5 w-5 text-amber-500" />
+                </CardHeader>
+                <CardContent className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {topCustomers.length === 0 ? (
+                            <div className="col-span-full text-center py-6 text-slate-400 text-xs font-medium">
+                                Nenhum cliente registrado com compras.
+                            </div>
+                        ) : (
+                            topCustomers.map((cust, index) => {
+                                const rank = index + 1
+                                return (
+                                    <div key={cust.id + index} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 group">
+                                        <div className={cn(
+                                            "h-9 w-9 rounded-xl flex items-center justify-center font-black text-xs transition-all shrink-0",
+                                            rank === 1
+                                                ? "bg-amber-50 text-amber-500 border border-amber-200"
+                                                : "bg-white text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                        )}>
+                                            {rank === 1 ? '👑' : rank}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
+                                                {cust.name}
+                                            </p>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <span className="text-[10px] font-black text-emerald-600 italic">
+                                                    R$ {cust.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                                <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                                    {cust.totalPoints} pts
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
 
             {/* Grid de Conteúdo: Aguardando Confirmação e Top Recompensas */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-slate-100">

@@ -11,8 +11,8 @@ export interface DailyDataPoint {
 
 interface HeatmapPixelChartProps {
   data: DailyDataPoint[];
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
   title?: string;
   subtitle?: string;
 }
