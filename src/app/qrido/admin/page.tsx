@@ -11,7 +11,8 @@ import {
     Plus, Users, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield,
+    Award, Gift, Trophy, ShoppingBag
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +39,7 @@ interface Company {
     partnership_months?: number
     partnership_end_date?: string
     is_active?: boolean
+    hasActivePaidSub?: boolean
     created_at: string
 }
 
@@ -58,8 +60,12 @@ interface AdminStats {
     newCompaniesThisMonth: number
     totalCustomers: number
     newCustomersThisMonth: number
-    totalPoints: number
-    totalRedemptions: number
+    sales30Days: number
+    salesAccumulated: number
+    points30Days: number
+    pointsAccumulated: number
+    redemptions30Days: number
+    redemptionsAccumulated: number
     estimatedRevenue: number
 }
 
@@ -111,18 +117,23 @@ function AdminContent() {
         newCompaniesThisMonth: 0,
         totalCustomers: 0,
         newCustomersThisMonth: 0,
-        totalPoints: 0,
-        totalRedemptions: 0,
+        sales30Days: 0,
+        salesAccumulated: 0,
+        points30Days: 0,
+        pointsAccumulated: 0,
+        redemptions30Days: 0,
+        redemptionsAccumulated: 0,
         estimatedRevenue: 0
     })
     const [companies, setCompanies] = useState<any[]>([])
     const [allCustomers, setAllCustomers] = useState<Customer[]>([])
     const [allTransactions, setAllTransactions] = useState<any[]>([])
     const [topRewards, setTopRewards] = useState<any[]>([])
+    const [topCustomers, setTopCustomers] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
-    const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+    const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
 
     // Modal states
     const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -224,6 +235,12 @@ function AdminContent() {
             console.error('Admin Dashboard: Error fetching companies', profilesError)
         }
 
+        // Fetch subscriptions to check paid statuses
+        const { data: activeSubs } = await supabase
+            .from('subscriptions')
+            .select('user_id, plan, status')
+            .in('status', ['active', 'trialing'])
+
         // To calculate "engagement" (chama icon), fetch transaction summary.
         const { data: txSummary } = await supabase
             .from('loyalty_transactions')
@@ -235,11 +252,16 @@ function AdminContent() {
             const volume = companyTransactions.length
             const isEngaged = volume > 10
 
+            const isPartnership = p.subscription_tier === 'partnership' && (!p.partnership_end_date || new Date(p.partnership_end_date) > new Date())
+            const hasPaidSub = activeSubs?.some(s => s.user_id === p.id && s.plan !== 'start' && (s.status === 'active' || s.status === 'trialing'))
+            const hasActivePaidSub = hasPaidSub || isPartnership || p.subscription_tier === 'pro' || p.subscription_tier === 'master'
+
             return {
                 ...p,
                 redemptions,
                 volume,
-                isEngaged
+                isEngaged,
+                hasActivePaidSub
             }
         })
 
@@ -389,24 +411,83 @@ function AdminContent() {
 
         setTopRewards(selectedRewards)
 
-        // 4. Calculate Stats
+        // 4. Calculate Stats & Top Customers
         const now = new Date()
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+        let sales30Days = 0
+        let salesAccumulated = 0
+        let points30Days = 0
+        let pointsAccumulated = 0
+        let redemptions30Days = 0
+        let redemptionsAccumulated = 0
+
+        const customerSpendMap = new Map<string, { customerId: string; totalSpent: number; totalPoints: number; companyId: string }>()
+
+        if (transactions) {
+            transactions.forEach(t => {
+                const is30Days = t.created_at >= thirtyDaysAgoIso
+                const amount = Number(t.sale_amount || 0)
+                const pts = Number(t.points || 0)
+
+                if (t.type === 'earn') {
+                    salesAccumulated += amount
+                    pointsAccumulated += pts
+                    if (is30Days) {
+                        sales30Days += amount
+                        points30Days += pts
+                    }
+
+                    if (t.customer_id) {
+                        const curr = customerSpendMap.get(t.customer_id) || {
+                            customerId: t.customer_id,
+                            totalSpent: 0,
+                            totalPoints: 0,
+                            companyId: t.user_id
+                        }
+                        curr.totalSpent += amount
+                        curr.totalPoints += pts
+                        customerSpendMap.set(t.customer_id, curr)
+                    }
+                } else if (t.type === 'redeem') {
+                    redemptionsAccumulated += 1
+                    if (is30Days) {
+                        redemptions30Days += 1
+                    }
+                }
+            })
+        }
+
+        const topCustomersList = Array.from(customerSpendMap.values())
+            .sort((a, b) => b.totalSpent - a.totalSpent)
+            .slice(0, 5)
+            .map(item => {
+                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
+                const company = (profiles || []).find(p => p.id === item.companyId)
+                return {
+                    id: item.customerId,
+                    name: foundCust?.name || 'Cliente Especial',
+                    phone: foundCust?.phone || '-',
+                    company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
+                    totalSpent: item.totalSpent,
+                    totalPoints: item.totalPoints
+                }
+            })
+
+        setTopCustomers(topCustomersList)
 
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
 
         const totalHoldings = profiles?.filter(p => p.role === 'holding' || p.company_type === 'holding').length || 0
         const totalGroups = profiles?.filter(p => p.company_type === 'mall' || p.role === 'mall' || p.role === 'group').length || 0
-        const totalStores = profiles?.filter(p => p.company_type === 'store' || (!p.company_type && p.role === 'company')).length || 0
+        const totalStores = profiles?.filter(p => !['holding', 'group', 'mall'].includes(p.role) && !['holding', 'mall'].includes(p.company_type)).length || 0
 
         const revenue = profiles?.reduce((acc, p) => {
             const tier = (p.subscription_tier || 'basic') as keyof typeof TIER_PRICES
             return acc + (TIER_PRICES[tier] || 0)
         }, 0) || 0
-
-        const totalPoints = transactions?.filter(t => t.type === 'earn').reduce((acc, t) => acc + (t.points || 0), 0) || 0
-        const totalRedemptions = transactions?.filter(t => t.type === 'redeem').length || 0
 
         setStats({
             totalHoldings,
@@ -415,8 +496,12 @@ function AdminContent() {
             newCompaniesThisMonth: newComps,
             totalCustomers: endUserProfiles?.length || 0,
             newCustomersThisMonth: newCusts,
-            totalPoints,
-            totalRedemptions,
+            sales30Days,
+            salesAccumulated,
+            points30Days,
+            pointsAccumulated,
+            redemptions30Days,
+            redemptionsAccumulated,
             estimatedRevenue: revenue
         })
 
@@ -499,18 +584,191 @@ function AdminContent() {
         }
     }
 
-    const filteredCompanies = companies.filter(c => {
-        const matchesSearch = c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.phone?.includes(searchTerm) ||
-            c.id.includes(searchTerm)
+    const renderEntityCards = (entityList: any[], entityTypeName: string) => {
+        const filtered = entityList.filter(c => {
+            const matchesSearch = c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.phone?.includes(searchTerm) ||
+                c.id.includes(searchTerm)
 
-        const matchesStatus = companyStatusFilter === 'all' ? true :
-            companyStatusFilter === 'active' ? c.is_active !== false :
-            c.is_active === false
+            const matchesStatus = companyStatusFilter === 'all' ? true :
+                companyStatusFilter === 'active' ? (c.is_active !== false && !!c.hasActivePaidSub) :
+                companyStatusFilter === 'pending' ? (c.is_active !== false && !c.hasActivePaidSub) :
+                c.is_active === false
 
-        return matchesSearch && matchesStatus
-    })
+            return matchesSearch && matchesStatus
+        })
+
+        const countAll = entityList.length
+        const countActive = entityList.filter(c => c.is_active !== false && !!c.hasActivePaidSub).length
+        const countPending = entityList.filter(c => c.is_active !== false && !c.hasActivePaidSub).length
+        const countInactive = entityList.filter(c => c.is_active === false).length
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
+                        <Search className="h-5 w-5 text-slate-300 ml-2" />
+                        <Input
+                            placeholder={`Buscar ${entityTypeName} por nome, e-mail ou ID...`}
+                            className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0 overflow-x-auto">
+                        <button
+                            onClick={() => setCompanyStatusFilter('all')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                companyStatusFilter === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                            )}
+                        >
+                            Todas ({countAll})
+                        </button>
+                        <button
+                            onClick={() => setCompanyStatusFilter('active')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                companyStatusFilter === 'active' ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-emerald-600"
+                            )}
+                        >
+                            Ativas ({countActive})
+                        </button>
+                        <button
+                            onClick={() => setCompanyStatusFilter('pending')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                companyStatusFilter === 'pending' ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-amber-600"
+                            )}
+                        >
+                            Pendentes ({countPending})
+                        </button>
+                        <button
+                            onClick={() => setCompanyStatusFilter('inactive')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
+                            )}
+                        >
+                            Inativas ({countInactive})
+                        </button>
+                    </div>
+                </div>
+
+                {filtered.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 text-slate-400 font-medium">
+                        Nenhum registro encontrado.
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filtered.map(comp => {
+                            const isInactive = comp.is_active === false
+                            const isPending = !isInactive && !comp.hasActivePaidSub
+
+                            return (
+                                <Card key={comp.id} className={cn("border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all", isInactive && "opacity-75 bg-slate-50/80")}>
+                                    <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue font-black uppercase italic">
+                                                {comp.full_name?.charAt(0) || 'E'}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 uppercase italic leading-tight text-sm">{comp.full_name || 'Sem nome'}</p>
+                                                <div className="flex items-center gap-1 mt-0.5">
+                                                    <select
+                                                        className={cn(
+                                                            "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border-none cursor-pointer outline-none",
+                                                            comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
+                                                                comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
+                                                        )}
+                                                        value={comp.subscription_tier || 'basic'}
+                                                        onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
+                                                    >
+                                                        <option value="basic">QRIDINHO</option>
+                                                        <option value="pro">QRIDO</option>
+                                                        <option value="master">QRIDÃO</option>
+                                                        <option value="partnership">PARCERIA</option>
+                                                    </select>
+                                                    {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
+                                                        <div className="flex items-center gap-0.5 text-emerald-500 text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">
+                                                            <Zap className="h-2 w-2 fill-emerald-500" />
+                                                            EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
+                                                        </div>
+                                                    )}
+                                                    {comp.isEngaged && (
+                                                        <div className="flex items-center gap-0.5 text-brand-orange text-[8px] font-black uppercase px-2 py-0.5 bg-brand-orange/10 rounded-full">
+                                                            <Flame className="h-2 w-2" />
+                                                            ENGAGED
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                onClick={() => handleToggleCompanyStatus(comp.id, comp.is_active !== false)}
+                                                className={cn(
+                                                    "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border cursor-pointer shrink-0",
+                                                    isInactive
+                                                        ? "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20"
+                                                        : isPending
+                                                            ? "bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20"
+                                                            : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
+                                                )}
+                                                title={isInactive ? "Clique para ativar loja" : "Clique para inativar loja"}
+                                            >
+                                                <span className={cn("h-1.5 w-1.5 rounded-full", isInactive ? "bg-red-500" : isPending ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse")} />
+                                                {isInactive ? 'INATIVA' : isPending ? 'PENDENTE' : 'ATIVA'}
+                                            </button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
+                                                <Edit2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500 rounded-lg" onClick={() => handleDeleteCompany(comp.id)}>
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="space-y-1.5 border-b border-slate-50 pb-4">
+                                            {comp.cpf_cnpj && (
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
+                                                    <Building className="h-3 w-3 text-slate-400" />
+                                                    CNPJ: {formatCpfCnpj(comp.cpf_cnpj)}
+                                                </div>
+                                            )}
+                                            {comp.email && (
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold lowercase">
+                                                    <Mail className="h-3 w-3 text-slate-300" />
+                                                    {comp.email}
+                                                </div>
+                                            )}
+                                            {comp.phone && (
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
+                                                    <Phone className="h-3 w-3 text-slate-300" />
+                                                    {comp.phone}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-slate-50/50 p-3 rounded-2xl">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">RESGATES</p>
+                                                <p className="text-xl font-black text-slate-700 italic">{comp.redemptions || 0}</p>
+                                            </div>
+                                            <div className="bg-slate-50/50 p-3 rounded-2xl">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">VENDAS</p>
+                                                <p className="text-xl font-black text-brand-blue italic">{comp.volume || 0}</p>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        )
+    }
 
     const filteredCustomers = allCustomers.filter(c => {
         const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -737,6 +995,57 @@ function AdminContent() {
                         </Card>
                     </div>
 
+                    {/* Desempenho Financeiro e Transacional */}
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {/* Vendas (R$) */}
+                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Vendas (R$)</span>
+                                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-2xl">
+                                    <DollarSign className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 italic">
+                                R$ {stats.sales30Days.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400">
+                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">R$ {stats.salesAccumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+                            </p>
+                        </Card>
+
+                        {/* Pontos Distribuídos */}
+                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Pontos Distribuídos</span>
+                                <div className="p-2.5 bg-brand-blue/10 text-brand-blue rounded-2xl">
+                                    <Zap className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 italic">
+                                {stats.points30Days.toLocaleString('pt-BR')} <span className="text-sm font-bold text-brand-blue">pts</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400">
+                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">{stats.pointsAccumulated.toLocaleString('pt-BR')} pts</strong>
+                            </p>
+                        </Card>
+
+                        {/* Resgates Realizados */}
+                        <Card className="border-none shadow-md bg-white rounded-3xl overflow-hidden p-6 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">Resgates Realizados</span>
+                                <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl">
+                                    <Gift className="w-5 h-5" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 italic">
+                                {stats.redemptions30Days} <span className="text-sm font-bold text-amber-600">resgates</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400">
+                                ÚLTIMOS 30 DIAS <span className="text-slate-300 font-normal">•</span> Acumulado: <strong className="text-slate-600">{stats.redemptionsAccumulated} resgates</strong>
+                            </p>
+                        </Card>
+                    </div>
+
                     {/* Heatmap Pixel Matrix Component inside Dashboard */}
                     <HeatmapPixelChart
                         data={heatmapData}
@@ -747,40 +1056,37 @@ function AdminContent() {
                     />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Recent Transactions Audit */}
-                        <Card className="lg:col-span-2 border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                            <CardHeader className="p-6 md:p-8 border-b border-slate-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        {/* Auditoria de Transações */}
+                        <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                            <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
                                 <div>
-                                    <CardTitle className="text-xl font-black italic uppercase text-slate-800">Auditoria de Transações</CardTitle>
-                                    <p className="text-xs text-slate-400 font-medium">Últimas movimentações em toda a plataforma.</p>
+                                    <CardTitle className="text-lg font-black italic uppercase text-slate-800">Auditoria</CardTitle>
+                                    <p className="text-[11px] text-slate-400 font-medium">Últimas movimentações.</p>
                                 </div>
-                                <div className="p-3 bg-slate-50 rounded-2xl text-slate-400 hidden sm:block">
-                                    <Calendar className="h-5 w-5" />
+                                <div className="p-2 bg-slate-50 rounded-xl text-slate-400">
+                                    <Calendar className="h-4 w-4" />
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="divide-y divide-slate-50">
-                                    {allTransactions.slice(0, 8).map(tx => (
-                                        <div key={tx.id} className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className={cn("p-2.5 rounded-xl font-black text-xs", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
+                                    {allTransactions.slice(0, 6).map(tx => (
+                                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn("p-2 rounded-xl font-black text-[10px]", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
                                                     {tx.type === 'earn' ? 'EARN' : 'REDEEM'}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-slate-800">
-                                                        {tx.type === 'earn' ? 'Crédito de pontos' : 'Resgate de prêmio'}
+                                                    <p className="text-xs font-bold text-slate-800">
+                                                        {tx.type === 'earn' ? 'Crédito' : 'Resgate'}
                                                     </p>
-                                                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tighter">
-                                                        Transação: {tx.id.substring(0, 8)}
+                                                    <p className="text-[9px] text-slate-400 font-medium">
+                                                        {new Date(tx.created_at).toLocaleDateString()}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="w-full sm:w-auto text-right">
-                                                <p className={cn("text-lg font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
+                                            <div className="text-right">
+                                                <p className={cn("text-xs font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
                                                     {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase italic">
-                                                    {new Date(tx.created_at).toLocaleDateString()}
                                                 </p>
                                             </div>
                                         </div>
@@ -789,43 +1095,43 @@ function AdminContent() {
                             </CardContent>
                         </Card>
 
-                        {/* Top Rewards Ranking */}
+                        {/* Top Recompensas Ranking */}
                         <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                            <CardHeader className="p-8 border-b border-slate-50">
-                                <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                                <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
+                            <CardHeader className="p-6 border-b border-slate-50">
+                                <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
+                                <p className="text-[11px] text-slate-400 font-medium">Prêmios mais Qridos.</p>
                             </CardHeader>
-                            <CardContent className="p-8">
-                                <div className="space-y-6">
+                            <CardContent className="p-6">
+                                <div className="space-y-4">
                                     {topRewards.length === 0 ? (
-                                        <div className="text-center py-6 text-slate-400 text-sm font-medium">
-                                            Nenhum prêmio disponível na rede.
+                                        <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                                            Nenhum prêmio disponível.
                                         </div>
                                     ) : (
                                         topRewards.map((reward, index) => {
                                             const rank = index + 1
                                             return (
-                                                <div key={reward.id} className="flex items-center gap-4 group">
+                                                <div key={reward.id} className="flex items-center gap-3 group">
                                                     <div className={cn(
-                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
+                                                        "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shrink-0",
                                                         rank === 1 
-                                                            ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200" 
                                                             : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
                                                     )}>
                                                         {rank === 1 ? '🥇' : rank}
                                                     </div>
-                                                    <div className="flex-1">
-                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
                                                             {reward.title}
                                                         </p>
-                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider truncate">
                                                             {reward.company_name}
                                                         </p>
-                                                        <div className="flex items-center justify-between mt-1.5">
-                                                            <span className="text-xs font-bold text-slate-500 italic">
-                                                                {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <span className="text-[10px] font-bold text-slate-500 italic">
+                                                                {reward.resgates} resgates
                                                             </span>
-                                                            <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
+                                                            <span className="text-[9px] font-black text-brand-blue bg-brand-blue/5 px-2 py-0.5 rounded-full">
                                                                 {reward.points_required} pts
                                                             </span>
                                                         </div>
@@ -834,15 +1140,58 @@ function AdminContent() {
                                             )
                                         })
                                     )}
-                                    <div className="pt-4 border-t border-slate-50">
-                                        <Button 
-                                            variant="ghost" 
-                                            className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5"
-                                            onClick={() => router.push('/qrido/admin/rewards')}
-                                        >
-                                            VER TODOS OS PRÊMIOS
-                                        </Button>
-                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Top Clientes (Quem mais gasta) */}
+                        <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                            <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Clientes</CardTitle>
+                                    <p className="text-[11px] text-slate-400 font-medium">Clientes que mais gastam.</p>
+                                </div>
+                                <Trophy className="h-5 w-5 text-amber-500" />
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="space-y-4">
+                                    {topCustomers.length === 0 ? (
+                                        <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                                            Nenhum cliente registrado com compras.
+                                        </div>
+                                    ) : (
+                                        topCustomers.map((cust, index) => {
+                                            const rank = index + 1
+                                            return (
+                                                <div key={cust.id + index} className="flex items-center gap-3 group">
+                                                    <div className={cn(
+                                                        "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shrink-0",
+                                                        rank === 1
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200"
+                                                            : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                    )}>
+                                                        {rank === 1 ? '👑' : rank}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
+                                                            {cust.name}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider truncate">
+                                                            {cust.company_name}
+                                                        </p>
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <span className="text-[11px] font-black text-emerald-600 italic">
+                                                                R$ {cust.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                            </span>
+                                                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                                                {cust.totalPoints} pts
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -850,246 +1199,51 @@ function AdminContent() {
                 </div>
             )}
 
+            {/* Holdings Tab */}
             {activeTab === 'holdings' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-xl font-black text-slate-900 uppercase italic">Holdings Administradoras</h2>
-                            <p className="text-xs text-slate-500">Gestão dos grupos empresariais cadastrados no Qrido</p>
+                            <p className="text-xs text-slate-500">Gestão das holdings e matrizes empresariais</p>
                         </div>
                         <Button className="btn-blue h-10 px-4 text-xs font-bold rounded-xl" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                             <Plus className="h-4 w-4 mr-1" /> Nova Holding
                         </Button>
                     </div>
-
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-slate-700">
-                                <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
-                                    <tr>
-                                        <th className="py-3 px-4">Holding</th>
-                                        <th className="py-3 px-4">E-mail</th>
-                                        <th className="py-3 px-4">Telefone</th>
-                                        <th className="py-3 px-4">CNPJ / CPF</th>
-                                        <th className="py-3 px-4">Data Cadastro</th>
-                                        <th className="py-3 px-4 text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-medium">
-                                    {companies.filter((c: any) => c.role === 'holding' || c.company_type === 'holding').map((holding: any) => (
-                                        <tr key={holding.id} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
-                                                <Building className="w-4 h-4 text-[#167657]" />
-                                                {holding.full_name}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-slate-600">{holding.email || '-'}</td>
-                                            <td className="py-3.5 px-4 text-slate-600">{holding.phone || '-'}</td>
-                                            <td className="py-3.5 px-4 font-mono text-slate-600">{formatCpfCnpj(holding.cpf_cnpj)}</td>
-                                            <td className="py-3.5 px-4 text-slate-500">{new Date(holding.created_at).toLocaleDateString('pt-BR')}</td>
-                                            <td className="py-3.5 px-4 text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteCompany(holding.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    {renderEntityCards(companies.filter(c => c.role === 'holding' || c.company_type === 'holding'), 'holding')}
                 </div>
             )}
 
+            {/* Grupos Tab */}
             {activeTab === 'groups' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
                     <div className="flex items-center justify-between">
                         <div>
                             <h2 className="text-xl font-black text-slate-900 uppercase italic">Grupos & Mercados</h2>
-                            <p className="text-xs text-slate-500">Gestão dos mercados e grupos com lojas conveniadas</p>
+                            <p className="text-xs text-slate-500">Gestão dos mercados, feiras e grupos conveniados</p>
                         </div>
                         <Button className="btn-blue h-10 px-4 text-xs font-bold rounded-xl" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                             <Plus className="h-4 w-4 mr-1" /> Novo Grupo
                         </Button>
                     </div>
-
-                    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-slate-700">
-                                <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
-                                    <tr>
-                                        <th className="py-3 px-4">Grupo / Mercado</th>
-                                        <th className="py-3 px-4">E-mail</th>
-                                        <th className="py-3 px-4">Telefone</th>
-                                        <th className="py-3 px-4">CNPJ / CPF</th>
-                                        <th className="py-3 px-4">Data Cadastro</th>
-                                        <th className="py-3 px-4 text-right">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-medium">
-                                    {companies.filter((c: any) => c.company_type === 'mall' || c.role === 'mall' || c.role === 'group').map((group: any) => (
-                                        <tr key={group.id} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="py-3.5 px-4 font-bold text-slate-900 flex items-center gap-2">
-                                                <Store className="w-4 h-4 text-[#297CCB]" />
-                                                {group.full_name}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-slate-600">{group.email || '-'}</td>
-                                            <td className="py-3.5 px-4 text-slate-600">{group.phone || '-'}</td>
-                                            <td className="py-3.5 px-4 font-mono text-slate-600">{formatCpfCnpj(group.cpf_cnpj)}</td>
-                                            <td className="py-3.5 px-4 text-slate-500">{new Date(group.created_at).toLocaleDateString('pt-BR')}</td>
-                                            <td className="py-3.5 px-4 text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteCompany(group.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    {renderEntityCards(companies.filter(c => c.company_type === 'mall' || c.role === 'mall' || c.role === 'group'), 'grupo')}
                 </div>
             )}
 
+            {/* Empresas Tab */}
             {activeTab === 'companies' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                        <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
-                            <Search className="h-5 w-5 text-slate-300 ml-2" />
-                            <Input
-                                placeholder="Buscar empresa por nome ou ID..."
-                                className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-900 uppercase italic">Empresas (Lojas Individuais)</h2>
+                            <p className="text-xs text-slate-500">Gestão das lojas e estabelecimentos cadastrados</p>
                         </div>
-                        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0">
-                            <button
-                                onClick={() => setCompanyStatusFilter('all')}
-                                className={cn(
-                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                    companyStatusFilter === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                                )}
-                            >
-                                Todas ({companies.length})
-                            </button>
-                            <button
-                                onClick={() => setCompanyStatusFilter('active')}
-                                className={cn(
-                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                    companyStatusFilter === 'active' ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-emerald-600"
-                                )}
-                            >
-                                Ativas ({companies.filter(c => c.is_active !== false).length})
-                            </button>
-                            <button
-                                onClick={() => setCompanyStatusFilter('inactive')}
-                                className={cn(
-                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                    companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
-                                )}
-                            >
-                                Inativas ({companies.filter(c => c.is_active === false).length})
-                            </button>
-                        </div>
+                        <Button className="btn-blue h-10 px-4 text-xs font-bold rounded-xl" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                            <Plus className="h-4 w-4 mr-1" /> Nova Empresa
+                        </Button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredCompanies.map(comp => (
-                            <Card key={comp.id} className={cn("border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all", comp.is_active === false && "opacity-75 bg-slate-50/80")}>
-                                <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue font-black uppercase italic">
-                                            {comp.full_name?.charAt(0) || 'E'}
-                                        </div>
-                                        <div>
-                                            <p className="font-black text-slate-900 uppercase italic leading-tight text-sm">{comp.full_name || 'Sem nome'}</p>
-                                            <div className="flex items-center gap-1 mt-0.5">
-                                                <select
-                                                    className={cn(
-                                                        "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border-none cursor-pointer outline-none",
-                                                        comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
-                                                            comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
-                                                    )}
-                                                    value={comp.subscription_tier || 'basic'}
-                                                    onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
-                                                >
-                                                    <option value="basic">QRIDINHO</option>
-                                                    <option value="pro">QRIDO</option>
-                                                    <option value="master">QRIDÃO</option>
-                                                    <option value="partnership">PARCERIA</option>
-                                                </select>
-                                                {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
-                                                    <div className="flex items-center gap-0.5 text-emerald-500 text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">
-                                                        <Zap className="h-2 w-2 fill-emerald-500" />
-                                                        EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
-                                                    </div>
-                                                )}
-                                                {comp.isEngaged && (
-                                                    <div className="flex items-center gap-0.5 text-brand-orange text-[8px] font-black uppercase px-2 py-0.5 bg-brand-orange/10 rounded-full">
-                                                        <Flame className="h-2 w-2" />
-                                                        ENGAGED
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <button
-                                            onClick={() => handleToggleCompanyStatus(comp.id, comp.is_active !== false)}
-                                            className={cn(
-                                                "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border cursor-pointer shrink-0",
-                                                comp.is_active !== false 
-                                                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20" 
-                                                    : "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20"
-                                            )}
-                                            title={comp.is_active !== false ? "Clique para inativar loja" : "Clique para ativar loja"}
-                                        >
-                                            <span className={cn("h-1.5 w-1.5 rounded-full", comp.is_active !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
-                                            {comp.is_active !== false ? 'ATIVA' : 'INATIVA'}
-                                        </button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
-                                            <Edit2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500 rounded-lg" onClick={() => handleDeleteCompany(comp.id)}>
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-1.5 border-b border-slate-50 pb-4">
-                                        {comp.cpf_cnpj && (
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
-                                                <Building className="h-3 w-3 text-slate-400" />
-                                                CNPJ: {formatCpfCnpj(comp.cpf_cnpj)}
-                                            </div>
-                                        )}
-                                        {comp.email && (
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold lowercase">
-                                                <Mail className="h-3 w-3 text-slate-300" />
-                                                {comp.email}
-                                            </div>
-                                        )}
-                                        {comp.phone && (
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold">
-                                                <Phone className="h-3 w-3 text-slate-300" />
-                                                {comp.phone}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-slate-50/50 p-3 rounded-2xl">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">RESGATES</p>
-                                            <p className="text-xl font-black text-slate-700 italic">{comp.redemptions || 0}</p>
-                                        </div>
-                                        <div className="bg-slate-50/50 p-3 rounded-2xl">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">VENDAS</p>
-                                            <p className="text-xl font-black text-brand-blue italic">{comp.volume || 0}</p>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                    {renderEntityCards(companies.filter(c => !['holding', 'group', 'mall'].includes(c.role) && !['holding', 'mall'].includes(c.company_type)), 'empresa')}
                 </div>
             )}
 
