@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X, Megaphone } from 'lucide-react'
+import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X, Megaphone, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -67,12 +67,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     const adminNav = [
         { name: 'Dashboard', href: '/qrido/admin', icon: LayoutDashboard },
+        { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
+        { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
         { name: 'Empresas', href: '/qrido/admin?tab=companies', icon: Store },
         { name: 'Clientes', href: '/qrido/admin?tab=customers', icon: Users },
     ]
 
     const holdingNav = [
-        { name: 'Painel Holding', href: '/qrido/holding', icon: LayoutDashboard },
+        { name: 'Dashboard', href: '/qrido/holding', icon: LayoutDashboard },
+        { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
+        { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
         { name: 'Empresas & Lojas', href: '/qrido/company', icon: Store },
         { name: 'Configurações', href: '/qrido/settings', icon: Settings },
     ]
