@@ -87,6 +87,8 @@ function AdminContent() {
     useEffect(() => {
         if (tabParam && ['overview', 'holdings', 'groups', 'companies', 'customers'].includes(tabParam)) {
             setActiveTab(tabParam)
+        } else {
+            setActiveTab('overview')
         }
     }, [tabParam])
 
