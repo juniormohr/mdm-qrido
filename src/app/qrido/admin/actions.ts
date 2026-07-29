@@ -288,4 +288,79 @@ export async function resetUserPasswordAction(target: { userId?: string; identif
   }
 }
 
+export async function fetchCompaniesMetadataAction() {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers()
+    if (error || !users) return {}
+
+    const metaMap: Record<string, { responsible_name?: string }> = {}
+    users.forEach(u => {
+      if (u.user_metadata?.responsible_name) {
+        metaMap[u.id] = {
+          responsible_name: u.user_metadata.responsible_name
+        }
+      }
+    })
+    return metaMap
+  } catch (err) {
+    console.error('Error fetching company metadata:', err)
+    return {}
+  }
+}
+
+export async function updateCompanyMetadataAction(userId: string, data: {
+  fullName?: string
+  responsibleName?: string
+  phone?: string
+  email?: string
+  subscriptionTier?: string
+  partnershipMonths?: number
+  partnershipEndDate?: string | null
+  companyType?: string
+}) {
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Atualizar user_metadata no Auth
+    const metaUpdate: any = {}
+    if (data.fullName) metaUpdate.full_name = data.fullName
+    if (data.responsibleName !== undefined) metaUpdate.responsible_name = data.responsibleName
+    if (data.phone) metaUpdate.phone = data.phone
+
+    if (Object.keys(metaUpdate).length > 0) {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: metaUpdate
+      })
+    }
+
+    // 2. Atualizar profiles no DB
+    const updatePayload: any = {
+      full_name: data.fullName,
+      phone: data.phone,
+      email: data.email,
+      subscription_tier: data.subscriptionTier,
+      partnership_months: data.partnershipMonths,
+      partnership_end_date: data.partnershipEndDate,
+      company_type: data.companyType
+    }
+    if (data.responsibleName) {
+      updatePayload.responsible_name = data.responsibleName
+    }
+
+    let { error } = await supabaseAdmin.from('profiles').update(updatePayload).eq('id', userId)
+    if (error && error.message?.includes('responsible_name')) {
+      delete updatePayload.responsible_name
+      const res2 = await supabaseAdmin.from('profiles').update(updatePayload).eq('id', userId)
+      error = res2.error
+    }
+
+    if (error) return { error: error.message }
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Erro ao atualizar dados da empresa.' }
+  }
+}
+
+
 

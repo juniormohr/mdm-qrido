@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -311,6 +311,8 @@ function AdminContent() {
             .from('loyalty_transactions')
             .select('user_id, type')
 
+        const metadataMap = await fetchCompaniesMetadataAction()
+
         const companyMetrics = profiles?.map(p => {
             const companyTransactions = txSummary?.filter(t => t.user_id === p.id) || []
             const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
@@ -320,7 +322,9 @@ function AdminContent() {
             const hasPaidSub = activeSubs?.some(s => s.user_id === p.id && s.plan !== 'start' && (s.status === 'active' || s.status === 'trialing'))
             const hasActivePaidSub = hasPaidSub || isPartnership || p.subscription_tier === 'pro' || p.subscription_tier === 'master'
 
-            return { ...p, redemptions, volume, isEngaged, hasActivePaidSub }
+            const responsible_name = p.responsible_name || metadataMap[p.id]?.responsible_name || ''
+
+            return { ...p, responsible_name, redemptions, volume, isEngaged, hasActivePaidSub }
         })
 
         if (companyMetrics) setCompanies(companyMetrics)
@@ -715,6 +719,12 @@ function AdminContent() {
                                     </CardHeader>
                                     <CardContent className="p-6 space-y-4">
                                         <div className="space-y-1.5 border-b border-slate-50 pb-4">
+                                            {comp.responsible_name && (
+                                                <div className="flex items-center gap-2 text-[10px] text-slate-600 font-bold uppercase">
+                                                    <User className="h-3 w-3 text-brand-blue" />
+                                                    Responsável: {comp.responsible_name}
+                                                </div>
+                                            )}
                                             {comp.cpf_cnpj && (
                                                 <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
                                                     <Building className="h-3 w-3 text-slate-400" />
@@ -1381,28 +1391,18 @@ function AdminContent() {
                                     partnership_end_date = end.toISOString()
                                 }
 
-                                const updatePayload: any = {
-                                    full_name: formData.get('full_name'),
-                                    phone: formData.get('phone'),
-                                    email: formData.get('email'),
-                                    subscription_tier: tier,
-                                    partnership_months: tier === 'partnership' ? months : null,
-                                    partnership_end_date: partnership_end_date,
-                                    company_type: company_type
-                                }
-                                const respName = formData.get('responsible_name') as string
-                                if (respName) {
-                                    updatePayload.responsible_name = respName
-                                }
+                                const result = await updateCompanyMetadataAction(currentEntity.id, {
+                                    fullName: formData.get('full_name') as string,
+                                    responsibleName: formData.get('responsible_name') as string,
+                                    phone: formData.get('phone') as string,
+                                    email: formData.get('email') as string,
+                                    subscriptionTier: tier,
+                                    partnershipMonths: tier === 'partnership' ? months : undefined,
+                                    partnershipEndDate: partnership_end_date,
+                                    companyType: company_type
+                                })
 
-                                let { error } = await supabase.from('profiles').update(updatePayload).eq('id', currentEntity.id)
-                                if (error && error.message?.includes('responsible_name')) {
-                                    delete updatePayload.responsible_name
-                                    const res2 = await supabase.from('profiles').update(updatePayload).eq('id', currentEntity.id)
-                                    error = res2.error
-                                }
-
-                                if (error) alert('Erro ao salvar empresa: ' + error.message)
+                                if (result.error) alert('Erro ao salvar empresa: ' + result.error)
                                 else {
                                     setShowCompanyModal(false)
                                     fetchAllData()
