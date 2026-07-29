@@ -168,11 +168,22 @@ function GroupDashboardContent() {
     // Load all available stores for invite modal
     const { data: allStores } = await supabase
       .from("profiles")
-      .select("id, full_name, email")
-      .or("company_type.eq.store,role.eq.company");
+      .select("id, full_name, email, role, company_type")
+      .eq("company_type", "store")
+      .in("role", ["company", "store"]);
 
     if (allStores) {
-      const uninvited = allStores.filter(s => !allInvited.some(inv => inv.id === s.id));
+      const storesOnly = allStores.filter(
+        (s: any) =>
+          s.id !== user.id &&
+          s.role !== "customer" &&
+          s.role !== "admin" &&
+          s.role !== "holding" &&
+          s.role !== "mall" &&
+          s.role !== "group" &&
+          s.company_type === "store"
+      );
+      const uninvited = storesOnly.filter(s => !allInvited.some(inv => inv.id === s.id));
       setAvailableStoresForInvite(uninvited);
     }
 
