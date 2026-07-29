@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,10 @@ interface Product {
     double_points_active?: boolean
 }
 
-export default function ProductManagementPage() {
+function ProductManagementContent() {
+    const searchParams = useSearchParams()
+    const router = useRouter()
+
     const [loading, setLoading] = useState(true)
     const [products, setProducts] = useState<Product[]>([])
     const [showNewForm, setShowNewForm] = useState(false)
@@ -46,6 +50,18 @@ export default function ProductManagementPage() {
     useEffect(() => {
         fetchProducts()
     }, [])
+
+    useEffect(() => {
+        const highlightSuccess = searchParams.get('highlight_success') || searchParams.get('payment_success') || searchParams.get('highlight_activated')
+        const productId = searchParams.get('product_id')
+        const duration = (searchParams.get('duration') as 'day' | 'week') || 'day'
+
+        if ((highlightSuccess === 'true' || highlightSuccess === '1') && productId) {
+            handleActivateHighlight(productId, duration).then(() => {
+                router.replace('/qrido/products')
+            })
+        }
+    }, [searchParams])
 
     async function fetchProducts() {
         setLoading(true)
@@ -99,9 +115,7 @@ export default function ProductManagementPage() {
         }
     }
 
-    async function handleActivateHighlight(duration: 'day' | 'week') {
-        if (!selectedProductForHighlight) return
-        
+    async function handleActivateHighlight(productId: string, duration: 'day' | 'week') {
         const expiresAt = new Date()
         if (duration === 'day') {
             expiresAt.setDate(expiresAt.getDate() + 1)
@@ -116,7 +130,7 @@ export default function ProductManagementPage() {
                 highlight_active: true,
                 highlight_expires_at: expiresAt.toISOString()
             })
-            .eq('id', selectedProductForHighlight.id)
+            .eq('id', productId)
 
         if (!error) {
             setShowHighlightModal(false)
@@ -478,8 +492,8 @@ export default function ProductManagementPage() {
                                 <Button 
                                     className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl"
                                     onClick={() => {
-                                        handleActivateHighlight('day')
-                                        window.open('https://checkout.qridoapp.com.br/pay/destaque-1-dia-qrido', '_blank')
+                                        setShowHighlightModal(false)
+                                        window.open(`https://checkout.qridoapp.com.br/pay/destaque-1-dia-qrido?product_id=${selectedProductForHighlight?.id || ''}`, '_blank')
                                     }}
                                 >
                                     Destacar
@@ -523,8 +537,8 @@ export default function ProductManagementPage() {
                                         <Button 
                                             className="btn-blue h-9 text-[10px] font-black italic uppercase px-4 rounded-xl"
                                             onClick={() => {
-                                                handleActivateHighlight('week')
-                                                window.open('https://checkout.qridoapp.com.br/pay/destaque-1-semana-qrido', '_blank')
+                                                setShowHighlightModal(false)
+                                                window.open(`https://checkout.qridoapp.com.br/pay/destaque-1-semana-qrido?product_id=${selectedProductForHighlight?.id || ''}`, '_blank')
                                             }}
                                         >
                                             Destacar
@@ -547,5 +561,17 @@ export default function ProductManagementPage() {
                 </DialogContent>
             </Dialog>
         </div>
+    )
+}
+
+export default function ProductManagementPage() {
+    return (
+        <Suspense fallback={
+            <div className="p-8 flex justify-center items-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue"></div>
+            </div>
+        }>
+            <ProductManagementContent />
+        </Suspense>
     )
 }
