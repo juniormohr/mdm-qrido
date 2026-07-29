@@ -810,6 +810,7 @@ export default function CustomerDashboard() {
             if (profiles) {
                 rawCompanies = profiles as Company[]
             }
+        }
         // Filtrar apenas empresas com pagamento confirmado ou status de parceria
         if (rawCompanies.length > 0) {
             const candidateIds = rawCompanies.map(c => c.id)
