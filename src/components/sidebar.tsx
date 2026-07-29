@@ -18,6 +18,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const [role, setRole] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
 
+    const [companyType, setCompanyType] = useState<string | null>(null)
+
     useEffect(() => {
         async function fetchRole() {
             setLoading(true)
@@ -30,11 +32,14 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role')
+                .select('role, company_type')
                 .eq('id', user.id)
                 .single()
 
-            if (profile) setRole(profile.role)
+            if (profile) {
+                setRole(profile.role)
+                setCompanyType(profile.company_type)
+            }
             setLoading(false)
         }
         fetchRole()
@@ -51,7 +56,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Clientes', href: '/qrido/customers', icon: Users },
         { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
         { name: 'Equipe', href: '/qrido/company/users', icon: Users },
-        { name: 'Regras de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
+        { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
         { name: 'MKT', href: '/qrido/mkt', icon: Megaphone },
     ]
 
@@ -66,28 +71,52 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const adminNav = [
-        { name: 'Dashboard', href: '/qrido/admin', icon: LayoutDashboard },
+        { name: 'Dashboard', href: '/qrido/admin?tab=overview', icon: LayoutDashboard },
         { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
         { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
         { name: 'Empresas', href: '/qrido/admin?tab=companies', icon: Store },
-        { name: 'Clientes', href: '/qrido/admin?tab=customers', icon: Users },
+        { name: 'Clientes Globais', href: '/qrido/admin?tab=customers', icon: Users },
+        { name: 'Produtos', href: '/qrido/products', icon: Package },
+        { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'MKT', href: '/qrido/mkt', icon: Megaphone },
+        { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
     ]
 
     const holdingNav = [
-        { name: 'Dashboard', href: '/qrido/holding', icon: LayoutDashboard },
-        { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
-        { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
-        { name: 'Empresas & Lojas', href: '/qrido/company', icon: Store },
+        { name: 'Dashboard', href: '/qrido/holding?tab=overview', icon: LayoutDashboard },
+        { name: 'Meus Grupos', href: '/qrido/holding?tab=groups', icon: Building2 },
+        { name: 'Minhas Lojas', href: '/qrido/holding?tab=companies', icon: Store },
+        { name: 'Clientes', href: '/qrido/holding?tab=customers', icon: Users },
+        { name: 'Produtos', href: '/qrido/products', icon: Package },
+        { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Mkt', href: '/qrido/mkt', icon: Megaphone },
+        { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
         { name: 'Configurações', href: '/qrido/settings', icon: Settings },
     ]
 
+    const groupNav = [
+        { name: 'Dashboard', href: '/qrido/group?tab=overview', icon: LayoutDashboard },
+        { name: 'Minhas Lojas', href: '/qrido/group?tab=companies', icon: Store },
+        { name: 'Clientes', href: '/qrido/group?tab=customers', icon: Users },
+        { name: 'Produtos', href: '/qrido/products', icon: Package },
+        { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Mkt', href: '/qrido/mkt', icon: Megaphone },
+        { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
+        { name: 'Configurações', href: '/qrido/settings', icon: Settings },
+    ]
+
+    const isHolding = role === 'holding' || companyType === 'holding'
+    const isGroup = role === 'mall' || role === 'group' || companyType === 'mall'
+
     const navItems = role === 'admin'
         ? [...adminNav, ...globalNav]
-        : (role === 'holding'
+        : (isHolding
             ? holdingNav
-            : (role === 'customer'
-                ? customerNav
-                : [...companyNav, ...globalNav]))
+            : (isGroup
+                ? groupNav
+                : (role === 'customer'
+                    ? customerNav
+                    : [...companyNav, ...globalNav])))
 
     return (
         <>

@@ -212,6 +212,23 @@ function AdminContent() {
         setLoading(true)
         const supabase = createClient()
 
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+            const { data: userProf } = await supabase.from('profiles').select('role, company_type').eq('id', user.id).single()
+            if (userProf && userProf.role !== 'admin') {
+                if (userProf.role === 'holding' || userProf.company_type === 'holding') {
+                    router.push('/qrido/holding')
+                    return
+                } else if (userProf.role === 'mall' || userProf.role === 'group' || userProf.company_type === 'mall') {
+                    router.push('/qrido/group')
+                    return
+                } else {
+                    router.push('/qrido/company')
+                    return
+                }
+            }
+        }
+
         const { data: hgData } = await supabase.from('holding_groups').select('holding_id, group_id')
         const { data: cgData } = await supabase.from('company_groups').select('mall_id, store_id')
 
@@ -749,9 +766,15 @@ function AdminContent() {
                     <p className="subheading-mobile">Controle total da rede de fidelidade e faturamento.</p>
                 </div>
 
-                <div className="flex gap-4">
-                    <Button className="btn-blue h-12 px-6 rounded-2xl shadow-lg shadow-brand-blue/20" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
-                        <Plus className="h-5 w-5 mr-2" /> NOVA EMPRESA
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button className="btn-emerald h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                        <Plus className="h-4 w-4 mr-1.5" /> NOVA HOLDING
+                    </Button>
+                    <Button className="btn-blue h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                        <Plus className="h-4 w-4 mr-1.5" /> NOVO GRUPO
+                    </Button>
+                    <Button className="bg-brand-orange hover:bg-brand-orange/90 text-white h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                        <Plus className="h-4 w-4 mr-1.5" /> NOVA EMPRESA
                     </Button>
                 </div>
             </div>

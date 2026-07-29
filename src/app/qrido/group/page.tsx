@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { HeatmapPixelChart, DailyDataPoint } from "@/components/holding/HeatmapPixelChart";
 import { 
-  Building2, 
   Store, 
   Calendar, 
   TrendingUp, 
@@ -13,35 +12,22 @@ import {
   Users, 
   Award, 
   Plus,
-  Search,
   Mail,
   Phone,
-  Building,
-  CheckCircle2,
-  Clock,
   Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 
 type DateFilterPreset = "yesterday" | "last_7_days" | "last_30_days" | "custom";
 
-interface GroupOption {
+interface StoreOption {
   id: string;
   name: string;
   email?: string;
   phone?: string;
   status: "accepted" | "pending" | "rejected";
-}
-
-interface StoreOption {
-  id: string;
-  name: string;
-  group_name?: string;
-  email?: string;
-  phone?: string;
 }
 
 interface StoreRanking {
@@ -51,7 +37,7 @@ interface StoreRanking {
   total_transactions: number;
 }
 
-export default function HoldingDashboardPage() {
+export default function GroupDashboardPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab");
@@ -59,7 +45,7 @@ export default function HoldingDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>("overview");
 
   useEffect(() => {
-    if (tabParam && ["overview", "groups", "companies", "customers"].includes(tabParam)) {
+    if (tabParam && ["overview", "companies", "customers"].includes(tabParam)) {
       setActiveTab(tabParam);
     } else {
       setActiveTab("overview");
@@ -68,25 +54,22 @@ export default function HoldingDashboardPage() {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    router.push(`/qrido/holding?tab=${tab}`);
+    router.push(`/qrido/group?tab=${tab}`);
   };
 
   const [preset, setPreset] = useState<DateFilterPreset>("last_30_days");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  const [acceptedGroups, setAcceptedGroups] = useState<GroupOption[]>([]);
-  const [allInvitedGroups, setAllInvitedGroups] = useState<GroupOption[]>([]);
-  const [stores, setStores] = useState<StoreOption[]>([]);
+  const [acceptedStores, setAcceptedStores] = useState<StoreOption[]>([]);
+  const [allInvitedStores, setAllInvitedStores] = useState<StoreOption[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
 
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [availableAllGroups, setAvailableAllGroups] = useState<any[]>([]);
-  const [selectedInviteGroupId, setSelectedInviteGroupId] = useState("");
+  const [availableStoresForInvite, setAvailableStoresForInvite] = useState<any[]>([]);
+  const [selectedInviteStoreId, setSelectedInviteStoreId] = useState("");
 
   const [loading, setLoading] = useState<boolean>(true);
   const [analyticsData, setAnalyticsData] = useState<{
@@ -95,7 +78,6 @@ export default function HoldingDashboardPage() {
       grand_points_earned: number;
       grand_points_redeemed: number;
       grand_total_transactions: number;
-      active_days: number;
     };
     daily: DailyDataPoint[];
     stores: StoreRanking[];
@@ -105,7 +87,6 @@ export default function HoldingDashboardPage() {
       grand_points_earned: 0,
       grand_points_redeemed: 0,
       grand_total_transactions: 0,
-      active_days: 0,
     },
     daily: [],
     stores: [],
@@ -136,74 +117,41 @@ export default function HoldingDashboardPage() {
     }
   }, [preset]);
 
-  const fetchHoldingData = async () => {
+  const fetchGroupData = async () => {
     setLoading(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Check if user is holding
-    const { data: userProf } = await supabase.from('profiles').select('role, company_type').eq('id', user.id).single();
-    if (userProf && userProf.role !== 'holding' && userProf.company_type !== 'holding' && userProf.role !== 'admin') {
-      router.push('/qrido/company');
-      return;
-    }
+    // Load stores linked to this group
+    const { data: cgData } = await supabase
+      .from("company_groups")
+      .select("store_id, status, profiles!company_groups_store_id_fkey(id, full_name, email, phone)")
+      .eq("mall_id", user.id);
 
-    // Load groups linked to this holding
-    const { data: hgData } = await supabase
-      .from("holding_groups")
-      .select("group_id, status, profiles!holding_groups_group_id_fkey(id, full_name, email, phone)")
-      .eq("holding_id", user.id);
+    const allInvited: StoreOption[] = [];
+    const accepted: StoreOption[] = [];
+    const acceptedStoreIds: string[] = [];
 
-    const allInvited: GroupOption[] = [];
-    const accepted: GroupOption[] = [];
-    const acceptedGroupIds: string[] = [];
-
-    if (hgData) {
-      hgData.forEach((item: any) => {
-        const grp: GroupOption = {
-          id: item.group_id,
-          name: item.profiles?.full_name || "Grupo Sem Nome",
+    if (cgData) {
+      cgData.forEach((item: any) => {
+        const st: StoreOption = {
+          id: item.store_id,
+          name: item.profiles?.full_name || "Loja",
           email: item.profiles?.email,
           phone: item.profiles?.phone,
           status: item.status || "accepted",
         };
-        allInvited.push(grp);
+        allInvited.push(st);
         if (item.status === "accepted" || item.status === "active" || !item.status) {
-          accepted.push(grp);
-          acceptedGroupIds.push(item.group_id);
+          accepted.push(st);
+          acceptedStoreIds.push(item.store_id);
         }
       });
     }
 
-    setAllInvitedGroups(allInvited);
-    setAcceptedGroups(accepted);
-
-    // Fetch stores of accepted groups ONLY
-    let acceptedStores: StoreOption[] = [];
-    let acceptedStoreIds: string[] = [];
-    if (acceptedGroupIds.length > 0) {
-      const { data: cgData } = await supabase
-        .from("company_groups")
-        .select("store_id, mall_id, profiles!company_groups_store_id_fkey(id, full_name, email, phone)")
-        .in("mall_id", acceptedGroupIds)
-        .eq("status", "accepted");
-
-      if (cgData) {
-        cgData.forEach((item: any) => {
-          const parentGroup = accepted.find(g => g.id === item.mall_id);
-          acceptedStores.push({
-            id: item.store_id,
-            name: item.profiles?.full_name || "Loja",
-            group_name: parentGroup?.name || "Grupo",
-            email: item.profiles?.email,
-            phone: item.profiles?.phone,
-          });
-          acceptedStoreIds.push(item.store_id);
-        });
-      }
-    }
-    setStores(acceptedStores);
+    setAllInvitedStores(allInvited);
+    setAcceptedStores(accepted);
 
     // Load clients of accepted stores
     if (acceptedStoreIds.length > 0) {
@@ -212,164 +160,197 @@ export default function HoldingDashboardPage() {
         .select("*, profiles:user_id(full_name)")
         .in("user_id", acceptedStoreIds);
 
-      if (storeCusts) {
-        setCustomers(storeCusts);
-      }
+      if (storeCusts) setCustomers(storeCusts);
     } else {
       setCustomers([]);
     }
 
-    // Load available all groups for invite modal
-    const { data: allMalls } = await supabase
+    // Load all available stores for invite modal
+    const { data: allStores } = await supabase
       .from("profiles")
       .select("id, full_name, email")
-      .or("company_type.eq.mall,role.eq.mall,role.eq.group");
-    
-    if (allMalls) {
-      const uninvited = allMalls.filter(m => !allInvited.some(inv => inv.id === m.id));
-      setAvailableAllGroups(uninvited);
+      .or("company_type.eq.store,role.eq.company");
+
+    if (allStores) {
+      const uninvited = allStores.filter(s => !allInvited.some(inv => inv.id === s.id));
+      setAvailableStoresForInvite(uninvited);
     }
 
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchHoldingData();
+    fetchGroupData();
   }, []);
 
-  // Fetch analytics RPC/Fallback
+  // Fetch analytics for accepted stores ONLY
   useEffect(() => {
     async function fetchAnalytics() {
       if (!startDate || !endDate) return;
       setLoading(true);
 
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const startIso = `${startDate}T00:00:00.000Z`;
       const endIso = `${endDate}T23:59:59.999Z`;
 
-      const { data: rpcData, error } = await supabase.rpc("get_holding_analytics", {
-        p_holding_id: user.id,
-        p_start_date: startIso,
-        p_end_date: endIso,
-        p_group_id: selectedGroupId === "all" ? null : selectedGroupId,
-        p_store_id: selectedStoreId === "all" ? null : selectedStoreId,
-      });
+      const targetStoreIds = selectedStoreId === "all"
+        ? acceptedStores.map(s => s.id)
+        : [selectedStoreId];
 
-      if (!error && rpcData) {
+      if (targetStoreIds.length === 0) {
         setAnalyticsData({
-          summary: {
-            grand_total_sales: Number(rpcData.summary?.grand_total_sales || 0),
-            grand_points_earned: Number(rpcData.summary?.grand_points_earned || 0),
-            grand_points_redeemed: Number(rpcData.summary?.grand_points_redeemed || 0),
-            grand_total_transactions: Number(rpcData.summary?.grand_total_transactions || 0),
-            active_days: Number(rpcData.summary?.active_days || 0),
-          },
-          daily: (rpcData.daily || []).map((d: any) => ({
-            date: d.stat_date,
-            sales: Number(d.total_sales || 0),
-            transactions: Number(d.total_transactions || 0),
-          })),
-          stores: (rpcData.stores || []).map((s: any) => ({
-            store_id: s.store_id,
-            store_name: s.store_name || "Loja",
-            total_sales: Number(s.total_sales || 0),
-            total_transactions: Number(s.total_transactions || 0),
-          })),
+          summary: { grand_total_sales: 0, grand_points_earned: 0, grand_points_redeemed: 0, grand_total_transactions: 0 },
+          daily: [],
+          stores: [],
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { data: txs } = await supabase
+        .from("loyalty_transactions")
+        .select("created_at, sale_amount, points, type, user_id, profiles(full_name)")
+        .in("user_id", targetStoreIds)
+        .gte("created_at", startIso)
+        .lte("created_at", endIso);
+
+      let totalSales = 0;
+      let pointsEarned = 0;
+      let pointsRedeemed = 0;
+      const dailyMap = new Map<string, { sales: number; transactions: number }>();
+      const storeMap = new Map<string, { name: string; sales: number; txs: number }>();
+
+      if (txs) {
+        txs.forEach((t: any) => {
+          const dateStr = new Date(t.created_at).toISOString().split("T")[0];
+          const amount = Number(t.sale_amount || 0);
+
+          if (t.type === "earn") {
+            totalSales += amount;
+            pointsEarned += Number(t.points || 0);
+          } else if (t.type === "redeem") {
+            pointsRedeemed += Number(t.points || 0);
+          }
+
+          const currDay = dailyMap.get(dateStr) || { sales: 0, transactions: 0 };
+          currDay.sales += amount;
+          currDay.transactions += 1;
+          dailyMap.set(dateStr, currDay);
+
+          const storeName = t.profiles?.full_name || "Loja";
+          const currStore = storeMap.get(t.user_id) || { name: storeName, sales: 0, txs: 0 };
+          currStore.sales += amount;
+          currStore.txs += 1;
+          storeMap.set(t.user_id, currStore);
         });
       }
+
+      const dailyList: DailyDataPoint[] = Array.from(dailyMap.entries()).map(([date, d]) => ({
+        date,
+        sales: d.sales,
+        transactions: d.transactions,
+      }));
+
+      const storeList: StoreRanking[] = Array.from(storeMap.entries()).map(([id, s]) => ({
+        store_id: id,
+        store_name: s.name,
+        total_sales: s.sales,
+        total_transactions: s.txs,
+      })).sort((a, b) => b.total_sales - a.total_sales);
+
+      setAnalyticsData({
+        summary: {
+          grand_total_sales: totalSales,
+          grand_points_earned: pointsEarned,
+          grand_points_redeemed: pointsRedeemed,
+          grand_total_transactions: txs?.length || 0,
+        },
+        daily: dailyList,
+        stores: storeList,
+      });
+
       setLoading(false);
     }
 
     fetchAnalytics();
-  }, [startDate, endDate, selectedGroupId, selectedStoreId]);
+  }, [startDate, endDate, selectedStoreId, acceptedStores]);
 
   const handleSendInvite = async () => {
-    if (!selectedInviteGroupId) return;
+    if (!selectedInviteStoreId) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("holding_groups").insert({
-      holding_id: user.id,
-      group_id: selectedInviteGroupId,
+    const { error } = await supabase.from("company_groups").insert({
+      mall_id: user.id,
+      store_id: selectedInviteStoreId,
       status: "pending",
     });
 
     if (error) {
       alert("Erro ao enviar convite: " + error.message);
     } else {
-      alert("Convite enviado com sucesso para o Grupo!");
+      alert("Convite enviado com sucesso para a Loja!");
       setShowInviteModal(false);
-      fetchHoldingData();
+      fetchGroupData();
     }
   };
 
-  const handleRemoveInvite = async (groupId: string) => {
-    if (!confirm("Deseja remover este grupo da holding?")) return;
+  const handleRemoveInvite = async (storeId: string) => {
+    if (!confirm("Deseja remover esta loja do grupo?")) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from("holding_groups").delete().eq("holding_id", user.id).eq("group_id", groupId);
-    fetchHoldingData();
+    await supabase.from("company_groups").delete().eq("mall_id", user.id).eq("store_id", storeId);
+    fetchGroupData();
   };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 px-4 sm:px-6 lg:px-8 py-6">
-      {/* Header & Tabs */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2">
-            <span className="bg-[#167657]/10 text-[#167657] text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
-              PAINEL HOLDING
+            <span className="bg-[#297CCB]/10 text-[#297CCB] text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider">
+              PAINEL GRUPO / MERCADO
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-1 uppercase italic">
-            Gestão de Performance de Grupos & Lojas
+            Gestão de Lojas & Mercado Conveniado
           </h1>
           <p className="text-slate-500 text-sm font-medium mt-0.5">
-            Acompanhe o desempenho consolidado dos grupos e lojas conveniados.
+            Acompanhe o desempenho consolidado das lojas participantes do grupo.
           </p>
         </div>
 
-        <Button className="btn-emerald h-11 px-6 rounded-2xl font-black italic uppercase text-xs shadow-md" onClick={() => setShowInviteModal(true)}>
-          <Plus className="h-4 w-4 mr-2" /> CONVIDAR GRUPO
+        <Button className="btn-blue h-11 px-6 rounded-2xl font-black italic uppercase text-xs shadow-md" onClick={() => setShowInviteModal(true)}>
+          <Plus className="h-4 w-4 mr-2" /> CONVIDAR LOJA
         </Button>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Tabs */}
       <div className="flex flex-wrap gap-2 bg-slate-100/70 p-1.5 rounded-2xl w-fit border border-slate-200/50">
         <button
           onClick={() => handleTabChange("overview")}
           className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === "overview" ? "bg-white text-[#167657] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "overview" ? "bg-white text-[#297CCB] shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           DASHBOARD
         </button>
         <button
-          onClick={() => handleTabChange("groups")}
-          className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === "groups" ? "bg-white text-[#167657] shadow-sm" : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          MEUS GRUPOS ({allInvitedGroups.length})
-        </button>
-        <button
           onClick={() => handleTabChange("companies")}
           className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === "companies" ? "bg-white text-[#167657] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "companies" ? "bg-white text-[#297CCB] shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
-          MINHAS LOJAS ({stores.length})
+          MINHAS LOJAS ({allInvitedStores.length})
         </button>
         <button
           onClick={() => handleTabChange("customers")}
           className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-            activeTab === "customers" ? "bg-white text-[#167657] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            activeTab === "customers" ? "bg-white text-[#297CCB] shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
           CLIENTES ({customers.length})
@@ -379,7 +360,6 @@ export default function HoldingDashboardPage() {
       {/* DASHBOARD TAB */}
       {activeTab === "overview" && (
         <div className="space-y-8 animate-in fade-in duration-500">
-          {/* Preset & Filters */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Filtrar Período:</span>
@@ -387,28 +367,18 @@ export default function HoldingDashboardPage() {
                 <button onClick={() => setPreset("yesterday")} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${preset === "yesterday" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>Dia -1</button>
                 <button onClick={() => setPreset("last_7_days")} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${preset === "last_7_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>Últimos 7 dias</button>
                 <button onClick={() => setPreset("last_30_days")} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${preset === "last_30_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"}`}>Últimos 30 dias</button>
-                <button onClick={() => setPreset("custom")} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${preset === "custom" ? "bg-[#167657] text-white shadow-sm" : "text-slate-600"}`}>Personalizado</button>
+                <button onClick={() => setPreset("custom")} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${preset === "custom" ? "bg-[#297CCB] text-white shadow-sm" : "text-slate-600"}`}>Personalizado</button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-[#297CCB]" /> Grupo Conveniado
+                  <Store className="w-3.5 h-3.5 text-[#297CCB]" /> Loja Conveniada
                 </label>
-                <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]">
-                  <option value="all">Todos os Grupos Aceitos</option>
-                  {acceptedGroups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                  <Store className="w-3.5 h-3.5 text-[#167657]" /> Loja Específica
-                </label>
-                <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]">
-                  <option value="all">Todas as Lojas</option>
-                  {stores.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#297CCB]">
+                  <option value="all">Todas as Lojas Aceitas</option>
+                  {acceptedStores.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                 </select>
               </div>
 
@@ -471,54 +441,13 @@ export default function HoldingDashboardPage() {
             </Card>
           </div>
 
-          {/* Heatmap Pixel Matrix */}
           <HeatmapPixelChart
             data={analyticsData.daily}
             startDate={startDate || "2026-07-01"}
             endDate={endDate || "2026-07-27"}
             title="Mapa de Venda"
-            subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial Qrido"
+            subtitle="Movimentação diária por volume de vendas das lojas conveniadas"
           />
-        </div>
-      )}
-
-      {/* GROUPS TAB */}
-      {activeTab === "groups" && (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-hidden space-y-4">
-            <h3 className="text-lg font-black italic uppercase text-slate-900">Grupos Convidados & Ativos</h3>
-            {allInvitedGroups.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 font-medium">
-                Nenhum grupo convidado ainda. Clique em "+ CONVIDAR GRUPO" para enviar um convite.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {allInvitedGroups.map(grp => (
-                  <Card key={grp.id} className="border border-slate-100 shadow-xs rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-[#167657]" />
-                        <span className="font-black text-slate-900 uppercase italic text-sm">{grp.name}</span>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => handleRemoveInvite(grp.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="text-xs text-slate-500 space-y-1">
-                      {grp.email && <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {grp.email}</p>}
-                      {grp.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {grp.phone}</p>}
-                    </div>
-                    <div className="pt-2 border-t border-slate-50 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Status Convite</span>
-                      <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${grp.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-                        {grp.status === 'accepted' ? 'ACEITO' : 'PENDENTE'}
-                      </span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       )}
 
@@ -526,25 +455,33 @@ export default function HoldingDashboardPage() {
       {activeTab === "companies" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-hidden space-y-4">
-            <h3 className="text-lg font-black italic uppercase text-slate-900">Lojas Conveniadas dos Grupos Aceitos</h3>
-            {stores.length === 0 ? (
+            <h3 className="text-lg font-black italic uppercase text-slate-900">Lojas Convidadas & Ativas do Grupo</h3>
+            {allInvitedStores.length === 0 ? (
               <div className="text-center py-12 text-slate-400 font-medium">
-                Nenhuma loja vinculada aos grupos aceitos até o momento.
+                Nenhuma loja convidada ainda. Clique em "+ CONVIDAR LOJA" para enviar um convite.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stores.map(st => (
+                {allInvitedStores.map(st => (
                   <Card key={st.id} className="border border-slate-100 shadow-xs rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Store className="w-5 h-5 text-[#297CCB]" />
-                      <div>
-                        <span className="font-black text-slate-900 uppercase italic text-sm block">{st.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupo: {st.group_name}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Store className="w-5 h-5 text-[#297CCB]" />
+                        <span className="font-black text-slate-900 uppercase italic text-sm">{st.name}</span>
                       </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => handleRemoveInvite(st.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-50">
+                    <div className="text-xs text-slate-500 space-y-1">
                       {st.email && <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {st.email}</p>}
                       {st.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {st.phone}</p>}
+                    </div>
+                    <div className="pt-2 border-t border-slate-50 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Status Convite</span>
+                      <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${st.status === 'accepted' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                        {st.status === 'accepted' ? 'ACEITO' : 'PENDENTE'}
+                      </span>
                     </div>
                   </Card>
                 ))}
@@ -558,10 +495,10 @@ export default function HoldingDashboardPage() {
       {activeTab === "customers" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-hidden space-y-4">
-            <h3 className="text-lg font-black italic uppercase text-slate-900">Clientes Atendidos pela Rede</h3>
+            <h3 className="text-lg font-black italic uppercase text-slate-900">Clientes Atendidos pelas Lojas do Grupo</h3>
             {customers.length === 0 ? (
               <div className="text-center py-12 text-slate-400 font-medium">
-                Nenhum cliente registrado nas lojas da holding.
+                Nenhum cliente registrado nas lojas participantes.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -578,7 +515,7 @@ export default function HoldingDashboardPage() {
                       <tr key={c.id} className="hover:bg-slate-50/80">
                         <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
                         <td className="py-3.5 px-4 text-slate-600">{c.phone || '-'}</td>
-                        <td className="py-3.5 px-4 font-black text-[#167657]">{c.points_balance || 0} pts</td>
+                        <td className="py-3.5 px-4 font-black text-[#297CCB]">{c.points_balance || 0} pts</td>
                       </tr>
                     ))}
                   </tbody>
@@ -589,32 +526,32 @@ export default function HoldingDashboardPage() {
         </div>
       )}
 
-      {/* INVITE GROUP MODAL */}
+      {/* INVITE STORE MODAL */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95 bg-white">
             <CardHeader className="p-8 border-b border-slate-50">
-              <CardTitle className="text-2xl font-black italic uppercase text-[#167657]">
-                Convidar Grupo / Mercado
+              <CardTitle className="text-2xl font-black italic uppercase text-[#297CCB]">
+                Convidar Loja Parceira
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-4">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selecione o Grupo</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selecione a Loja</Label>
                 <select
-                  value={selectedInviteGroupId}
-                  onChange={(e) => setSelectedInviteGroupId(e.target.value)}
-                  className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-[#167657]"
+                  value={selectedInviteStoreId}
+                  onChange={(e) => setSelectedInviteStoreId(e.target.value)}
+                  className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-[#297CCB]"
                 >
-                  <option value="">Selecione um grupo disponível...</option>
-                  {availableAllGroups.map(g => (
-                    <option key={g.id} value={g.id}>{g.full_name} ({g.email || 'Sem e-mail'})</option>
+                  <option value="">Selecione uma loja disponível...</option>
+                  {availableStoresForInvite.map(s => (
+                    <option key={s.id} value={s.id}>{s.full_name} ({s.email || 'Sem e-mail'})</option>
                   ))}
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-6">
                 <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowInviteModal(false)}>Cancelar</Button>
-                <Button type="button" className="btn-emerald h-12 px-8 rounded-xl font-black italic uppercase" onClick={handleSendInvite}>Enviar Convite</Button>
+                <Button type="button" className="btn-blue h-12 px-8 rounded-xl font-black italic uppercase" onClick={handleSendInvite}>Enviar Convite</Button>
               </div>
             </CardContent>
           </Card>

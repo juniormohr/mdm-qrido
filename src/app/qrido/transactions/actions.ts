@@ -17,8 +17,7 @@ export async function processTransactionAction(data: {
 
     const { customerId, totalPoints, totalAmount } = data
 
-    // --- LÓGICA DE GRUPO (ANTIGO SHOPPING) ---
-    // 3. Buscar grupos que a loja participa (status = 'accepted')
+    // 1. Buscar grupos que a loja participa (status = 'accepted')
     const { data: groups, error: groupsError } = await supabase
         .from('company_groups')
         .select('mall_id, double_points, event_start_date, event_end_date')
@@ -28,22 +27,17 @@ export async function processTransactionAction(data: {
     const now = new Date()
     const isDoublePoints = groups?.some(g => {
         if (!g.double_points) return false
-        
-        // Se houver data de evento, verifica se estamos nela
         if (g.event_start_date && g.event_end_date) {
             const start = new Date(g.event_start_date)
             const end = new Date(g.event_end_date)
-            // Normalizar para comparação apenas de data se necessário, ou manter timestamp
             return now >= start && now <= end
         }
-        
-        // Se não houver data, mantém o comportamento de duplicar sempre
         return true
     }) || false
     
     const finalTotalPoints = isDoublePoints ? totalPoints * 2 : totalPoints
 
-    // 1. Registrar a transação para a Loja atual (com pontos em dobro se aplicável)
+    // 2. Registrar a transação para a Loja atual
     const { error: txError } = await supabase.from('loyalty_transactions').insert({
         user_id: user.id,
         customer_id: customerId,
@@ -55,7 +49,7 @@ export async function processTransactionAction(data: {
 
     if (txError) return { error: 'Erro ao registrar pontos da loja: ' + txError.message }
 
-    // Obter dados do cliente da loja (para clonar/buscar no shopping)
+    // Obter dados do cliente da loja
     const { data: customerStore, error: custFetchError } = await supabase
         .from('customers')
         .select('*')
@@ -64,94 +58,159 @@ export async function processTransactionAction(data: {
 
     if (custFetchError) return { error: 'Erro ao buscar cliente: ' + custFetchError.message }
 
-    // 2. Atualizar saldo do cliente na Loja (com pontos em dobro se aplicável)
+    // 3. Atualizar saldo do cliente na Loja
     const { error: custError } = await supabase
         .from('customers')
-        .update({ points_balance: customerStore.points_balance + finalTotalPoints })
+        .update({ points_balance: (customerStore.points_balance || 0) + finalTotalPoints })
         .eq('id', customerId)
 
     if (custError) return { error: 'Erro ao atualizar saldo da loja: ' + custError.message }
 
+    // 4. Lógica de replicação de pontos para GRUPO e HOLDING por vigência de promoção
     if (!groupsError && groups && groups.length > 0) {
         const adminSupabase = createAdminClient()
 
         for (const group of groups) {
             const mallId = group.mall_id
-            
-            // Verifica multiplicador do grupo específico
-            let multiplier = 1
-            if (group.double_points) {
+
+            // Verificar se o Grupo tem campanha ativa em entity_campaigns ou company_groups
+            const { data: groupCampaign } = await adminSupabase
+                .from('entity_campaigns')
+                .select('*')
+                .eq('entity_id', mallId)
+                .eq('is_active', true)
+                .lte('start_date', now.toISOString())
+                .gte('end_date', now.toISOString())
+                .maybeSingle()
+
+            let hasActiveGroupCampaign = !!groupCampaign
+            if (!hasActiveGroupCampaign && group.double_points) {
                 if (group.event_start_date && group.event_end_date) {
                     const start = new Date(group.event_start_date)
                     const end = new Date(group.event_end_date)
-                    if (now >= start && now <= end) multiplier = 2
+                    hasActiveGroupCampaign = now >= start && now <= end
                 } else {
-                    multiplier = 2
+                    hasActiveGroupCampaign = true
                 }
             }
-            
-            // a) Buscar configuração de fidelidade do Grupo
-            const { data: mallConfig } = await adminSupabase
-                .from('loyalty_configs')
-                .select('*')
-                .eq('user_id', mallId)
-                .single()
-            
-            let mallPoints = 0
-            if (mallConfig && mallConfig.points_per_real) {
-                mallPoints = Math.floor(totalAmount * mallConfig.points_per_real * multiplier)
-            } else {
-                mallPoints = Math.floor(totalAmount * multiplier)
-            }
 
-            if (mallPoints <= 0) continue // Não pontua 0
+            // Se o Grupo tiver campanha ativa, credita o saldo proporcional no Grupo
+            if (hasActiveGroupCampaign) {
+                const groupPoints = finalTotalPoints
 
-            // b) Buscar se o Shopping já tem esse cliente (por telefone)
-            let { data: mallCustomer } = await adminSupabase
-                .from('customers')
-                .select('*')
-                .eq('user_id', mallId)
-                .eq('phone', customerStore.phone)
-                .single()
-
-            let finalMallCustomerId = mallCustomer?.id
-
-            // c) Se não tiver, cria o cliente para o Shopping
-            if (!mallCustomer) {
-                const { data: newMallCust, error: newCustError } = await adminSupabase
+                let { data: mallCustomer } = await adminSupabase
                     .from('customers')
-                    .insert({
+                    .select('*')
+                    .eq('user_id', mallId)
+                    .eq('phone', customerStore.phone)
+                    .maybeSingle()
+
+                let finalMallCustomerId = mallCustomer?.id
+
+                if (!mallCustomer) {
+                    const { data: newMallCust } = await adminSupabase
+                        .from('customers')
+                        .insert({
+                            user_id: mallId,
+                            name: customerStore.name,
+                            phone: customerStore.phone,
+                            cpf: customerStore.cpf || null,
+                            points_balance: 0
+                        })
+                        .select()
+                        .single()
+                    
+                    if (newMallCust) {
+                        finalMallCustomerId = newMallCust.id
+                        mallCustomer = newMallCust
+                    }
+                }
+
+                if (finalMallCustomerId) {
+                    await adminSupabase.from('loyalty_transactions').insert({
                         user_id: mallId,
-                        name: customerStore.name,
-                        phone: customerStore.phone,
-                        cpf: customerStore.cpf || null, // Se existir
-                        points_balance: 0
+                        customer_id: finalMallCustomerId,
+                        type: 'earn',
+                        points: groupPoints,
+                        sale_amount: totalAmount,
+                        expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
                     })
-                    .select()
-                    .single()
-                
-                if (newMallCust) {
-                    finalMallCustomerId = newMallCust.id
-                    mallCustomer = newMallCust
+
+                    await adminSupabase
+                        .from('customers')
+                        .update({ points_balance: (mallCustomer?.points_balance || 0) + groupPoints })
+                        .eq('id', finalMallCustomerId)
                 }
             }
 
-            // d) Inserir transação para o Shopping
-            if (finalMallCustomerId) {
-                await adminSupabase.from('loyalty_transactions').insert({
-                    user_id: mallId,
-                    customer_id: finalMallCustomerId,
-                    type: 'earn',
-                    points: mallPoints,
-                    sale_amount: totalAmount, // Shopping vê o valor para auditoria de pontos
-                    expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-                })
+            // 5. Verificar se o Grupo faz parte de alguma HOLDING com campanha ativa no período
+            const { data: holdingLinks } = await adminSupabase
+                .from('holding_groups')
+                .select('holding_id')
+                .eq('group_id', mallId)
+                .in('status', ['accepted', 'active'])
 
-                // Atualizar saldo do Shopping
-                await adminSupabase
-                    .from('customers')
-                    .update({ points_balance: (mallCustomer?.points_balance || 0) + mallPoints })
-                    .eq('id', finalMallCustomerId)
+            if (holdingLinks && holdingLinks.length > 0) {
+                for (const hLink of holdingLinks) {
+                    const holdingId = hLink.holding_id
+
+                    const { data: holdingCampaign } = await adminSupabase
+                        .from('entity_campaigns')
+                        .select('*')
+                        .eq('entity_id', holdingId)
+                        .eq('is_active', true)
+                        .lte('start_date', now.toISOString())
+                        .gte('end_date', now.toISOString())
+                        .maybeSingle()
+
+                    if (holdingCampaign) {
+                        const holdingPoints = finalTotalPoints
+
+                        let { data: holdingCustomer } = await adminSupabase
+                            .from('customers')
+                            .select('*')
+                            .eq('user_id', holdingId)
+                            .eq('phone', customerStore.phone)
+                            .maybeSingle()
+
+                        let finalHoldingCustId = holdingCustomer?.id
+
+                        if (!holdingCustomer) {
+                            const { data: newHoldingCust } = await adminSupabase
+                                .from('customers')
+                                .insert({
+                                    user_id: holdingId,
+                                    name: customerStore.name,
+                                    phone: customerStore.phone,
+                                    cpf: customerStore.cpf || null,
+                                    points_balance: 0
+                                })
+                                .select()
+                                .single()
+
+                            if (newHoldingCust) {
+                                finalHoldingCustId = newHoldingCust.id
+                                holdingCustomer = newHoldingCust
+                            }
+                        }
+
+                        if (finalHoldingCustId) {
+                            await adminSupabase.from('loyalty_transactions').insert({
+                                user_id: holdingId,
+                                customer_id: finalHoldingCustId,
+                                type: 'earn',
+                                points: holdingPoints,
+                                sale_amount: totalAmount,
+                                expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+                            })
+
+                            await adminSupabase
+                                .from('customers')
+                                .update({ points_balance: (holdingCustomer?.points_balance || 0) + holdingPoints })
+                                .eq('id', finalHoldingCustId)
+                        }
+                    }
+                }
             }
         }
     }
