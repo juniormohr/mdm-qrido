@@ -1181,52 +1181,69 @@ export default function CustomerDashboard() {
             alert('Seu carrinho está vazio.')
             return
         }
-        if (!selectedCompany) {
+
+        const targetCompanyId = selectedCompany?.id || cart[0]?.product?.company_id
+        if (!targetCompanyId) {
             alert('Selecione uma empresa primeiro.')
             return
         }
 
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
-        const totalPoints = cart.reduce((acc, item) => {
-            const itemMultiplier = (loyaltyConfigs[selectedCompany.id]?.double_points_active && item.product.double_points_active !== false) ? 2 : 1
-            return acc + (item.product.points_reward * itemMultiplier * item.quantity)
-        }, 0)
-
-        const items = cart.map(item => {
-            const itemMultiplier = (loyaltyConfigs[selectedCompany.id]?.double_points_active && item.product.double_points_active !== false) ? 2 : 1
-            return {
-                id: item.product.id,
-                name: item.product.name,
-                qty: item.quantity,
-                price: item.product.price,
-                points: item.product.points_reward * itemMultiplier
-            }
-        })
-
-        const payload = {
-            company_id: selectedCompany.id,
-            customer_profile_id: user.id,
-            items,
-            total_amount: totalAmount,
-            total_points: totalPoints,
-            status: 'pending'
+        if (!user) {
+            setShowLoginPromptModal(true)
+            return
         }
 
-        const { error } = await supabase.from('purchase_requests').insert(payload)
+        try {
+            const isDoublePoints = Boolean(
+                loyaltyConfigs &&
+                targetCompanyId &&
+                loyaltyConfigs[targetCompanyId]?.double_points_active
+            )
 
-        if (!error) {
-            alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
-            setCart([])
-            fetchPurchaseRequests(user.id)
-            setActiveTab('requests')
-            setIsCartOpen(false)
-        } else {
-            console.error('Erro detalhado no envio:', error)
-            alert('Falha ao processar resgate: ' + (error.message || 'Tente novamente.'))
+            const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
+            const totalPoints = cart.reduce((acc, item) => {
+                const itemMultiplier = (isDoublePoints && item.product.double_points_active !== false) ? 2 : 1
+                return acc + (item.product.points_reward * itemMultiplier * item.quantity)
+            }, 0)
+
+            const items = cart.map(item => {
+                const itemMultiplier = (isDoublePoints && item.product.double_points_active !== false) ? 2 : 1
+                return {
+                    id: item.product.id,
+                    name: item.product.name,
+                    qty: item.quantity,
+                    price: item.product.price,
+                    points: item.product.points_reward * itemMultiplier
+                }
+            })
+
+            const payload = {
+                company_id: targetCompanyId,
+                customer_profile_id: user.id,
+                items,
+                total_amount: totalAmount,
+                total_points: totalPoints,
+                status: 'pending',
+                type: 'purchase'
+            }
+
+            const { error } = await supabase.from('purchase_requests').insert(payload)
+
+            if (!error) {
+                alert('Solicitação enviada com sucesso! Vá na aba "Minhas Solicitações" para ver o status.')
+                setCart([])
+                fetchPurchaseRequests(user.id)
+                setActiveTab('requests')
+                setIsCartOpen(false)
+            } else {
+                console.error('Erro detalhado no envio:', error)
+                alert('Falha ao processar solicitação: ' + (error.message || 'Tente novamente.'))
+            }
+        } catch (err: any) {
+            console.error('Erro ao enviar pedido:', err)
+            alert('Erro ao enviar pedido: ' + (err.message || 'Ocorreu um problema ao enviar seu pedido.'))
         }
     }
 
