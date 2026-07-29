@@ -42,23 +42,7 @@ export async function POST(request: Request) {
              return NextResponse.json({ error: 'Erro ao validar slots' }, { status: 500 })
         }
 
-        const currentCount = currentStaff?.length || 0;
-        
-        let tier = companyProfile.subscription_tier || 'basic'
-        let baseSlots = 1
-        if (tier === 'pro' || tier === 'qrido_mensal' || tier === 'qrido_anual' || tier === 'qrido') {
-            baseSlots = 4
-        } else if (tier === 'master' || tier === 'qridao_mensal' || tier === 'qridao_anual' || tier === 'qridao') {
-            baseSlots = 9
-        } else if (tier === 'partnership') {
-            baseSlots = 999999
-        }
-
-        const totalSlots = (companyProfile.staff_slots || 0) + baseSlots;
-
-        if (currentCount >= totalSlots) {
-             return NextResponse.json({ error: 'Limite de usuários atingido. Por favor, adquira mais licenças.' }, { status: 403 })
-        }
+        // Sem limite de usuários por enquanto (inclusão ilimitada de equipe)
 
         // 2. Criar usuário no Auth
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({

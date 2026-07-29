@@ -406,24 +406,6 @@ function ProductManagementContent() {
                                     <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50 mt-2">
                                         <div className="space-y-0.5">
                                             <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
-                                                <Sparkles className="h-3 w-3 text-brand-orange animate-pulse" />
-                                                Destacar Produto
-                                            </span>
-                                            <p className="text-[9px] text-slate-400 font-medium">Impulsione no topo do feed</p>
-                                        </div>
-                                        <label className="relative inline-flex items-center cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={product.highlight_active && product.highlight_expires_at ? new Date(product.highlight_expires_at) > new Date() : false}
-                                                onChange={() => handleToggleHighlight(product)}
-                                            />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-blue"></div>
-                                        </label>
-                                    </div>
-                                    <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50 mt-2">
-                                        <div className="space-y-0.5">
-                                            <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
                                                 <Zap className="h-3 w-3 text-amber-500 animate-pulse" />
                                                 Pontos em Dobro
                                             </span>

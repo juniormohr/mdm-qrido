@@ -133,55 +133,10 @@ export default function UsersPage() {
                     <p className="text-slate-500 font-medium">Gerencie o acesso dos seus funcionários ao QRido.</p>
                 </div>
                 <div className="flex gap-4">
-                    <Button variant="outline" onClick={() => setIsBuyModalOpen(true)} className="rounded-xl border-brand-blue text-brand-blue hover:bg-brand-blue/10">
-                        <CreditCard className="mr-2 h-4 w-4" /> Comprar Licenças
-                    </Button>
-                    <Button onClick={() => setIsCreateModalOpen(true)} disabled={availableSlots <= 0} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl">
+                    <Button onClick={() => setIsCreateModalOpen(true)} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl">
                         <Plus className="mr-2 h-4 w-4" /> Incluir Usuário
                     </Button>
                 </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="rounded-[24px] border-none shadow-lg bg-white overflow-hidden">
-                    <CardHeader className="bg-slate-50/50 pb-4">
-                        <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                            <Users className="h-4 w-4 text-brand-blue" />
-                            Licenças Contratadas
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="text-4xl font-black text-slate-900">{totalSlots}</div>
-                        <p className="text-sm text-slate-500 mt-1 font-medium">R$ 9,00 por usuário</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="rounded-[24px] border-none shadow-lg bg-white overflow-hidden">
-                    <CardHeader className="bg-slate-50/50 pb-4">
-                        <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-brand-green" />
-                            Licenças em Uso
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="text-4xl font-black text-slate-900">{staffs.length}</div>
-                        <p className="text-sm text-slate-500 mt-1 font-medium">Usuários ativos na equipe</p>
-                    </CardContent>
-                </Card>
-                
-                <Card className="rounded-[24px] border-none shadow-lg bg-brand-blue text-white overflow-hidden relative">
-                    <div className="absolute right-0 top-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
-                    <CardHeader className="pb-4 relative z-10">
-                        <CardTitle className="text-sm font-bold text-white/80 uppercase tracking-wider flex items-center gap-2">
-                            <Plus className="h-4 w-4" />
-                            Licenças Livres
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 relative z-10">
-                        <div className="text-4xl font-black">{Math.max(0, availableSlots)}</div>
-                        <p className="text-sm text-white/80 mt-1 font-medium">Disponíveis para uso imediato</p>
-                    </CardContent>
-                </Card>
             </div>
 
             {loading ? (
@@ -217,7 +172,7 @@ export default function UsersPage() {
                                 {staffs.length === 0 && (
                                     <tr>
                                         <td colSpan={4} className="p-8 text-center text-slate-500 font-medium">
-                                            Nenhum usuário cadastrado. Compre licenças e adicione sua equipe!
+                                            Nenhum usuário cadastrado na equipe. Clique acima para incluir!
                                         </td>
                                     </tr>
                                 )}
@@ -226,43 +181,6 @@ export default function UsersPage() {
                     </div>
                 </Card>
             )}
-
-            {/* Buy Modal */}
-            <Dialog open={isBuyModalOpen} onOpenChange={setIsBuyModalOpen}>
-                <DialogContent className="sm:max-w-[425px] rounded-[24px]">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-black italic uppercase">Comprar Licenças</DialogTitle>
-                        <DialogDescription className="font-medium text-slate-500">
-                            Adicione novos usuários à sua equipe por R$ 9,00/cada.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="quantity" className="font-bold">Quantidade de Licenças</Label>
-                            <Input
-                                id="quantity"
-                                type="number"
-                                min="1"
-                                value={buyQuantity}
-                                onChange={(e) => setBuyQuantity(parseInt(e.target.value) || 1)}
-                                className="rounded-xl"
-                            />
-                        </div>
-                        <div className="bg-slate-50 p-4 rounded-xl flex justify-between items-center">
-                            <span className="font-bold text-slate-600">Total a pagar:</span>
-                            <span className="text-2xl font-black text-brand-blue">
-                                {(buyQuantity * 9).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setIsBuyModalOpen(false)} className="rounded-xl font-bold">Cancelar</Button>
-                        <Button onClick={handleBuySlots} disabled={isBuying} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl font-bold">
-                            {isBuying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Gerar Pagamento'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* Create User Modal */}
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
