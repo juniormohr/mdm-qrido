@@ -146,6 +146,8 @@ function AdminContent() {
     const [selectedTier, setSelectedTier] = useState<string>('basic')
     const [cpfCnpj, setCpfCnpj] = useState('')
     const [phone, setPhone] = useState('')
+    const [fullName, setFullName] = useState('')
+    const [responsibleName, setResponsibleName] = useState('')
 
     // Reset password modal state
     const [showResetModal, setShowResetModal] = useState(false)
@@ -158,24 +160,20 @@ function AdminContent() {
     const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null)
 
     const handleSearchResetUsers = async (queryStr: string) => {
-        setResetQuery(queryStr)
-        setSelectedUserForReset(null)
-        if (!queryStr || queryStr.trim().length < 2) {
-            setResetSearchResults([])
-            return
-        }
         setResetSearching(true)
         const res = await searchUsersForResetAction(queryStr)
+        if (res.users) {
+            setResetSearchResults(res.users)
+        }
         setResetSearching(false)
-        setResetSearchResults(res.users || [])
     }
 
-    const handleResetPasswordSubmit = async (userIdToReset?: string) => {
+    const handleResetPasswordSubmit = async (userIdTarget?: string) => {
         setResetLoading(true)
         setResetSuccessMessage(null)
         setResetErrorMessage(null)
         try {
-            const targetId = userIdToReset || selectedUserForReset?.id
+            const targetId = userIdTarget || selectedUserForReset?.id
             const res = await resetUserPasswordAction({
                 userId: targetId,
                 identifier: !targetId ? resetQuery : undefined
@@ -225,13 +223,18 @@ function AdminContent() {
     }
 
     useEffect(() => {
-        if (currentEntity?.subscription_tier) {
-            setSelectedTier(currentEntity.subscription_tier)
+        if (currentEntity) {
+            setSelectedTier(currentEntity.subscription_tier || 'basic')
+            setPhone(currentEntity.phone || '')
+            setFullName(currentEntity.full_name || '')
+            setResponsibleName(currentEntity.responsible_name || '')
         } else {
             setSelectedTier('basic')
+            setCpfCnpj('')
+            setPhone('')
+            setFullName('')
+            setResponsibleName('')
         }
-        setCpfCnpj('')
-        setPhone(currentEntity?.phone || '')
     }, [currentEntity, showCompanyModal])
 
     useEffect(() => {
@@ -1353,7 +1356,7 @@ function AdminContent() {
                                 {currentEntity ? 'Editar Empresa' : 'Cadastrar Empresa'}
                             </CardTitle>
                         </CardHeader>
-                        <form onSubmit={async (e) => {
+                        <form key={currentEntity?.id || 'new'} onSubmit={async (e) => {
                             e.preventDefault()
                             const formData = new FormData(e.currentTarget)
                             const supabase = createClient()
@@ -1412,11 +1415,25 @@ function AdminContent() {
                             <CardContent className="p-8 space-y-4">
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome da Empresa</Label>
-                                    <Input name="full_name" defaultValue={currentEntity?.full_name} placeholder="Ex: Pizzaria do Zé" required className="rounded-xl border-slate-100 h-12" />
+                                    <Input
+                                        name="full_name"
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        placeholder="Ex: Pizzaria do Zé"
+                                        required
+                                        className="rounded-xl border-slate-100 h-12"
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome do Responsável (Nome + Sobrenome)</Label>
-                                    <Input name="responsible_name" defaultValue={currentEntity?.responsible_name} placeholder="Ex: Carlos Silva" required className="rounded-xl border-slate-100 h-12" />
+                                    <Input
+                                        name="responsible_name"
+                                        value={responsibleName}
+                                        onChange={(e) => setResponsibleName(e.target.value)}
+                                        placeholder="Ex: Carlos Silva"
+                                        required
+                                        className="rounded-xl border-slate-100 h-12"
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail da Empresa</Label>

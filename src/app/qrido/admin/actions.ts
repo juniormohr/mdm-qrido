@@ -322,16 +322,23 @@ export async function updateCompanyMetadataAction(userId: string, data: {
   try {
     const supabaseAdmin = createAdminClient()
 
-    // 1. Atualizar user_metadata no Auth
-    const metaUpdate: any = {}
+    // 1. Buscar metadados existentes no Auth para não sobrescrever outros campos
+    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(userId)
+    const existingMeta = userData?.user?.user_metadata || {}
+
+    const metaUpdate: any = {
+      ...existingMeta
+    }
     if (data.fullName) metaUpdate.full_name = data.fullName
     if (data.responsibleName !== undefined) metaUpdate.responsible_name = data.responsibleName
     if (data.phone) metaUpdate.phone = data.phone
 
-    if (Object.keys(metaUpdate).length > 0) {
-      await supabaseAdmin.auth.admin.updateUserById(userId, {
-        user_metadata: metaUpdate
-      })
+    const { error: metaError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: metaUpdate
+    })
+
+    if (metaError) {
+      console.error('Erro ao atualizar user_metadata no Auth:', metaError.message)
     }
 
     // 2. Atualizar profiles no DB
