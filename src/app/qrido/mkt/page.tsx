@@ -308,12 +308,40 @@ export default function MarketingSettings() {
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
                     <div className="space-y-2">
-                        <Label className="text-xs font-black uppercase text-slate-400">Template de Mensagem</Label>
+                        <Label className="text-xs font-black uppercase text-slate-400">Template de Mensagem (WhatsApp)</Label>
                         <textarea
                             value={config.whatsapp_template}
                             onChange={(e) => setConfig({ ...config, whatsapp_template: e.target.value })}
                             className="w-full p-4 min-h-[90px] rounded-2xl border border-slate-100 focus:border-[#167657] text-sm outline-none font-medium"
                         />
+                        <div className="bg-brand-blue/5 border border-brand-blue/10 p-3.5 rounded-2xl mt-2">
+                            <p className="text-[10px] text-[#297CCB] font-black mb-1 uppercase tracking-wider italic">Variáveis Mágicas:</p>
+                            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                                Use <strong className="text-[#297CCB]">{"{nome}"}</strong> para o nome do destinatário e <strong className="text-[#297CCB]">{"{pontos}"}</strong> para o saldo de pontos. O sistema fará a substituição automática no momento do disparo.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100">
+                        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-3xl border border-orange-100">
+                            <div className="space-y-1">
+                                <h3 className="text-lg font-black italic uppercase text-[#E9592C] flex items-center gap-2">
+                                    Pontos em Dobro 🔥
+                                </h3>
+                                <p className="text-xs text-orange-800/60 font-medium max-w-sm">
+                                    Ative para dobrar a pontuação concedida aos clientes e ganhar destaque com selo promocional no aplicativo.
+                                </p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={config.double_points_active}
+                                    onChange={(e) => setConfig({ ...config, double_points_active: e.target.checked })}
+                                />
+                                <div className="w-14 h-7 bg-orange-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#E9592C]"></div>
+                            </label>
+                        </div>
                     </div>
 
                     {/* RECIPIENTS LIST (RESTRICTED HIERARCHY) */}
