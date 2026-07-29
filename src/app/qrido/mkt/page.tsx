@@ -126,56 +126,55 @@ export default function MarketingSettings() {
             })
         }
 
-        // Se pontos em dobro estiverem ATIVADOS, ativa também em todos os produtos da loja/grupo/holding
-        if (config.double_points_active) {
-            try {
-                if (isHolding) {
-                    const { data: hgData } = await supabase
-                        .from('holding_groups')
-                        .select('group_id')
-                        .eq('holding_id', user.id)
-                        .eq('status', 'accepted')
+        // Sincroniza a opção de pontos em dobro em todos os produtos da loja/grupo/holding
+        try {
+            const newValue = Boolean(config.double_points_active)
+            if (isHolding) {
+                const { data: hgData } = await supabase
+                    .from('holding_groups')
+                    .select('group_id')
+                    .eq('holding_id', user.id)
+                    .eq('status', 'accepted')
 
-                    const groupIds = hgData?.map(g => g.group_id) || []
-                    let storeIds: string[] = [user.id]
+                const groupIds = hgData?.map(g => g.group_id) || []
+                let storeIds: string[] = [user.id]
 
-                    if (groupIds.length > 0) {
-                        const { data: cgData } = await supabase
-                            .from('company_groups')
-                            .select('store_id')
-                            .in('mall_id', groupIds)
-                            .eq('status', 'accepted')
-
-                        const connectedStores = cgData?.map(s => s.store_id) || []
-                        storeIds = [...new Set([...storeIds, ...groupIds, ...connectedStores])]
-                    }
-
-                    await supabase
-                        .from('products')
-                        .update({ double_points_active: true })
-                        .in('company_id', storeIds)
-                } else if (isGroup) {
+                if (groupIds.length > 0) {
                     const { data: cgData } = await supabase
                         .from('company_groups')
                         .select('store_id')
-                        .eq('mall_id', user.id)
+                        .in('mall_id', groupIds)
                         .eq('status', 'accepted')
 
-                    const storeIds = [user.id, ...(cgData?.map(s => s.store_id) || [])]
-
-                    await supabase
-                        .from('products')
-                        .update({ double_points_active: true })
-                        .in('company_id', storeIds)
-                } else {
-                    await supabase
-                        .from('products')
-                        .update({ double_points_active: true })
-                        .eq('company_id', user.id)
+                    const connectedStores = cgData?.map(s => s.store_id) || []
+                    storeIds = [...new Set([...storeIds, ...groupIds, ...connectedStores])]
                 }
-            } catch (err) {
-                console.error('Erro ao atualizar produtos em dobro:', err)
+
+                await supabase
+                    .from('products')
+                    .update({ double_points_active: newValue })
+                    .in('company_id', storeIds)
+            } else if (isGroup) {
+                const { data: cgData } = await supabase
+                    .from('company_groups')
+                    .select('store_id')
+                    .eq('mall_id', user.id)
+                    .eq('status', 'accepted')
+
+                const storeIds = [user.id, ...(cgData?.map(s => s.store_id) || [])]
+
+                await supabase
+                    .from('products')
+                    .update({ double_points_active: newValue })
+                    .in('company_id', storeIds)
+            } else {
+                await supabase
+                    .from('products')
+                    .update({ double_points_active: newValue })
+                    .eq('company_id', user.id)
             }
+        } catch (err) {
+            console.error('Erro ao sincronizar produtos em dobro:', err)
         }
 
         // Save Campaign for Holding or Group
