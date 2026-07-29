@@ -51,7 +51,7 @@ interface StoreRanking {
   total_transactions: number;
 }
 
-export default function HoldingDashboardPage() {
+function HoldingDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab");
@@ -621,5 +621,13 @@ export default function HoldingDashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function HoldingDashboardPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold animate-pulse uppercase italic">Sincronizando Holding...</div>}>
+      <HoldingDashboardContent />
+    </React.Suspense>
   );
 }

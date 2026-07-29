@@ -37,7 +37,7 @@ interface StoreRanking {
   total_transactions: number;
 }
 
-export default function GroupDashboardPage() {
+function GroupDashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab");
@@ -558,5 +558,13 @@ export default function GroupDashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function GroupDashboardPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold animate-pulse uppercase italic">Sincronizando Grupo...</div>}>
+      <GroupDashboardContent />
+    </React.Suspense>
   );
 }

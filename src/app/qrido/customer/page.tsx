@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { filterActiveCompanyIds } from '@/lib/subscription-utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
