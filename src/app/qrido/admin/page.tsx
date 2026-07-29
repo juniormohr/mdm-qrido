@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import {
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
     UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield,
-    Award, Gift, Trophy, ShoppingBag
+    Award, Gift, Trophy, ShoppingBag, KeyRound, Loader2, CheckCircle2, AlertCircle, X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -146,6 +146,54 @@ function AdminContent() {
     const [selectedTier, setSelectedTier] = useState<string>('basic')
     const [cpfCnpj, setCpfCnpj] = useState('')
     const [phone, setPhone] = useState('')
+
+    // Reset password modal state
+    const [showResetModal, setShowResetModal] = useState(false)
+    const [resetQuery, setResetQuery] = useState('')
+    const [resetSearchResults, setResetSearchResults] = useState<any[]>([])
+    const [selectedUserForReset, setSelectedUserForReset] = useState<any | null>(null)
+    const [resetLoading, setResetLoading] = useState(false)
+    const [resetSearching, setResetSearching] = useState(false)
+    const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null)
+    const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null)
+
+    const handleSearchResetUsers = async (queryStr: string) => {
+        setResetQuery(queryStr)
+        setSelectedUserForReset(null)
+        if (!queryStr || queryStr.trim().length < 2) {
+            setResetSearchResults([])
+            return
+        }
+        setResetSearching(true)
+        const res = await searchUsersForResetAction(queryStr)
+        setResetSearching(false)
+        setResetSearchResults(res.users || [])
+    }
+
+    const handleResetPasswordSubmit = async (userIdToReset?: string) => {
+        setResetLoading(true)
+        setResetSuccessMessage(null)
+        setResetErrorMessage(null)
+        try {
+            const targetId = userIdToReset || selectedUserForReset?.id
+            const res = await resetUserPasswordAction({
+                userId: targetId,
+                identifier: !targetId ? resetQuery : undefined
+            })
+            if (res.error) {
+                setResetErrorMessage(res.error)
+            } else if (res.message) {
+                setResetSuccessMessage(res.message)
+                setSelectedUserForReset(null)
+                setResetQuery('')
+                setResetSearchResults([])
+            }
+        } catch (err: any) {
+            setResetErrorMessage('Erro ao resetar senha do usuário.')
+        } finally {
+            setResetLoading(false)
+        }
+    }
 
     const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         let val = e.target.value.replace(/\D/g, '')
@@ -654,6 +702,9 @@ function AdminContent() {
                                                 <span className={cn("h-1.5 w-1.5 rounded-full", isInactive ? "bg-red-500" : isPending ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse")} />
                                                 {isInactive ? 'INATIVA' : isPending ? 'PENDENTE' : 'ATIVA'}
                                             </button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-amber-600 rounded-lg" title="Resetar Senha para 123456" onClick={() => { if (confirm(`Deseja resetar a senha da empresa "${comp.full_name}" para 123456?`)) { handleResetPasswordSubmit(comp.id); } }}>
+                                                <KeyRound className="h-3.5 w-3.5" />
+                                            </Button>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
                                                 <Edit2 className="h-3.5 w-3.5" />
                                             </Button>
@@ -767,6 +818,9 @@ function AdminContent() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                    <Button variant="outline" className="h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic border-amber-200 bg-amber-50/50 text-amber-700 hover:bg-amber-100/70" onClick={() => { setShowResetModal(true); setResetSuccessMessage(null); setResetErrorMessage(null); }}>
+                        <KeyRound className="h-4 w-4 mr-1.5" /> RESETAR SENHA
+                    </Button>
                     <Button className="btn-emerald h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                         <Plus className="h-4 w-4 mr-1.5" /> NOVA HOLDING
                     </Button>
@@ -1487,6 +1541,110 @@ function AdminContent() {
                                 </div>
                             </CardContent>
                         </form>
+                    </Card>
+                </div>
+            )}
+
+            {/* Reset Password Modal */}
+            {showResetModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95 bg-white">
+                        <CardHeader className="p-8 border-b border-slate-100 flex flex-row items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                                    <KeyRound className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl font-black italic uppercase text-slate-800">
+                                        Resetar Senha de Usuário
+                                    </CardTitle>
+                                    <p className="text-xs text-slate-500 font-medium">Redefinir senha de qualquer conta para "123456"</p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="icon" className="rounded-full text-slate-400 hover:bg-slate-100" onClick={() => setShowResetModal(false)}>
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </CardHeader>
+                        <div className="p-8 space-y-6">
+                            {resetSuccessMessage && (
+                                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3 text-emerald-800">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-semibold leading-relaxed">{resetSuccessMessage}</p>
+                                </div>
+                            )}
+
+                            {resetErrorMessage && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 text-red-800">
+                                    <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                    <p className="text-xs font-semibold leading-relaxed">{resetErrorMessage}</p>
+                                </div>
+                            )}
+
+                            <div className="space-y-2 relative">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    Buscar Usuário por Nome, CNPJ/CPF ou E-mail
+                                </Label>
+                                <div className="relative">
+                                    <Input
+                                        value={resetQuery}
+                                        onChange={(e) => handleSearchResetUsers(e.target.value)}
+                                        placeholder="Digite o nome, CNPJ, CPF ou e-mail..."
+                                        className="rounded-xl border-slate-200 h-12 pr-10 font-bold"
+                                    />
+                                    {resetSearching && (
+                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400 absolute right-3.5 top-4" />
+                                    )}
+                                </div>
+
+                                {resetSearchResults.length > 0 && !selectedUserForReset && (
+                                    <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                        {resetSearchResults.map((u) => (
+                                            <button
+                                                key={u.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedUserForReset(u)
+                                                    setResetQuery(u.company_name || u.full_name || u.email)
+                                                    setResetSearchResults([])
+                                                }}
+                                                className="w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-center justify-between"
+                                            >
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800">{u.company_name || u.full_name || 'Sem nome'}</p>
+                                                    <p className="text-[10px] font-medium text-slate-500">{u.email} {u.cpf_cnpj ? `• ${formatCpfCnpj(u.cpf_cnpj)}` : ''}</p>
+                                                </div>
+                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600">
+                                                    {u.role || 'user'}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedUserForReset && (
+                                <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl space-y-1">
+                                    <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Conta Selecionada:</p>
+                                    <p className="text-sm font-black text-slate-800">{selectedUserForReset.company_name || selectedUserForReset.full_name}</p>
+                                    <p className="text-xs text-slate-600 font-medium">{selectedUserForReset.email} {selectedUserForReset.cpf_cnpj ? `• CNPJ/CPF: ${formatCpfCnpj(selectedUserForReset.cpf_cnpj)}` : ''}</p>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowResetModal(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={resetLoading || (!selectedUserForReset && !resetQuery.trim())}
+                                    onClick={() => handleResetPasswordSubmit()}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white h-12 px-6 rounded-xl font-black italic uppercase flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {resetLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Resetar para "123456"
+                                </Button>
+                            </div>
+                        </div>
                     </Card>
                 </div>
             )}

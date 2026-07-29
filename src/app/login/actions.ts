@@ -150,3 +150,53 @@ export async function signInWithGoogle(role?: string, plan?: string) {
         redirect(data.url)
     }
 }
+
+export async function requestPasswordResetAction(documentOrEmail: string) {
+    const supabase = await createClient()
+    const adminAuthClient = createAdminClient()
+
+    const input = documentOrEmail ? documentOrEmail.trim() : ''
+    if (!input) {
+        return { error: 'Por favor, informe seu CPF, CNPJ ou E-mail.' }
+    }
+
+    let targetEmail: string | null = null
+
+    if (input.includes('@')) {
+        targetEmail = input.toLowerCase()
+    } else {
+        const cleanDoc = input.replace(/\D/g, '')
+        if (!cleanDoc) {
+            return { error: 'Documento inválido. Informe um CPF ou CNPJ válido.' }
+        }
+
+        const { data: profile } = await adminAuthClient
+            .from('profiles')
+            .select('email')
+            .eq('cpf_cnpj', cleanDoc)
+            .maybeSingle()
+
+        if (profile?.email) {
+            targetEmail = profile.email
+        }
+    }
+
+    if (!targetEmail) {
+        return { error: 'Nenhuma conta encontrada com o CPF, CNPJ ou E-mail informado.' }
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${baseUrl}/auth/callback?next=/qrido/reset-password`,
+    })
+
+    if (error) {
+        return { error: 'Erro ao enviar e-mail de redefinição: ' + error.message }
+    }
+
+    return { 
+        success: true, 
+        message: `Instruções de redefinição enviadas para o e-mail cadastrado (${targetEmail.replace(/(.{2})(.*)(?=@)/, '$1***')}).` 
+    }
+}
+

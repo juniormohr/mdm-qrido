@@ -172,3 +172,97 @@ export async function toggleCompanyStatusAction(id: string, isActive: boolean) {
   }
 }
 
+export async function searchUsersForResetAction(queryText: string) {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const term = queryText ? queryText.trim() : ''
+    if (!term) return { users: [] }
+
+    const cleanDoc = term.replace(/\D/g, '')
+
+    let query = supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, company_name, email, cpf_cnpj, role')
+      .limit(10)
+
+    if (cleanDoc && cleanDoc.length >= 3) {
+      query = query.or(`cpf_cnpj.ilike.%${cleanDoc}%,email.ilike.%${term}%,full_name.ilike.%${term}%,company_name.ilike.%${term}%`)
+    } else {
+      query = query.or(`email.ilike.%${term}%,full_name.ilike.%${term}%,company_name.ilike.%${term}%`)
+    }
+
+    const { data: users, error } = await query
+    if (error) return { error: error.message, users: [] }
+
+    return { users: users || [] }
+  } catch (err: any) {
+    return { error: err.message, users: [] }
+  }
+}
+
+export async function resetUserPasswordAction(target: { userId?: string; identifier?: string }) {
+  try {
+    const supabaseAdmin = createAdminClient()
+    let userId = target.userId
+
+    if (!userId && target.identifier) {
+      const term = target.identifier.trim()
+      const cleanDoc = term.replace(/\D/g, '')
+
+      let query = supabaseAdmin
+        .from('profiles')
+        .select('id, full_name, company_name, email, cpf_cnpj')
+
+      if (cleanDoc && cleanDoc.length >= 8) {
+        query = query.or(`cpf_cnpj.eq.${cleanDoc},email.ilike.%${term}%,full_name.ilike.%${term}%,company_name.ilike.%${term}%`)
+      } else {
+        query = query.or(`email.ilike.%${term}%,full_name.ilike.%${term}%,company_name.ilike.%${term}%`)
+      }
+
+      const { data: profiles, error: searchError } = await query.limit(5)
+
+      if (searchError) {
+        return { error: 'Erro ao buscar usuário: ' + searchError.message }
+      }
+
+      if (!profiles || profiles.length === 0) {
+        return { error: 'Nenhum usuário encontrado com o termo informado.' }
+      }
+
+      if (profiles.length > 1) {
+        return { error: `Múltiplos usuários encontrados (${profiles.map(p => p.full_name || p.email).join(', ')}). Por favor escolha um da lista.` }
+      }
+
+      userId = profiles[0].id
+    }
+
+    if (!userId) {
+      return { error: 'Selecione ou informe um usuário válido.' }
+    }
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: '123456'
+    })
+
+    if (authError) {
+      return { error: 'Erro ao resetar a senha no Auth: ' + authError.message }
+    }
+
+    const { data: userProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('full_name, company_name, email, cpf_cnpj')
+      .eq('id', userId)
+      .single()
+
+    const name = userProfile?.company_name || userProfile?.full_name || userProfile?.email || 'Usuário'
+
+    return { 
+      success: true, 
+      message: `Senha de "${name}" resetada com sucesso para "123456".` 
+    }
+  } catch (err: any) {
+    return { error: err.message || 'Erro interno ao resetar senha do usuário.' }
+  }
+}
+
+

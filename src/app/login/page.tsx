@@ -1,9 +1,9 @@
 'use client'
 
-import { login, signup, signInWithGoogle } from './actions'
+import { login, signup, signInWithGoogle, requestPasswordResetAction } from './actions'
 import { useFormStatus } from 'react-dom'
 import { useState, useEffect } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, X, KeyRound, CheckCircle2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function SubmitButton({ isLogin }: { isLogin: boolean }) {
@@ -27,6 +27,34 @@ export default function LoginPage() {
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
     const [selectedPlan, setSelectedPlan] = useState<string>('')
     const [noCnpj, setNoCnpj] = useState(false)
+    
+    // Forgot password modal state
+    const [showForgotModal, setShowForgotModal] = useState(false)
+    const [forgotDocOrEmail, setForgotDocOrEmail] = useState('')
+    const [forgotLoading, setForgotLoading] = useState(false)
+    const [forgotMessage, setForgotMessage] = useState<string | null>(null)
+    const [forgotError, setForgotError] = useState<string | null>(null)
+
+    const handleForgotSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setForgotLoading(true)
+        setForgotMessage(null)
+        setForgotError(null)
+
+        try {
+            const res = await requestPasswordResetAction(forgotDocOrEmail)
+            if (res.error) {
+                setForgotError(res.error)
+            } else if (res.message) {
+                setForgotMessage(res.message)
+            }
+        } catch (err: any) {
+            setForgotError('Erro ao solicitar redefinição de senha.')
+        } finally {
+            setForgotLoading(false)
+        }
+    }
+
     
     useEffect(() => {
         const params = new URLSearchParams(window.location.search)
@@ -407,12 +435,17 @@ export default function LoginPage() {
                             <div className="flex items-center justify-between ml-1">
                                 <label htmlFor="password" className="text-[10px] font-black uppercase tracking-widest text-slate-700">Senha</label>
                                 {isLogin && (
-                                    <a
-                                        href="/forgot-password"
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowForgotModal(true)
+                                            setForgotError(null)
+                                            setForgotMessage(null)
+                                        }}
                                         className="text-[10px] font-black uppercase tracking-widest text-brand-blue hover:text-brand-blue/80 transition-colors"
                                     >
                                         Esqueci minha senha
-                                    </a>
+                                    </button>
                                 )}
                             </div>
                             <input
@@ -513,6 +546,81 @@ export default function LoginPage() {
                     </div>
                 </form>
             </div>
+
+            {/* Modal de Esqueci minha Senha */}
+            {showForgotModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-6 relative border border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => setShowForgotModal(false)}
+                            className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-brand-blue flex items-center justify-center font-bold">
+                                <KeyRound className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-slate-800">Recuperar Senha</h3>
+                                <p className="text-xs font-medium text-slate-500">Informe seu CPF, CNPJ ou E-mail cadastrado</p>
+                            </div>
+                        </div>
+
+                        {forgotMessage && (
+                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3 text-emerald-800">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                <p className="text-xs font-semibold leading-relaxed">{forgotMessage}</p>
+                            </div>
+                        )}
+
+                        {forgotError && (
+                            <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 text-red-800">
+                                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                <p className="text-xs font-semibold leading-relaxed">{forgotError}</p>
+                            </div>
+                        )}
+
+                        {!forgotMessage && (
+                            <form onSubmit={handleForgotSubmit} className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
+                                        CPF, CNPJ ou E-mail
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={forgotDocOrEmail}
+                                        onChange={(e) => setForgotDocOrEmail(e.target.value)}
+                                        placeholder="Digite seu CPF, CNPJ ou E-mail"
+                                        className="block w-full h-14 rounded-2xl border border-slate-200 px-5 text-slate-900 font-bold placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-brand-blue"
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowForgotModal(false)}
+                                        className="px-5 h-12 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={forgotLoading}
+                                        className="btn-blue px-6 h-12 rounded-xl text-xs font-black italic uppercase tracking-widest flex items-center gap-2 disabled:opacity-50"
+                                    >
+                                        {forgotLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {forgotLoading ? 'Enviando...' : 'Enviar Instruções'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
