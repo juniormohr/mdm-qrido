@@ -92,7 +92,27 @@ export default function LoyaltySettings() {
         if (error) {
             setMessage({ type: 'error', text: `Erro: ${error.message}` })
         } else {
-            setMessage({ type: 'success', text: 'Regras atualizadas com sucesso!' })
+            // Recalcula e atualiza os pontos de todos os produtos existentes da empresa
+            try {
+                const { data: products } = await supabase
+                    .from('products')
+                    .select('id, price')
+                    .eq('company_id', user.id)
+
+                if (products && products.length > 0) {
+                    for (const prod of products) {
+                        const newPoints = Math.round(prod.price * config.points_per_real)
+                        await supabase
+                            .from('products')
+                            .update({ points_reward: newPoints })
+                            .eq('id', prod.id)
+                    }
+                }
+            } catch (calcErr) {
+                console.error('Erro ao recalcular pontos dos produtos:', calcErr)
+            }
+
+            setMessage({ type: 'success', text: 'Regras atualizadas e pontos dos produtos recalculados com sucesso!' })
         }
         setSaving(false)
     }

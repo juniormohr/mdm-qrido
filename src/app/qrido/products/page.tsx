@@ -41,6 +41,7 @@ function ProductManagementContent() {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
     const [showUpsellModal, setShowUpsellModal] = useState(false)
     const [upsellLimit, setUpsellLimit] = useState(0)
+    const [pointsPerReal, setPointsPerReal] = useState<number>(1.0)
     
     // Estados do Destaque
     const [tier, setTier] = useState<string>('basic')
@@ -79,6 +80,15 @@ function ProductManagementContent() {
             setTier(profile.subscription_tier || 'basic')
         }
 
+        const { data: loyaltyData } = await supabase
+            .from('loyalty_configs')
+            .select('points_per_real')
+            .eq('user_id', user.id)
+            .maybeSingle()
+
+        const ratio = loyaltyData && loyaltyData.points_per_real !== null ? Number(loyaltyData.points_per_real) : 1.0
+        setPointsPerReal(ratio)
+
         const { data } = await supabase
             .from('products')
             .select('*')
@@ -87,6 +97,25 @@ function ProductManagementContent() {
 
         if (data) setProducts(data)
         setLoading(false)
+    }
+
+    const handlePriceChange = (priceVal: string) => {
+        const numPrice = parseFloat(priceVal) || 0
+        const calcPoints = Math.round(numPrice * pointsPerReal)
+        setNewProduct(prev => ({
+            ...prev,
+            price: priceVal,
+            points_reward: calcPoints.toString()
+        }))
+    }
+
+    const handleEditPriceChange = (priceVal: number) => {
+        const calcPoints = Math.round(priceVal * pointsPerReal)
+        setEditingProduct(prev => prev ? ({
+            ...prev,
+            price: priceVal,
+            points_reward: calcPoints
+        }) : null)
     }
 
     async function handleToggleHighlight(product: Product) {
@@ -173,12 +202,15 @@ function ProductManagementContent() {
             return
         }
 
+        const numericPrice = parseFloat(newProduct.price) || 0
+        const calcPoints = Math.round(numericPrice * pointsPerReal)
+
         const { error } = await supabase.from('products').insert({
             company_id: user.id,
             name: newProduct.name,
             description: newProduct.description,
-            price: parseFloat(newProduct.price),
-            points_reward: parseInt(newProduct.points_reward)
+            price: numericPrice,
+            points_reward: calcPoints
         })
 
         if (!error) {
@@ -194,14 +226,17 @@ function ProductManagementContent() {
         e.preventDefault()
         if (!editingProduct) return
 
+        const numericPrice = typeof editingProduct.price === 'number' ? editingProduct.price : parseFloat(editingProduct.price) || 0
+        const calcPoints = Math.round(numericPrice * pointsPerReal)
+
         const supabase = createClient()
         const { error } = await supabase
             .from('products')
             .update({
                 name: editingProduct.name,
                 description: editingProduct.description,
-                price: editingProduct.price,
-                points_reward: editingProduct.points_reward,
+                price: numericPrice,
+                points_reward: calcPoints,
                 image_url: editingProduct.image_url
             })
             .eq('id', editingProduct.id)
@@ -260,19 +295,21 @@ function ProductManagementContent() {
                                         required
                                         placeholder="0,00"
                                         value={newProduct.price}
-                                        onChange={e => setNewProduct({ ...newProduct, price: e.target.value })}
+                                        onChange={e => handlePriceChange(e.target.value)}
                                         className="h-12 rounded-2xl border-slate-100 font-bold"
                                     />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label className="text-xs font-black uppercase text-slate-400">Pontos *</Label>
+                                    <Label className="text-xs font-black uppercase text-slate-400 flex items-center justify-between">
+                                        <span>Pontos *</span>
+                                        <span className="text-[10px] text-slate-400 font-normal lowercase italic">({pointsPerReal} pt/R$)</span>
+                                    </Label>
                                     <Input
                                         type="number"
-                                        required
-                                        placeholder="10"
+                                        readOnly
+                                        placeholder="0"
                                         value={newProduct.points_reward}
-                                        onChange={e => setNewProduct({ ...newProduct, points_reward: e.target.value })}
-                                        className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange"
+                                        className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange bg-slate-50 cursor-not-allowed"
                                     />
                                 </div>
                             </div>
@@ -318,18 +355,20 @@ function ProductManagementContent() {
                                         step="0.01"
                                         required
                                         value={editingProduct.price}
-                                        onChange={e => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
+                                        onChange={e => handleEditPriceChange(parseFloat(e.target.value) || 0)}
                                         className="h-12 rounded-2xl border-slate-100 font-bold"
                                     />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label className="text-xs font-black uppercase text-slate-400">Pontos *</Label>
+                                    <Label className="text-xs font-black uppercase text-slate-400 flex items-center justify-between">
+                                        <span>Pontos *</span>
+                                        <span className="text-[10px] text-slate-400 font-normal lowercase italic">({pointsPerReal} pt/R$)</span>
+                                    </Label>
                                     <Input
                                         type="number"
-                                        required
+                                        readOnly
                                         value={editingProduct.points_reward}
-                                        onChange={e => setEditingProduct({ ...editingProduct, points_reward: parseInt(e.target.value) })}
-                                        className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange"
+                                        className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange bg-slate-50 cursor-not-allowed"
                                     />
                                 </div>
                             </div>
