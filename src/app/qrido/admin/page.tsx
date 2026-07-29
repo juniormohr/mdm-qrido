@@ -8,7 +8,7 @@ import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapP
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-    Plus, Users, MessageSquareMore, TrendingUp, Store,
+    Plus, Users, User, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
     UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield,
