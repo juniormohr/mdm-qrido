@@ -1357,6 +1357,7 @@ function AdminContent() {
                                 const result = await createCompanyAction({
                                     email: formData.get('email') as string,
                                     fullName: formData.get('full_name') as string,
+                                    responsibleName: formData.get('responsible_name') as string,
                                     phone: formData.get('phone') as string,
                                     companyType: company_type,
                                     subscriptionTier: tier,
@@ -1380,7 +1381,7 @@ function AdminContent() {
                                     partnership_end_date = end.toISOString()
                                 }
 
-                                const { error } = await supabase.from('profiles').update({
+                                const updatePayload: any = {
                                     full_name: formData.get('full_name'),
                                     phone: formData.get('phone'),
                                     email: formData.get('email'),
@@ -1388,7 +1389,18 @@ function AdminContent() {
                                     partnership_months: tier === 'partnership' ? months : null,
                                     partnership_end_date: partnership_end_date,
                                     company_type: company_type
-                                }).eq('id', currentEntity.id)
+                                }
+                                const respName = formData.get('responsible_name') as string
+                                if (respName) {
+                                    updatePayload.responsible_name = respName
+                                }
+
+                                let { error } = await supabase.from('profiles').update(updatePayload).eq('id', currentEntity.id)
+                                if (error && error.message?.includes('responsible_name')) {
+                                    delete updatePayload.responsible_name
+                                    const res2 = await supabase.from('profiles').update(updatePayload).eq('id', currentEntity.id)
+                                    error = res2.error
+                                }
 
                                 if (error) alert('Erro ao salvar empresa: ' + error.message)
                                 else {
@@ -1401,6 +1413,10 @@ function AdminContent() {
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome da Empresa</Label>
                                     <Input name="full_name" defaultValue={currentEntity?.full_name} placeholder="Ex: Pizzaria do Zé" required className="rounded-xl border-slate-100 h-12" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome do Responsável (Nome + Sobrenome)</Label>
+                                    <Input name="responsible_name" defaultValue={currentEntity?.responsible_name} placeholder="Ex: Carlos Silva" required className="rounded-xl border-slate-100 h-12" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail da Empresa</Label>

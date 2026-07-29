@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { User, Phone, Mail, Save, CheckCircle2, Shield, Zap, Lock, CreditCard, ChevronRight, ArrowLeft } from 'lucide-react'
+import { User, Phone, Mail, Save, CheckCircle2, Shield, Zap, Lock, CreditCard, ChevronRight, ArrowLeft, MapPin, Navigation } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import { BackButton } from '@/components/ui/back-button'
 import Link from 'next/link'
@@ -31,15 +31,28 @@ export default function QRidoSettings() {
         new: '',
         confirm: ''
     })
+    const [address, setAddress] = useState({
+        street: '',
+        number: '',
+        complement: '',
+        neighborhood: '',
+        city: '',
+        state: '',
+        zip_code: '',
+        latitude: '',
+        longitude: ''
+    })
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [savingAddress, setSavingAddress] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+    const [addressMessage, setAddressMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null)
 
     useEffect(() => {
-        fetchProfile()
+        fetchProfileAndAddress()
     }, [])
 
-    async function fetchProfile() {
+    async function fetchProfileAndAddress() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
@@ -61,12 +74,32 @@ export default function QRidoSettings() {
             cpf_cnpj: data?.cpf_cnpj || ''
         })
 
+        // Fetch Address
+        const { data: addressData } = await supabase
+            .from('addresses')
+            .select('*')
+            .eq('profile_id', user.id)
+            .maybeSingle()
+
+        if (addressData) {
+            setAddress({
+                street: addressData.street || '',
+                number: addressData.number || '',
+                complement: addressData.complement || '',
+                neighborhood: addressData.neighborhood || '',
+                city: addressData.city || '',
+                state: addressData.state || '',
+                zip_code: addressData.zip_code || '',
+                latitude: addressData.latitude ? String(addressData.latitude) : '',
+                longitude: addressData.longitude ? String(addressData.longitude) : ''
+            })
+        }
+
         // Fetch limits
         const { checkTierLimits } = await import('@/lib/limits')
-        const { data: { user: currentUser } } = await supabase.auth.getUser()
-        if (currentUser) {
-            const pLimit = await checkTierLimits(currentUser.id, 'products')
-            const cLimit = await checkTierLimits(currentUser.id, 'customers')
+        if (user) {
+            const pLimit = await checkTierLimits(user.id, 'products')
+            const cLimit = await checkTierLimits(user.id, 'customers')
 
             setLimits({
                 products: { count: pLimit.count, limit: pLimit.limit, percentage: (pLimit.count / pLimit.limit) * 100 },
@@ -158,23 +191,121 @@ export default function QRidoSettings() {
             if (hasOnlyCpf && newCnpj) {
                 setNewCnpj('')
             }
-            fetchProfile()
+            fetchProfileAndAddress()
         }
         setSaving(false)
+    }
+
+    const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setAddress(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    }
+
+    const handleCepChange = async (val: string) => {
+        let cleaned = val.replace(/\D/g, '')
+        if (cleaned.length > 8) cleaned = cleaned.substring(0, 8)
+        let masked = cleaned
+        if (cleaned.length > 5) {
+            masked = `${cleaned.substring(0, 5)}-${cleaned.substring(5)}`
+        }
+        setAddress(prev => ({ ...prev, zip_code: masked }))
+
+        if (cleaned.length === 8) {
+            try {
+                const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`)
+                const data = await res.json()
+                if (!data.erro) {
+                    setAddress(prev => ({
+                        ...prev,
+                        street: data.logradouro || prev.street,
+                        neighborhood: data.bairro || prev.neighborhood,
+                        city: data.localidade || prev.city,
+                        state: data.uf || prev.state
+                    }))
+                }
+            } catch (e) {
+                console.error(e)
+            }
+        }
+    }
+
+    const handleGetLocation = () => {
+        if (!navigator.geolocation) {
+            setAddressMessage({ type: 'error', text: 'Seu navegador não suporta geolocalização.' })
+            return
+        }
+
+        setAddressMessage({ type: 'info', text: 'Obtendo localização...' })
+
+        navigator.geolocation.getCurrentPosition((position) => {
+            setAddress(prev => ({
+                ...prev,
+                latitude: String(position.coords.latitude),
+                longitude: String(position.coords.longitude)
+            }))
+            setAddressMessage({ type: 'success', text: 'Coordenadas capturadas com sucesso!' })
+        }, (err) => {
+            console.error(err)
+            setAddressMessage({ type: 'error', text: 'Não foi possível obter a localização. Verifique as permissões.' })
+        }, { enableHighAccuracy: true })
+    }
+
+    async function handleSaveAddress() {
+        setSavingAddress(true)
+        setAddressMessage(null)
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const payload = {
+            profile_id: user.id,
+            street: address.street,
+            number: address.number,
+            complement: address.complement,
+            neighborhood: address.neighborhood,
+            city: address.city,
+            state: address.state,
+            zip_code: address.zip_code,
+            latitude: address.latitude ? parseFloat(address.latitude) : null,
+            longitude: address.longitude ? parseFloat(address.longitude) : null
+        }
+
+        const { data: existing } = await supabase
+            .from('addresses')
+            .select('id')
+            .eq('profile_id', user.id)
+            .maybeSingle()
+
+        let error;
+        if (existing) {
+            const res = await supabase.from('addresses').update(payload).eq('id', existing.id)
+            error = res.error
+        } else {
+            const res = await supabase.from('addresses').insert(payload)
+            error = res.error
+        }
+
+        if (error) {
+            console.error(error)
+            setAddressMessage({ type: 'error', text: 'Erro ao salvar o endereço.' })
+        } else {
+            setAddressMessage({ type: 'success', text: 'Endereço e localização salvos com sucesso!' })
+        }
+        setSavingAddress(false)
     }
 
     if (loading) return <div className="p-8 text-center text-slate-400 font-bold animate-pulse">CARREGANDO...</div>
 
     return (
-        <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-3xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10 pb-32">
             <div className="flex flex-col gap-4">
                 <BackButton />
                 <div className="flex flex-col gap-1">
-                    <h1 className="heading-mobile text-slate-900">MINHA CONTA</h1>
-                    <p className="subheading-mobile">Gerencie suas informações de acesso e perfil.</p>
+                    <h1 className="heading-mobile text-slate-900">CONFIGURAÇÕES</h1>
+                    <p className="subheading-mobile">Gerencie suas informações de acesso, localização e perfil.</p>
                 </div>
             </div>
 
+            {/* Informações do Perfil */}
             <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
                 <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-col items-center gap-6">
                     <CardTitle className="text-xl font-black italic uppercase text-brand-blue flex items-center gap-3">
@@ -188,7 +319,9 @@ export default function QRidoSettings() {
                                 profile.role === 'company' ? "bg-brand-blue/10 text-brand-blue" : "bg-brand-orange/10 text-brand-orange"
                         )}>
                             {profile.role === 'admin' ? 'Admin Master' :
-                                profile.role === 'company' ? 'Conta Empresa' : 'Conta Cliente'}
+                                profile.role === 'company' ? 'Conta Empresa' :
+                                profile.role === 'holding' ? 'Conta Holding' :
+                                profile.role === 'group' || profile.role === 'mall' ? 'Conta Grupo' : 'Conta Cliente'}
                         </div>
                     )}
                 </CardHeader>
@@ -243,10 +376,10 @@ export default function QRidoSettings() {
                         </div>
 
                         {/* Exibição e inclusão de CPF / CNPJ */}
-                        {(profile.role === 'customer' || profile.role === 'admin') && (
+                        {(profile.role === 'customer' || profile.role === 'admin' || profile.role === 'holding' || profile.role === 'group') && (
                             <div className="space-y-2">
                                 <Label htmlFor="cpf-admin-locked" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">
-                                    {profile.role === 'admin' ? 'CPF / CNPJ' : 'CPF (Inalterável)'}
+                                    {profile.role === 'admin' ? 'CPF / CNPJ' : 'CPF'}
                                 </Label>
                                 <div className="relative">
                                     <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
@@ -336,13 +469,162 @@ export default function QRidoSettings() {
                         {saving ? 'SALVANDO...' : (
                             <div className="flex items-center gap-2">
                                 <Save className="h-5 w-5" />
-                                SALVAR ALTERAÇÕES
+                                SALVAR PERFIL
                             </div>
                         )}
                     </Button>
                 </CardContent>
             </Card>
 
+            {/* Localização e Endereço Físico */}
+            <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
+                <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-col items-center gap-3 text-center">
+                    <CardTitle className="text-xl font-black italic uppercase text-brand-blue flex items-center gap-3">
+                        <MapPin className="h-6 w-6" />
+                        Localização da Loja / Endereço
+                    </CardTitle>
+                    <p className="text-xs font-medium text-slate-500">Configure o endereço físico e coordenadas para ser localizado no mapa por clientes próximos.</p>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                    {addressMessage && (
+                        <div className={`p-4 rounded-2xl flex items-center gap-3 ${
+                            addressMessage.type === 'error' ? 'bg-red-50 text-red-600 border border-red-100' :
+                            addressMessage.type === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                            'bg-blue-50 text-brand-blue border border-blue-100'
+                        }`}>
+                            {addressMessage.type === 'success' && <CheckCircle2 className="h-5 w-5" />}
+                            <span className="font-bold text-sm">{addressMessage.text}</span>
+                        </div>
+                    )}
+
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                            <MapPin className="h-4 w-4" /> Endereço Físico
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500">CEP</Label>
+                                <Input
+                                    name="zip_code"
+                                    value={address.zip_code}
+                                    onChange={(e) => handleCepChange(e.target.value)}
+                                    placeholder="00000-000"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label className="text-xs font-bold text-slate-500">Logradouro (Rua, Av, etc)</Label>
+                                <Input
+                                    name="street"
+                                    value={address.street}
+                                    onChange={handleAddressChange}
+                                    placeholder="Sua Rua"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500">Número</Label>
+                                <Input
+                                    name="number"
+                                    value={address.number}
+                                    onChange={handleAddressChange}
+                                    placeholder="123"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500">Complemento</Label>
+                                <Input
+                                    name="complement"
+                                    value={address.complement}
+                                    onChange={handleAddressChange}
+                                    placeholder="Sala 101, Bloco B"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500">Bairro</Label>
+                                <Input
+                                    name="neighborhood"
+                                    value={address.neighborhood}
+                                    onChange={handleAddressChange}
+                                    placeholder="Centro"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-slate-500">Cidade</Label>
+                                <Input
+                                    name="city"
+                                    value={address.city}
+                                    onChange={handleAddressChange}
+                                    placeholder="São Paulo"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label className="text-xs font-bold text-slate-500">Estado (UF)</Label>
+                                <Input
+                                    name="state"
+                                    value={address.state}
+                                    onChange={handleAddressChange}
+                                    placeholder="SP"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="h-px bg-slate-100 w-full my-6" />
+
+                    <div className="space-y-4">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2">
+                            <Navigation className="h-4 w-4" /> Coordenadas GPS
+                        </h3>
+                        <p className="text-xs font-medium text-slate-500">
+                            Para que sua loja apareça no mapa dos clientes próximos, você precisa salvar a latitude e longitude exatas do seu estabelecimento.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <Input
+                                disabled
+                                name="latitude"
+                                value={address.latitude}
+                                placeholder="Latitude"
+                                className="h-12 font-mono text-xs bg-slate-50 rounded-2xl"
+                            />
+                            <Input
+                                disabled
+                                name="longitude"
+                                value={address.longitude}
+                                placeholder="Longitude"
+                                className="h-12 font-mono text-xs bg-slate-50 rounded-2xl"
+                            />
+                        </div>
+
+                        <Button
+                            type="button"
+                            onClick={handleGetLocation}
+                            className="w-full bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue border-none h-12 rounded-2xl font-black italic uppercase text-xs transition-colors"
+                        >
+                            <Navigation className="mr-2 h-4 w-4" />
+                            Pegar Minha Localização Atual
+                        </Button>
+                    </div>
+
+                    <Button
+                        onClick={handleSaveAddress}
+                        disabled={savingAddress}
+                        className="w-full bg-brand-green hover:bg-brand-green/90 text-white h-14 rounded-2xl shadow-xl shadow-brand-green/20 font-black italic uppercase text-sm"
+                    >
+                        <Save className="mr-2 h-5 w-5" />
+                        {savingAddress ? "SALVANDO..." : "SALVAR ENDEREÇO E LOCALIZAÇÃO"}
+                    </Button>
+                </CardContent>
+            </Card>
+
+            {/* Meu Plano e Limites (Empresas) */}
             {profile.role === 'company' && (
                 <Card className="border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white overflow-hidden rounded-[40px]">
                     <CardHeader className="bg-slate-50/50 p-8 border-b border-slate-100 flex flex-row items-center justify-between">

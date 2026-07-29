@@ -719,9 +719,9 @@ export default function CompanyDashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                     <Link
-                        href="/qrido/company/settings"
+                        href="/qrido/settings"
                         className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-brand-blue hover:shadow-md transition-all"
-                        title="Configurações da Loja"
+                        title="Configurações"
                     >
                         <Settings className="h-5 w-5" />
                     </Link>

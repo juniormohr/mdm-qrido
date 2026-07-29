@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export async function createCompanyAction(data: {
   email: string
   fullName: string
+  responsibleName?: string
   phone: string
   companyType: string
   subscriptionTier: string
@@ -48,6 +49,7 @@ export async function createCompanyAction(data: {
       email_confirm: true,
       user_metadata: {
         full_name: data.fullName,
+        responsible_name: data.responsibleName || data.fullName,
         phone: data.phone,
         role: 'company',
         cpf_cnpj: cleanCpfCnpj
@@ -74,16 +76,30 @@ export async function createCompanyAction(data: {
     const targetRole = data.companyType === 'holding' ? 'holding' : 'company'
 
     // 3. Atualizar o profile com os campos de assinatura e tipo
-    const { error: updateError } = await supabaseAdmin
+    const updatePayload: any = {
+      company_type: data.companyType,
+      subscription_tier: data.subscriptionTier,
+      partnership_months: data.subscriptionTier === 'partnership' ? data.partnershipMonths : null,
+      partnership_end_date: partnership_end_date,
+      role: targetRole
+    }
+    if (data.responsibleName) {
+      updatePayload.responsible_name = data.responsibleName
+    }
+
+    let { error: updateError } = await supabaseAdmin
       .from('profiles')
-      .update({
-        company_type: data.companyType,
-        subscription_tier: data.subscriptionTier,
-        partnership_months: data.subscriptionTier === 'partnership' ? data.partnershipMonths : null,
-        partnership_end_date: partnership_end_date,
-        role: targetRole
-      })
+      .update(updatePayload)
       .eq('id', userId)
+
+    if (updateError && updateError.message?.includes('responsible_name')) {
+      delete updatePayload.responsible_name
+      const res2 = await supabaseAdmin
+        .from('profiles')
+        .update(updatePayload)
+        .eq('id', userId)
+      updateError = res2.error
+    }
 
     if (updateError) {
       return { error: 'Usuário criado, mas erro ao atualizar o perfil: ' + updateError.message }
