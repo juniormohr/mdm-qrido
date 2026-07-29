@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Megaphone, Save, CheckCircle2, MessageCircle, Calendar, Send, Building2, Store, Users } from 'lucide-react'
+import { Megaphone, Save, CheckCircle2, Calendar } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 
 export default function MarketingSettings() {
@@ -27,9 +27,6 @@ export default function MarketingSettings() {
         end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         is_active: true
     })
-
-    const [recipients, setRecipients] = useState<{ id: string; name: string; phone?: string }[]>([])
-    const [selectedRecipientPhone, setSelectedRecipientPhone] = useState('')
 
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -99,55 +96,6 @@ export default function MarketingSettings() {
             }
         }
 
-        // 3. Fetch WhatsApp Recipients according to strict hierarchy
-        let list: { id: string; name: string; phone?: string }[] = []
-        if (isHolding) {
-            // Holding -> Only Accepted Groups
-            const { data: hgData } = await supabase
-                .from('holding_groups')
-                .select('group_id, profiles!holding_groups_group_id_fkey(id, full_name, phone)')
-                .eq('holding_id', user.id)
-                .eq('status', 'accepted')
-
-            if (hgData) {
-                list = hgData.map((item: any) => ({
-                    id: item.group_id,
-                    name: item.profiles?.full_name || 'Grupo',
-                    phone: item.profiles?.phone
-                }))
-            }
-        } else if (isGroup) {
-            // Group -> Only Accepted Stores
-            const { data: cgData } = await supabase
-                .from('company_groups')
-                .select('store_id, profiles!company_groups_store_id_fkey(id, full_name, phone)')
-                .eq('mall_id', user.id)
-                .eq('status', 'accepted')
-
-            if (cgData) {
-                list = cgData.map((item: any) => ({
-                    id: item.store_id,
-                    name: item.profiles?.full_name || 'Loja',
-                    phone: item.profiles?.phone
-                }))
-            }
-        } else {
-            // Store -> Store Customers
-            const { data: custData } = await supabase
-                .from('customers')
-                .select('id, name, phone')
-                .eq('user_id', user.id)
-
-            if (custData) {
-                list = custData.map(c => ({
-                    id: c.id,
-                    name: c.name,
-                    phone: c.phone
-                }))
-            }
-        }
-
-        setRecipients(list)
         setLoading(false)
     }
 
@@ -178,6 +126,58 @@ export default function MarketingSettings() {
             })
         }
 
+        // Se pontos em dobro estiverem ATIVADOS, ativa também em todos os produtos da loja/grupo/holding
+        if (config.double_points_active) {
+            try {
+                if (isHolding) {
+                    const { data: hgData } = await supabase
+                        .from('holding_groups')
+                        .select('group_id')
+                        .eq('holding_id', user.id)
+                        .eq('status', 'accepted')
+
+                    const groupIds = hgData?.map(g => g.group_id) || []
+                    let storeIds: string[] = [user.id]
+
+                    if (groupIds.length > 0) {
+                        const { data: cgData } = await supabase
+                            .from('company_groups')
+                            .select('store_id')
+                            .in('mall_id', groupIds)
+                            .eq('status', 'accepted')
+
+                        const connectedStores = cgData?.map(s => s.store_id) || []
+                        storeIds = [...new Set([...storeIds, ...groupIds, ...connectedStores])]
+                    }
+
+                    await supabase
+                        .from('products')
+                        .update({ double_points_active: true })
+                        .in('company_id', storeIds)
+                } else if (isGroup) {
+                    const { data: cgData } = await supabase
+                        .from('company_groups')
+                        .select('store_id')
+                        .eq('mall_id', user.id)
+                        .eq('status', 'accepted')
+
+                    const storeIds = [user.id, ...(cgData?.map(s => s.store_id) || [])]
+
+                    await supabase
+                        .from('products')
+                        .update({ double_points_active: true })
+                        .in('company_id', storeIds)
+                } else {
+                    await supabase
+                        .from('products')
+                        .update({ double_points_active: true })
+                        .eq('company_id', user.id)
+                }
+            } catch (err) {
+                console.error('Erro ao atualizar produtos em dobro:', err)
+            }
+        }
+
         // Save Campaign for Holding or Group
         if (isHolding || isGroup) {
             const campPayload = {
@@ -201,17 +201,6 @@ export default function MarketingSettings() {
         setSaving(false)
     }
 
-    const handleSendWhatsapp = (recipient: { name: string; phone?: string }) => {
-        if (!recipient.phone) {
-            alert(`O destinatário ${recipient.name} não possui telefone cadastrado.`)
-            return
-        }
-        const cleanedPhone = recipient.phone.replace(/\D/g, '')
-        const formattedMsg = config.whatsapp_template.replace('{nome}', recipient.name).replace('{pontos}', '100')
-        const url = `https://api.whatsapp.com/send?phone=55${cleanedPhone}&text=${encodeURIComponent(formattedMsg)}`
-        window.open(url, '_blank')
-    }
-
     const isHolding = userRole === 'holding' || companyType === 'holding'
     const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
 
@@ -226,8 +215,8 @@ export default function MarketingSettings() {
                         MKT (MARKETING)
                     </h1>
                     <p className="text-slate-500 mt-1 font-medium">
-                        {isHolding ? 'Gestão de campanhas e comunicação com seus Grupos.' :
-                         isGroup ? 'Gestão de campanhas e comunicação com suas Lojas conveniadas.' :
+                        {isHolding ? 'Gestão de campanhas e engajamento com seus Grupos.' :
+                         isGroup ? 'Gestão de campanhas e engajamento com suas Lojas conveniadas.' :
                          'Gerencie suas ferramentas de engajamento e mensagens.'}
                     </p>
                 </div>
@@ -298,12 +287,12 @@ export default function MarketingSettings() {
                 </Card>
             )}
 
-            {/* CARD 2: WHATSAPP TEMPLATE & RECIPIENTS */}
+            {/* CARD 2: ENGAJAMENTO & MKT */}
             <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[36px]">
                 <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                     <CardTitle className="text-xl font-black italic uppercase text-[#167657] flex items-center gap-3">
-                        <MessageCircle className="h-6 w-6" />
-                        Disparo WhatsApp Hierárquico
+                        <Megaphone className="h-6 w-6" />
+                        Engajamento & MKT
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
@@ -329,7 +318,7 @@ export default function MarketingSettings() {
                                     Pontos em Dobro 🔥
                                 </h3>
                                 <p className="text-xs text-orange-800/60 font-medium max-w-sm">
-                                    Ative para dobrar a pontuação concedida aos clientes e ganhar destaque com selo promocional no aplicativo.
+                                    Ative para dobrar a pontuação concedida aos clientes em todos os produtos e ganhar destaque com selo promocional no aplicativo.
                                 </p>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer select-none">
@@ -342,44 +331,6 @@ export default function MarketingSettings() {
                                 <div className="w-14 h-7 bg-orange-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-[#E9592C]"></div>
                             </label>
                         </div>
-                    </div>
-
-                    {/* RECIPIENTS LIST (RESTRICTED HIERARCHY) */}
-                    <div className="space-y-3 pt-2">
-                        <Label className="text-xs font-black uppercase text-slate-400 flex items-center justify-between">
-                            <span>
-                                {isHolding ? `Grupos Aceitos (${recipients.length})` :
-                                 isGroup ? `Lojas Aceitas (${recipients.length})` :
-                                 `Clientes da Loja (${recipients.length})`}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-normal">Disparo Direto</span>
-                        </Label>
-
-                        {recipients.length === 0 ? (
-                            <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl">
-                                {isHolding ? 'Nenhum grupo aceito para disparo.' : isGroup ? 'Nenhuma loja aceita para disparo.' : 'Nenhum cliente registrado.'}
-                            </div>
-                        ) : (
-                            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                                {recipients.map(r => (
-                                    <div key={r.id} className="flex items-center justify-between p-3 bg-slate-50/80 rounded-xl border border-slate-100">
-                                        <div className="flex items-center gap-2">
-                                            {isHolding ? <Building2 className="w-4 h-4 text-[#167657]" /> :
-                                             isGroup ? <Store className="w-4 h-4 text-[#297CCB]" /> :
-                                             <Users className="w-4 h-4 text-amber-500" />}
-                                            <span className="font-bold text-slate-800 text-xs">{r.name}</span>
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            className="btn-emerald h-8 px-3 text-[10px] font-black italic uppercase rounded-lg"
-                                            onClick={() => handleSendWhatsapp(r)}
-                                        >
-                                            <Send className="w-3 h-3 mr-1" /> WhatsApp
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </CardContent>
             </Card>
