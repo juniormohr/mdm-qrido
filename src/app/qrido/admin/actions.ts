@@ -240,19 +240,26 @@ export async function resetUserPasswordAction(target: { userId?: string; identif
       return { error: 'Selecione ou informe um usuário válido.' }
     }
 
-    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password: '123456'
-    })
-
-    if (authError) {
-      return { error: 'Erro ao resetar a senha no Auth: ' + authError.message }
-    }
-
     const { data: userProfile } = await supabaseAdmin
       .from('profiles')
       .select('full_name, company_name, email, cpf_cnpj')
       .eq('id', userId)
       .single()
+
+    const updatePayload: any = {
+      password: '123456',
+      email_confirm: true
+    }
+
+    if (userProfile?.email) {
+      updatePayload.email = userProfile.email
+    }
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, updatePayload)
+
+    if (authError) {
+      return { error: 'Erro ao resetar a senha no Auth: ' + authError.message }
+    }
 
     const name = userProfile?.company_name || userProfile?.full_name || userProfile?.email || 'Usuário'
 
