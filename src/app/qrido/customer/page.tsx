@@ -1671,8 +1671,7 @@ export default function CustomerDashboard() {
                                     if (!searchQuery.trim()) return true
                                     const q = searchQuery.toLowerCase().trim()
                                     return (company.full_name || '').toLowerCase().includes(q) ||
-                                           (company.trade_name || '').toLowerCase().includes(q) ||
-                                           (company.segment || '').toLowerCase().includes(q)
+                                           (company.address || '').toLowerCase().includes(q)
                                 })
                                 .sort((a, b) => {
                                     const aFav = favorites.includes(a.id) ? 1 : 0
