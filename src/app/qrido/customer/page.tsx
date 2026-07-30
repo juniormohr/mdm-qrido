@@ -116,7 +116,7 @@ export default function CustomerDashboard() {
     const [allTimeScore, setAllTimeScore] = useState(0)
     const [showReferralModal, setShowReferralModal] = useState(false)
     const [referralCopied, setReferralCopied] = useState(false)
-    const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
+    const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string, cpf?: string } | null>(null)
     const userPhoneRef = useRef<string | null>(null)
 
     useEffect(() => {
