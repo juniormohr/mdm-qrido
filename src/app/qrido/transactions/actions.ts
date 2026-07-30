@@ -74,16 +74,21 @@ export async function processTransactionAction(data: {
             const mallId = group.mall_id
 
             // Verificar se o Grupo tem campanha ativa em entity_campaigns ou company_groups
-            const { data: groupCampaign } = await adminSupabase
+            const { data: activeCampaigns } = await adminSupabase
                 .from('entity_campaigns')
                 .select('*')
                 .eq('entity_id', mallId)
                 .eq('is_active', true)
-                .lte('start_date', now.toISOString())
-                .gte('end_date', now.toISOString())
-                .maybeSingle()
 
-            let hasActiveGroupCampaign = !!groupCampaign
+            let hasActiveGroupCampaign = false
+            if (activeCampaigns && activeCampaigns.length > 0) {
+                hasActiveGroupCampaign = activeCampaigns.some((c: any) => {
+                    const startDate = new Date(c.start_date)
+                    const endDate = new Date(c.end_date)
+                    return now >= startDate && now <= endDate
+                })
+            }
+
             if (!hasActiveGroupCampaign && group.double_points) {
                 if (group.event_start_date && group.event_end_date) {
                     const start = new Date(group.event_start_date)
@@ -98,12 +103,30 @@ export async function processTransactionAction(data: {
             if (hasActiveGroupCampaign) {
                 const groupPoints = finalTotalPoints
 
-                let { data: mallCustomer } = await adminSupabase
-                    .from('customers')
-                    .select('*')
-                    .eq('user_id', mallId)
-                    .eq('phone', customerStore.phone)
-                    .maybeSingle()
+                // Priorizar busca por CPF/CNPJ se disponível, senão por telefone
+                let mallCustomer = null
+                const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
+
+                if (cleanCpf) {
+                    const { data: byCpf } = await adminSupabase
+                        .from('customers')
+                        .select('*')
+                        .eq('user_id', mallId)
+                        .or(`cpf.eq.${customerStore.cpf},cpf.eq.${cleanCpf}`)
+                        .maybeSingle()
+                    mallCustomer = byCpf
+                }
+
+                if (!mallCustomer && customerStore.phone) {
+                    const cleanPhone = customerStore.phone.replace(/\D/g, '')
+                    const { data: byPhone } = await adminSupabase
+                        .from('customers')
+                        .select('*')
+                        .eq('user_id', mallId)
+                        .or(`phone.eq.${customerStore.phone},phone.eq.${cleanPhone}`)
+                        .maybeSingle()
+                    mallCustomer = byPhone
+                }
 
                 let finalMallCustomerId = mallCustomer?.id
 
@@ -154,24 +177,47 @@ export async function processTransactionAction(data: {
                 for (const hLink of holdingLinks) {
                     const holdingId = hLink.holding_id
 
-                    const { data: holdingCampaign } = await adminSupabase
+                    const { data: holdingCampaigns } = await adminSupabase
                         .from('entity_campaigns')
                         .select('*')
                         .eq('entity_id', holdingId)
                         .eq('is_active', true)
-                        .lte('start_date', now.toISOString())
-                        .gte('end_date', now.toISOString())
-                        .maybeSingle()
 
-                    if (holdingCampaign) {
+                    let hasHoldingCampaign = false
+                    if (holdingCampaigns && holdingCampaigns.length > 0) {
+                        hasHoldingCampaign = holdingCampaigns.some((c: any) => {
+                            const startDate = new Date(c.start_date)
+                            const endDate = new Date(c.end_date)
+                            return now >= startDate && now <= endDate
+                        })
+                    }
+
+                    if (hasHoldingCampaign) {
                         const holdingPoints = finalTotalPoints
 
-                        let { data: holdingCustomer } = await adminSupabase
-                            .from('customers')
-                            .select('*')
-                            .eq('user_id', holdingId)
-                            .eq('phone', customerStore.phone)
-                            .maybeSingle()
+                        let holdingCustomer = null
+                        const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
+
+                        if (cleanCpf) {
+                            const { data: byCpf } = await adminSupabase
+                                .from('customers')
+                                .select('*')
+                                .eq('user_id', holdingId)
+                                .or(`cpf.eq.${customerStore.cpf},cpf.eq.${cleanCpf}`)
+                                .maybeSingle()
+                            holdingCustomer = byCpf
+                        }
+
+                        if (!holdingCustomer && customerStore.phone) {
+                            const cleanPhone = customerStore.phone.replace(/\D/g, '')
+                            const { data: byPhone } = await adminSupabase
+                                .from('customers')
+                                .select('*')
+                                .eq('user_id', holdingId)
+                                .or(`phone.eq.${customerStore.phone},phone.eq.${cleanPhone}`)
+                                .maybeSingle()
+                            holdingCustomer = byPhone
+                        }
 
                         let finalHoldingCustId = holdingCustomer?.id
 

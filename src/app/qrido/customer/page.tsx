@@ -595,7 +595,7 @@ export default function CustomerDashboard() {
         // Fetch User Profile
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('full_name, phone')
+            .select('full_name, phone, cpf')
             .eq('id', user.id)
             .single()
 
@@ -705,27 +705,52 @@ export default function CustomerDashboard() {
     }
 
     async function fetchMyStores(phone: string | undefined, profileId?: string) {
-        if (!phone) return
+        if (!phone && !profileId) return
         const supabase = createClient()
 
-        console.log('fetchMyStores: Buscando para phone:', phone)
+        console.log('fetchMyStores: Buscando para phone:', phone, 'profileId:', profileId)
 
         // 1. Normalização agressiva de telefone (BR)
-        const cleanPhone = phone.replace(/\D/g, '')
-        const searchTerms = [phone]
-        if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
+        const searchTerms = phone ? [phone] : []
+        if (phone) {
+            const cleanPhone = phone.replace(/\D/g, '')
+            if (cleanPhone && cleanPhone !== phone) searchTerms.push(cleanPhone)
 
-        // Variações comuns no Brasil
-        if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) {
-            searchTerms.push('55' + cleanPhone)
-        } else if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) {
-            searchTerms.push(cleanPhone.substring(2))
+            if (cleanPhone.length === 11 && !cleanPhone.startsWith('55')) {
+                searchTerms.push('55' + cleanPhone)
+            } else if (cleanPhone.length === 13 && cleanPhone.startsWith('55')) {
+                searchTerms.push(cleanPhone.substring(2))
+            }
         }
 
-        const { data: myCustRecords, error: custError } = await supabase
+        let userCpf = userProfile?.cpf
+        if (!userCpf && profileId) {
+            const { data: pData } = await supabase.from('profiles').select('cpf').eq('id', profileId).maybeSingle()
+            if (pData?.cpf) userCpf = pData.cpf
+        }
+
+        const cpfTerms: string[] = []
+        if (userCpf) {
+            cpfTerms.push(userCpf)
+            const cleanCpf = userCpf.replace(/\D/g, '')
+            if (cleanCpf && cleanCpf !== userCpf) cpfTerms.push(cleanCpf)
+        }
+
+        let query = supabase
             .from('customers')
             .select('id, user_id, points_balance, profiles:user_id(full_name)')
-            .in('phone', searchTerms)
+
+        if (cpfTerms.length > 0 && searchTerms.length > 0) {
+            query = query.or(`cpf.in.(${cpfTerms.map(c => `"${c}"`).join(',')}),phone.in.(${searchTerms.map(s => `"${s}"`).join(',')})`)
+        } else if (cpfTerms.length > 0) {
+            query = query.in('cpf', cpfTerms)
+        } else if (searchTerms.length > 0) {
+            query = query.in('phone', searchTerms)
+        } else {
+            return
+        }
+
+        const { data: myCustRecords, error: custError } = await query
 
         if (custError) {
             console.error('Erro ao buscar registros de fidelidade:', custError)
