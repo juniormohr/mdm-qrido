@@ -307,6 +307,31 @@ export default function CustomerDashboard() {
     const [showLoginPromptModal, setShowLoginPromptModal] = useState(false)
     const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
     const [featuredProductsLoading, setFeaturedProductsLoading] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [favorites, setFavorites] = useState<string[]>([])
+
+    useEffect(() => {
+        try {
+            const storedFavs = JSON.parse(localStorage.getItem('qrido_favorite_stores') || '[]')
+            const myStoreIds = myStores.map(s => s.id)
+            const combined = Array.from(new Set([...storedFavs, ...myStoreIds]))
+            setFavorites(combined)
+        } catch (e) {
+            setFavorites(myStores.map(s => s.id))
+        }
+    }, [myStores])
+
+    const toggleFavorite = (companyId: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        setFavorites(prev => {
+            const isFav = prev.includes(companyId)
+            const next = isFav ? prev.filter(id => id !== companyId) : [...prev, companyId]
+            try {
+                localStorage.setItem('qrido_favorite_stores', JSON.stringify(next))
+            } catch (err) {}
+            return next
+        })
+    }
 
     const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
 
@@ -613,7 +638,7 @@ export default function CustomerDashboard() {
     async function fetchAllRewards() {
         setRewardsLoading(true)
         const supabase = createClient()
-        const eligibleStores = myStores
+        const eligibleStores = companies.length > 0 ? companies : myStores
         if (eligibleStores.length === 0) {
             setAllRewards([])
             setRewardsLoading(false)
@@ -627,34 +652,41 @@ export default function CustomerDashboard() {
             .select('*')
             .in('user_id', companyIds)
             .eq('is_active', true)
+            .order('points_required', { ascending: true })
 
         if (error) {
             console.error('Erro ao buscar recompensas:', error)
         }
 
         if (data) {
-             const formattedRewards = data.map(r => {
-                 const store = eligibleStores.find(s => s.id === r.user_id)
-                 return {
-                     ...r,
-                     company_name: store?.full_name || 'Empresa Parceira',
-                     user_balance: store?.points_balance || 0
-                 }
-             })
-             
-             formattedRewards.sort((a, b) => {
-                 const aAvailable = a.user_balance >= a.points_required ? 1 : 0
-                 const bAvailable = b.user_balance >= b.points_required ? 1 : 0
-                 if (aAvailable !== bAvailable) return bAvailable - aAvailable 
-                 
-                 const aProgress = Math.min(a.user_balance / a.points_required, 1)
-                 const bProgress = Math.min(b.user_balance / b.points_required, 1)
-                 if (aProgress !== bProgress) return bProgress - aProgress 
-                 
-                 return a.points_required - b.points_required 
+             const rewardsByCompany: { [companyId: string]: any[] } = {}
+             data.forEach(r => {
+                 if (!rewardsByCompany[r.user_id]) rewardsByCompany[r.user_id] = []
+                 rewardsByCompany[r.user_id].push(r)
              })
 
-             setAllRewards(formattedRewards)
+             const featuredRewards: any[] = []
+             Object.keys(rewardsByCompany).forEach(cId => {
+                 const store = eligibleStores.find(s => s.id === cId)
+                 const userStore = myStores.find(s => s.id === cId)
+                 const storeRewards = rewardsByCompany[cId]
+                 if (storeRewards.length > 0) {
+                     featuredRewards.push({
+                         ...storeRewards[0],
+                         company_name: store?.full_name || 'Empresa Parceira',
+                         user_balance: userStore?.points_balance || 0
+                     })
+                 }
+             })
+
+             featuredRewards.sort((a, b) => {
+                 const aAvailable = a.user_balance >= a.points_required ? 1 : 0
+                 const bAvailable = b.user_balance >= b.points_required ? 1 : 0
+                 if (aAvailable !== bAvailable) return bAvailable - aAvailable
+                 return a.points_required - b.points_required
+             })
+
+             setAllRewards(featuredRewards)
         }
         setRewardsLoading(false)
     }
@@ -1407,35 +1439,36 @@ export default function CustomerDashboard() {
                 </div>
             </div>
 
-            {/* Grade de Ações Rápidas (Centered Flex) */}
-            <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 md:gap-8 w-full py-2">
+            {/* Grade de Ações Rápidas (5 Botões Perfeitamente Alinhados) */}
+            <div className="grid grid-cols-5 gap-1 sm:gap-2.5 w-full py-2">
                 {[
-                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-brand-yellow text-white border-brand-yellow shadow-brand-yellow/30' },
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-[#E9592C] text-white border-[#E9592C] shadow-orange-500/30' },
                     { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
+                    { id: 'rewards', label: 'Brindes', icon: Gift, activeColor: 'bg-amber-500 text-white border-amber-500 shadow-amber-500/30' },
                     { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
                     { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
                 ].map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => {
-                            if (tab.id !== 'offers' && tab.id !== 'my_stores' && !userProfile) {
+                            if (tab.id !== 'offers' && tab.id !== 'my_stores' && tab.id !== 'rewards' && !userProfile) {
                                 setShowLoginPromptModal(true)
                                 return
                             }
                             setActiveTab(tab.id as any)
                         }}
-                        className="flex flex-col items-center gap-2 group"
+                        className="flex flex-col items-center gap-1.5 group min-w-0"
                     >
                         <div className={cn(
-                            "h-14 w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm",
+                            "h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm shrink-0",
                             activeTab === tab.id
-                                ? `${tab.activeColor} shadow-lg scale-110`
+                                ? `${tab.activeColor} shadow-lg scale-105 sm:scale-110`
                                 : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
                         )}>
-                            <tab.icon className="h-6 w-6" />
+                            <tab.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
                         <span className={cn(
-                            "text-[10px] font-black uppercase italic tracking-wider transition-colors",
+                            "text-[9px] sm:text-[10px] font-black uppercase italic tracking-tight transition-colors text-center truncate w-full",
                             activeTab === tab.id ? "text-slate-900" : "text-slate-500"
                         )}>
                             {tab.label}
@@ -1469,50 +1502,50 @@ export default function CustomerDashboard() {
                             <p className="text-sm font-bold text-slate-400 italic">Nenhum produto em destaque no momento.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {featuredProducts.map((product) => {
                                 const company = companies.find(c => c.id === product.company_id)
                                 const pointsMultiplier = (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) ? 2 : 1
                                 
                                 return (
-                                    <Card key={product.id} className="border-none shadow-xl shadow-slate-100 bg-white border border-slate-100 overflow-hidden rounded-[32px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
+                                    <Card key={product.id} className="border-none shadow-md bg-white border border-slate-100 overflow-hidden rounded-[24px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
                                         {pointsMultiplier > 1 && (
-                                            <div className="absolute top-3 left-3 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
+                                            <div className="absolute top-2.5 left-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
                                                 <GoldCoinsIcon />
                                                 <span>Pontos em Dobro</span>
                                             </div>
                                         )}
                                         {product.is_top_seller && (
-                                            <div className="absolute top-3 right-3 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
+                                            <div className="absolute top-2.5 right-2.5 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
                                                 🔥 Top Vendas Qrido
                                             </div>
                                         )}
-                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-12 p-6 gap-4">
+                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-9 p-4 gap-3">
                                             <div className="flex-1 flex flex-col justify-center min-w-0">
-                                                <div className="flex items-center gap-2 mb-1">
+                                                <div className="flex items-center gap-1.5 mb-0.5">
                                                     <Store className="h-3 w-3 text-brand-blue" />
-                                                    <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[150px]">
+                                                    <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[130px]">
                                                         {company?.full_name || 'Parceiro'}
                                                     </span>
                                                 </div>
-                                                <CardTitle className="text-lg font-black text-slate-900 uppercase italic mb-1 line-clamp-1">{product.name}</CardTitle>
-                                                <p className="text-brand-blue font-black italic text-sm">R$ {product.price}</p>
-                                                <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
+                                                <CardTitle className="text-base font-black text-slate-900 uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
+                                                <p className="text-brand-blue font-black italic text-xs">R$ {product.price}</p>
+                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
                                             </div>
                                             
-                                            <div className="flex flex-col justify-center gap-2 w-32 shrink-0">
+                                            <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
                                                 <div className={cn(
-                                                    "border text-[10px] font-black py-2.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-10 w-full",
+                                                    "border text-[9px] font-black py-1.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-8 w-full",
                                                     pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
                                                 )}>
                                                     +{product.points_reward * pointsMultiplier} PTS
                                                 </div>
                                                 <Button
                                                     className={cn(
-                                                        "w-full h-11 rounded-xl font-black italic uppercase text-[9px] shadow-md transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                        "w-full h-9 rounded-xl font-black italic uppercase text-[9px] shadow-md transition-all duration-300 px-1 truncate flex items-center justify-center",
                                                         lastAddedItem === product.id
                                                             ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                            : "bg-[#E9592C] hover:bg-[#E9592C]/90 text-white shadow-orange-100"
+                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20"
                                                     )}
                                                     onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                                 >
@@ -1526,63 +1559,43 @@ export default function CustomerDashboard() {
                         </div>
                     )}
 
-                    {/* Top Recompensas para o cliente */}
+                    {/* Grade de Lojas Recomendadas / Prêmios Top */}
                     {topRewards.length > 0 && (
-                        <div className="pt-8 border-t border-slate-100 space-y-6">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                    <Trophy className="h-6 w-6" />
-                                </div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase italic">Top Recompensas</h2>
-                            </div>
-
-                            <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden max-w-md">
-                                <CardHeader className="p-6 border-b border-slate-50">
-                                    <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                                    <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
+                        <div className="mt-8">
+                            <Card className="border-none shadow-xl bg-white rounded-[32px] overflow-hidden p-6 border border-slate-100">
+                                <CardHeader className="p-0 mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
+                                            <Trophy className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-xl font-black text-slate-900 uppercase italic">Prêmios em Destaque</CardTitle>
+                                            <p className="text-xs text-slate-500 font-bold italic mt-0.5">Os melhores prêmios das lojas da sua região</p>
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="p-6">
-                                    <div className="space-y-6">
-                                        {topRewards.map((reward, index) => {
-                                            const rank = index + 1
-                                            return (
-                                                <div key={reward.id} className="flex items-center gap-4 group">
-                                                    <div className={cn(
-                                                        "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
-                                                        rank === 1 
-                                                            ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
-                                                            : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
-                                                    )}>
-                                                        {rank === 1 ? '🥇' : rank}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
-                                                            {reward.title}
-                                                        </p>
-                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
-                                                            {reward.company_name}
-                                                        </p>
-                                                        <div className="flex items-center justify-between mt-1.5">
-                                                            <span className="text-xs font-bold text-slate-500 italic">
-                                                                {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
-                                                            </span>
-                                                            <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
-                                                                {reward.points_required} pts
-                                                            </span>
-                                                        </div>
+                                <CardContent className="p-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {topRewards.slice(0, 4).map((reward) => (
+                                            <div key={reward.id} className="bg-slate-50/70 rounded-2xl p-4 border border-slate-100 flex items-center justify-between gap-3 group hover:border-brand-blue/30 transition-all">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                        {reward.title}
+                                                    </p>
+                                                    <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                        {reward.company_name}
+                                                    </p>
+                                                    <div className="flex items-center justify-between mt-1.5">
+                                                        <span className="text-xs font-bold text-slate-500 italic">
+                                                            {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                        </span>
+                                                        <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
+                                                            {reward.points_required} pts
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            )
-                                        })}
-                                        <div className="pt-4 border-t border-slate-50">
-                                            <Button 
-                                                variant="ghost" 
-                                                className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5"
-                                                onClick={() => router.push('/qrido/customer/rewards')}
-                                            >
-                                                VER TODOS OS PRÊMIOS
-                                            </Button>
-                                        </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1590,37 +1603,57 @@ export default function CustomerDashboard() {
                     )}
                 </div>
             ) : activeTab === 'my_stores' ? (
-                <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6 pb-20">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-4 pb-20">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
-                                <Store className="h-5 w-5" />
+                            <div className="h-9 w-9 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                                <Store className="h-4 w-4" />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema Qrido</h2>
-                                <p className="text-xs text-slate-500 font-medium mt-1">Descubra lojas e acumule pontos</p>
+                                <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase italic leading-none">Parceiros do Ecossistema Qrido</h2>
+                                <p className="text-[11px] text-slate-500 font-medium mt-0.5">Descubra lojas e acumule pontos</p>
                             </div>
                         </div>
                         {userLocation && (
-                            <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 sm:h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
+                            <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
                                 <MapPin className="h-3 w-3 mr-1" />
                                 Atualizar Localização
                             </Button>
                         )}
                     </div>
 
+                    {/* Campo de Busca por Nome da Empresa */}
+                    <div className="relative w-full">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            type="text"
+                            placeholder="Buscar loja por nome..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-10 h-10 bg-white border-slate-200 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:border-brand-blue shadow-sm"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
+
                     {!userLocation && !locationError && (
-                        <div className="bg-brand-blue/5 p-4 rounded-3xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
-                                    <MapPin className="h-5 w-5" />
+                        <div className="bg-brand-blue/5 p-3 rounded-2xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
+                                    <MapPin className="h-4 w-4" />
                                 </div>
                                 <div>
                                     <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
                                     <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
                                 </div>
                             </div>
-                            <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-10 text-[10px] font-black uppercase italic tracking-wider">
+                            <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-8 text-[10px] font-black uppercase italic tracking-wider">
                                 Permitir
                             </Button>
                         </div>
@@ -1632,99 +1665,171 @@ export default function CustomerDashboard() {
                             <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja Qrida parceira encontrada na sua região.</p>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-4">
-                            {companies.map((company, index) => {
+                        <div className="flex flex-col gap-3">
+                            {companies
+                                .filter(company => {
+                                    if (!searchQuery.trim()) return true
+                                    const q = searchQuery.toLowerCase().trim()
+                                    return (company.full_name || '').toLowerCase().includes(q) ||
+                                           (company.trade_name || '').toLowerCase().includes(q) ||
+                                           (company.segment || '').toLowerCase().includes(q)
+                                })
+                                .sort((a, b) => {
+                                    const aFav = favorites.includes(a.id) ? 1 : 0
+                                    const bFav = favorites.includes(b.id) ? 1 : 0
+                                    if (aFav !== bFav) return bFav - aFav
+                                    return 0
+                                })
+                                .map((company, index) => {
                                 const isExpanded = selectedCompany?.id === company.id;
                                 const pointsMultiplier = loyaltyConfigs[company.id]?.double_points_active ? 2 : 1;
                                 const userStore = myStores.find(s => s.id === company.id)
                                 const balance = userStore?.points_balance || 0
+                                const isFav = favorites.includes(company.id)
 
                                 return (
-                                    <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-lg bg-white rounded-[24px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.01] hover:shadow-xl")} style={{ animationDelay: `${index * 50}ms` }}>
+                                    <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-md bg-white rounded-[20px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.005] hover:shadow-lg")} style={{ animationDelay: `${index * 50}ms` }}>
                                         <CardContent className="p-0">
-                                            <div className={cn("flex items-center justify-between cursor-pointer p-5 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-14 w-14 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center border border-white shadow-inner">
-                                                        <span className="text-lg font-black text-slate-500 italic">{(company.full_name || 'E').charAt(0)}</span>
+                                            <div className={cn("flex items-center justify-between cursor-pointer p-3.5 sm:p-4 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-11 w-11 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center border border-white shadow-inner relative">
+                                                        <span className="text-base font-black text-slate-600 italic">{(company.full_name || 'E').charAt(0)}</span>
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-black text-slate-900 uppercase italic tracking-tight flex items-center gap-2 flex-wrap">
+                                                        <h3 className="font-black text-slate-900 text-sm uppercase italic tracking-tight flex items-center gap-1.5 flex-wrap">
                                                             {company.full_name || 'Empresa Parceira'}
+                                                            {isFav && (
+                                                                <span className="text-rose-500" title="Loja Favorita">
+                                                                    ❤️
+                                                                </span>
+                                                            )}
                                                             {pointsMultiplier > 1 && (
-                                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-1 shadow-sm">
-                                                                    <GoldCoinsIcon /> Pontos em Dobro
+                                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-sm">
+                                                                    <GoldCoinsIcon /> Dobro
                                                                 </span>
                                                             )}
                                                             {balance > 0 && (
-                                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-1 shadow-sm">
-                                                                    ❤️ {balance} pts
+                                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-sm">
+                                                                    {balance} pts
                                                                 </span>
                                                             )}
                                                         </h3>
                                                         {company.distance !== undefined && (
-                                                            <div className="flex items-center gap-1 text-[10px] font-black uppercase text-brand-orange mt-1">
-                                                                <MapPin className="h-3 w-3" />
+                                                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-brand-orange mt-0.5">
+                                                                <MapPin className="h-2.5 w-2.5" />
                                                                 {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
                                                                 {company.address && ` • ${company.address}`}
                                                             </div>
                                                         )}
                                                         {!isExpanded && (
-                                                            <p className="text-[10px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
+                                                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2">
                                                     {isExpanded && (
-                                                        <div className="hidden sm:flex flex-col text-right mr-4">
-                                                            <span className="text-[9px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
+                                                        <div className="hidden sm:flex flex-col text-right mr-2">
+                                                            <span className="text-[8px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
                                                             <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
                                                         </div>
                                                     )}
+                                                    <button
+                                                        onClick={(e) => toggleFavorite(company.id, e)}
+                                                        className="h-8 w-8 rounded-xl flex items-center justify-center transition-all bg-rose-50 hover:bg-rose-100 text-rose-500"
+                                                        title={isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                                                    >
+                                                        <Heart className={cn("h-4 w-4 transition-transform active:scale-125", isFav ? "fill-rose-500 text-rose-500" : "text-slate-300")} />
+                                                    </button>
                                                     <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
-                                                        <ChevronRight className={cn("h-5 w-5 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
+                                                        <ChevronRight className={cn("h-4 w-4 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Expanded Accordion Content: Products */}
-                                            <div className={cn("grid transition-all duration-300 origin-top px-5 pb-5", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
+                                            {/* Expanded Accordion Content: Brindes 2x2 + Ofertas */}
+                                            <div className={cn("grid transition-all duration-300 origin-top px-3.5 sm:px-4 pb-4", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
                                                 <div className="overflow-hidden">
-                                                    <div className="pt-5 border-t border-slate-200/60">
+                                                    <div className="pt-3 border-t border-slate-200/60">
+                                                        {/* Seção de Brindes da Loja em Grade 2x2 */}
+                                                        {companyRewards.length > 0 && (
+                                                            <div className="mb-4 bg-gradient-to-br from-amber-50 to-orange-50/60 p-3 sm:p-3.5 rounded-2xl border border-orange-200/70 shadow-sm">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <div className="h-6 w-6 rounded-lg bg-orange-500 text-white flex items-center justify-center shadow-sm">
+                                                                            <Gift className="h-3.5 w-3.5" />
+                                                                        </div>
+                                                                        <h4 className="text-xs font-black uppercase italic tracking-wider text-slate-900">
+                                                                            Brindes da Loja
+                                                                        </h4>
+                                                                    </div>
+                                                                    <span className="text-[8px] font-black uppercase italic text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200">
+                                                                        Resgate com Pontos
+                                                                    </span>
+                                                                </div>
+                                                                <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+                                                                    {companyRewards.map((reward) => (
+                                                                        <div key={reward.id} className="relative overflow-hidden bg-white border-2 border-orange-300 hover:border-orange-500 rounded-xl p-2.5 shadow-sm transition-all flex flex-col justify-between group">
+                                                                            <div className="absolute top-0 right-0 bg-gradient-to-l from-orange-500 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl-lg uppercase italic shadow-sm flex items-center gap-0.5">
+                                                                                🎁 BRINDE
+                                                                            </div>
+                                                                            <div className="pt-3">
+                                                                                <h5 className="font-black text-xs text-slate-900 uppercase italic line-clamp-2 leading-tight">{reward.title}</h5>
+                                                                                <div className="flex items-center justify-between mt-1">
+                                                                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-200">
+                                                                                        {reward.points_required} PTS
+                                                                                    </span>
+                                                                                </div>
+                                                                                {reward.description && (
+                                                                                    <p className="text-[9px] text-slate-500 font-medium italic line-clamp-2 mt-1">{reward.description}</p>
+                                                                                )}
+                                                                            </div>
+                                                                            <Button
+                                                                                className="w-full mt-2 h-7 rounded-lg font-black italic uppercase text-[8px] bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20 transition-all flex items-center justify-center"
+                                                                                onClick={(e) => { e.stopPropagation(); handleRedeemReward(reward) }}
+                                                                            >
+                                                                                QUERO AGORA
+                                                                            </Button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
                                                         {loading && isExpanded ? (
-                                                            <div className="flex justify-center py-8">
-                                                                 <div className="h-8 w-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                                                            <div className="flex justify-center py-6">
+                                                                <div className="h-7 w-7 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
                                                             </div>
                                                         ) : products.length === 0 && isExpanded ? (
-                                                            <div className="text-center py-8 text-slate-400 font-bold text-sm italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                            <div className="text-center py-6 text-slate-400 font-bold text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
                                                         ) : (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                                 {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
-                                                                    <div key={product.id} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
+                                                                    <div key={product.id} className="bg-white rounded-[16px] p-3 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
                                                                         {product.is_top_seller && (
-                                                                            <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
-                                                                                <Flame className="h-3 w-3" /> Top Vendas Qrido
+                                                                            <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase italic shadow-sm z-10 flex items-center gap-1">
+                                                                                <Flame className="h-2.5 w-2.5" /> Top Vendas Qrido
                                                                             </div>
                                                                         )}
-                                                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-10 p-4 gap-3">
+                                                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-6 p-2 gap-2.5">
                                                                             <div className="flex-1 flex flex-col justify-center min-w-0">
-                                                                                <h4 className="text-sm font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
-                                                                                <p className="text-brand-blue font-black italic mt-1">R$ {product.price}</p>
-                                                                                <p className="text-[10px] text-slate-500 font-medium italic mt-2 line-clamp-2">{product.description}</p>
+                                                                                <h4 className="text-xs font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
+                                                                                <p className="text-brand-blue font-black italic mt-0.5 text-xs">R$ {product.price}</p>
+                                                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
                                                                             </div>
                                                                             
-                                                                            <div className="flex flex-col justify-center gap-2 w-32 shrink-0">
+                                                                            <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
                                                                                 <div className={cn(
-                                                                                    "border text-[10px] font-black py-2.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-10 w-full",
+                                                                                    "border text-[9px] font-black py-1.5 rounded-lg italic uppercase shadow-inner text-center flex items-center justify-center h-8 w-full",
                                                                                     pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
                                                                                 )}>
                                                                                     +{product.points_reward * pointsMultiplier} PTS
                                                                                 </div>
                                                                                 <Button
                                                                                     className={cn(
-                                                                                        "w-full h-10 rounded-xl font-black italic uppercase text-[9px] shadow-sm transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                                                        "w-full h-8 rounded-lg font-black italic uppercase text-[8px] shadow-sm transition-all duration-300 px-1 truncate flex items-center justify-center",
                                                                                         lastAddedItem === product.id
                                                                                             ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                                                            : "bg-slate-900 hover:bg-slate-800 text-white"
+                                                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20"
                                                                                     )}
                                                                                     onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                                                                 >
@@ -2151,14 +2256,12 @@ export default function CustomerDashboard() {
                                                 {isAvailable ? "✨ PRONTO PARA O RESGATE!" : `Faltam ${reward.points_required - balance} pontos.`}
                                             </p>
                                         </div>
-                                        {isAvailable && (
-                                            <Button
-                                                className="w-full bg-[#E9592C] hover:bg-[#E9592C]/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-orange-200 mt-2 hover:scale-[1.02] transition-transform"
-                                                onClick={() => handleRedeemReward(reward)}
-                                            >
-                                                SOLICITAR RESGATE
-                                            </Button>
-                                        )}
+                                        <Button
+                                            className="w-full bg-[#E9592C] hover:bg-[#d4481d] text-white h-10 rounded-xl font-black italic uppercase text-xs shadow-md shadow-[#E9592C]/20 mt-2 transition-all"
+                                            onClick={() => handleRedeemReward(reward)}
+                                        >
+                                            {isAvailable ? "SOLICITAR RESGATE" : "QUERO AGORA"}
+                                        </Button>
                                     </Card>
                                 )
                             })}
