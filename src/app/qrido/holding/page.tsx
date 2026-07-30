@@ -188,21 +188,19 @@ function HoldingDashboardContent() {
     setAllInvitedGroups(allInvited);
     setAcceptedGroups(accepted);
 
-    // Fetch stores of accepted groups ONLY
+    // Fetch stores of all linked groups
     let acceptedStores: StoreOption[] = [];
     let acceptedStoreIds: string[] = [];
-    if (acceptedGroupIds.length > 0) {
+    const groupSearchIds = allInvited.map(g => g.id);
+
+    if (groupSearchIds.length > 0) {
       const { data: cgData } = await supabase
         .from("company_groups")
         .select("store_id, mall_id, status")
-        .in("mall_id", acceptedGroupIds);
+        .in("mall_id", groupSearchIds);
 
-      const filteredCgData = (cgData || []).filter((item: any) => 
-        item.status === 'accepted' || item.status === 'active' || !item.status
-      );
-
-      if (filteredCgData.length > 0) {
-        const storeIds = filteredCgData.map((item: any) => item.store_id);
+      if (cgData && cgData.length > 0) {
+        const storeIds = cgData.map((item: any) => item.store_id);
         const { data: storeProfiles } = await supabase
           .from("profiles")
           .select("id, full_name, email, phone")
@@ -210,9 +208,9 @@ function HoldingDashboardContent() {
 
         const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]));
 
-        filteredCgData.forEach((item: any) => {
+        cgData.forEach((item: any) => {
           const prof = storeMap.get(item.store_id);
-          const parentGroup = accepted.find(g => g.id === item.mall_id);
+          const parentGroup = allInvited.find(g => g.id === item.mall_id);
           acceptedStores.push({
             id: item.store_id,
             name: prof?.full_name || "Loja",
