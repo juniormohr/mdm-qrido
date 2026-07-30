@@ -304,19 +304,26 @@ export default function CompanyDashboard() {
         // 1. Convites recebidos pela loja vindos de Grupos
         const { data: storeReceived } = await supabase
             .from('company_groups')
-            .select('*, mall:mall_id(full_name, phone)')
+            .select('id, mall_id, store_id, created_at, status')
             .eq('store_id', userId)
             .eq('status', 'pending')
 
-        if (storeReceived) {
+        if (storeReceived && storeReceived.length > 0) {
+            const mallIds = storeReceived.map(i => i.mall_id)
+            const { data: mallProfiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', mallIds)
+
             storeReceived.forEach(inv => {
+                const mallProf = mallProfiles?.find(p => p.id === inv.mall_id)
                 allInvites.push({
                     id: inv.id,
                     isInvite: true,
                     inviteType: 'group_to_store',
                     direction: 'received',
-                    partnerName: inv.mall?.full_name || 'Grupo',
-                    phone: inv.mall?.phone,
+                    partnerName: mallProf?.full_name || 'Grupo',
+                    phone: mallProf?.phone,
                     created_at: inv.created_at
                 })
             })
@@ -325,19 +332,26 @@ export default function CompanyDashboard() {
         // 2. Convites recebidos pelo grupo vindos de Holdings
         const { data: groupReceived } = await supabase
             .from('holding_groups')
-            .select('*, holding:holding_id(full_name, phone)')
+            .select('id, holding_id, group_id, created_at, status')
             .eq('group_id', userId)
             .eq('status', 'pending')
 
-        if (groupReceived) {
+        if (groupReceived && groupReceived.length > 0) {
+            const holdingIds = groupReceived.map(i => i.holding_id)
+            const { data: holdingProfiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', holdingIds)
+
             groupReceived.forEach(inv => {
+                const holdingProf = holdingProfiles?.find(p => p.id === inv.holding_id)
                 allInvites.push({
                     id: inv.id,
                     isInvite: true,
                     inviteType: 'holding_to_group',
                     direction: 'received',
-                    partnerName: inv.holding?.full_name || 'Holding',
-                    phone: inv.holding?.phone,
+                    partnerName: holdingProf?.full_name || 'Holding',
+                    phone: holdingProf?.phone,
                     created_at: inv.created_at
                 })
             })
@@ -346,19 +360,26 @@ export default function CompanyDashboard() {
         // 3. Convites ENVIADOS pela Holding para Grupos (aguardando confirmação do grupo)
         const { data: holdingSent } = await supabase
             .from('holding_groups')
-            .select('*, group:group_id(full_name, phone)')
+            .select('id, holding_id, group_id, created_at, status')
             .eq('holding_id', userId)
             .eq('status', 'pending')
 
-        if (holdingSent) {
+        if (holdingSent && holdingSent.length > 0) {
+            const groupIds = holdingSent.map(i => i.group_id)
+            const { data: groupProfiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', groupIds)
+
             holdingSent.forEach(inv => {
+                const groupProf = groupProfiles?.find(p => p.id === inv.group_id)
                 allInvites.push({
                     id: inv.id,
                     isInvite: true,
                     inviteType: 'holding_to_group',
                     direction: 'sent',
-                    partnerName: inv.group?.full_name || 'Grupo',
-                    phone: inv.group?.phone,
+                    partnerName: groupProf?.full_name || 'Grupo',
+                    phone: groupProf?.phone,
                     created_at: inv.created_at
                 })
             })
@@ -367,19 +388,26 @@ export default function CompanyDashboard() {
         // 4. Convites ENVIADOS pelo Grupo para Lojas (aguardando confirmação da loja)
         const { data: groupSent } = await supabase
             .from('company_groups')
-            .select('*, store:store_id(full_name, phone)')
+            .select('id, mall_id, store_id, created_at, status')
             .eq('mall_id', userId)
             .eq('status', 'pending')
 
-        if (groupSent) {
+        if (groupSent && groupSent.length > 0) {
+            const storeIds = groupSent.map(i => i.store_id)
+            const { data: storeProfiles } = await supabase
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('id', storeIds)
+
             groupSent.forEach(inv => {
+                const storeProf = storeProfiles?.find(p => p.id === inv.store_id)
                 allInvites.push({
                     id: inv.id,
                     isInvite: true,
                     inviteType: 'group_to_store',
                     direction: 'sent',
-                    partnerName: inv.store?.full_name || 'Loja',
-                    phone: inv.store?.phone,
+                    partnerName: storeProf?.full_name || 'Loja',
+                    phone: storeProf?.phone,
                     created_at: inv.created_at
                 })
             })

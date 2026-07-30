@@ -292,11 +292,31 @@ function HoldingDashboardContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { error } = await supabase.from("holding_groups").insert({
-      holding_id: user.id,
-      group_id: selectedInviteGroupId,
-      status: "pending",
-    });
+    // Verificar se já existe um convite registrado para este grupo
+    const { data: existing } = await supabase
+      .from("holding_groups")
+      .select("id, status")
+      .eq("holding_id", user.id)
+      .eq("group_id", selectedInviteGroupId)
+      .maybeSingle();
+
+    let error;
+    if (existing) {
+      if (existing.status === 'pending') {
+        alert("Este convite já foi enviado anteriormente e está aguardando a confirmação do Grupo!");
+        setShowInviteModal(false);
+        return;
+      }
+      const res = await supabase.from("holding_groups").update({ status: "pending" }).eq("id", existing.id);
+      error = res.error;
+    } else {
+      const res = await supabase.from("holding_groups").insert({
+        holding_id: user.id,
+        group_id: selectedInviteGroupId,
+        status: "pending",
+      });
+      error = res.error;
+    }
 
     if (error) {
       alert("Erro ao enviar convite: " + error.message);
