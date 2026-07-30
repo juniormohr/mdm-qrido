@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
+import { processTransactionAction } from "../transactions/actions"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy, Building, Building2, Store, Calendar, Trash2 } from "lucide-react"
@@ -644,14 +645,11 @@ export default function CompanyDashboard() {
             customerId = newCust!.id
         }
 
-        await supabase.from('loyalty_transactions').insert({
-            user_id: activeCompanyId,
-            customer_id: customerId,
-            type: 'earn',
-            points: request.total_points,
-            sale_amount: request.total_amount,
-            expires_at: getExpiryDate(),
-            created_by: user.id
+        // Processar transação com réplica automática para Grupo e Holding via CPF/CNPJ e Telefone
+        await processTransactionAction({
+            customerId: customerId,
+            totalPoints: request.total_points,
+            totalAmount: request.total_amount || 0
         })
 
         const { error: updateError } = await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
