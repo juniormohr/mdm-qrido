@@ -152,20 +152,29 @@ function HoldingDashboardContent() {
     // Load groups linked to this holding
     const { data: hgData } = await supabase
       .from("holding_groups")
-      .select("group_id, status, profiles!holding_groups_group_id_fkey(id, full_name, email, phone)")
+      .select("group_id, status")
       .eq("holding_id", user.id);
 
     const allInvited: GroupOption[] = [];
     const accepted: GroupOption[] = [];
     const acceptedGroupIds: string[] = [];
 
-    if (hgData) {
+    if (hgData && hgData.length > 0) {
+      const groupIds = hgData.map((item: any) => item.group_id);
+      const { data: groupProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, phone")
+        .in("id", groupIds);
+
+      const groupMap = new Map((groupProfiles || []).map(p => [p.id, p]));
+
       hgData.forEach((item: any) => {
+        const prof = groupMap.get(item.group_id);
         const grp: GroupOption = {
           id: item.group_id,
-          name: item.profiles?.full_name || "Grupo Sem Nome",
-          email: item.profiles?.email,
-          phone: item.profiles?.phone,
+          name: prof?.full_name || "Grupo Sem Nome",
+          email: prof?.email,
+          phone: prof?.phone,
           status: item.status || "accepted",
         };
         allInvited.push(grp);
@@ -185,19 +194,28 @@ function HoldingDashboardContent() {
     if (acceptedGroupIds.length > 0) {
       const { data: cgData } = await supabase
         .from("company_groups")
-        .select("store_id, mall_id, profiles!company_groups_store_id_fkey(id, full_name, email, phone)")
+        .select("store_id, mall_id")
         .in("mall_id", acceptedGroupIds)
         .eq("status", "accepted");
 
-      if (cgData) {
+      if (cgData && cgData.length > 0) {
+        const storeIds = cgData.map((item: any) => item.store_id);
+        const { data: storeProfiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, email, phone")
+          .in("id", storeIds);
+
+        const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]));
+
         cgData.forEach((item: any) => {
+          const prof = storeMap.get(item.store_id);
           const parentGroup = accepted.find(g => g.id === item.mall_id);
           acceptedStores.push({
             id: item.store_id,
-            name: item.profiles?.full_name || "Loja",
+            name: prof?.full_name || "Loja",
             group_name: parentGroup?.name || "Grupo",
-            email: item.profiles?.email,
-            phone: item.profiles?.phone,
+            email: prof?.email,
+            phone: prof?.phone,
           });
           acceptedStoreIds.push(item.store_id);
         });
