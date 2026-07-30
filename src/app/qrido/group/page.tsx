@@ -126,20 +126,29 @@ function GroupDashboardContent() {
     // Load stores linked to this group
     const { data: cgData } = await supabase
       .from("company_groups")
-      .select("store_id, status, profiles!company_groups_store_id_fkey(id, full_name, email, phone)")
+      .select("store_id, status")
       .eq("mall_id", user.id);
 
     const allInvited: StoreOption[] = [];
     const accepted: StoreOption[] = [];
     const acceptedStoreIds: string[] = [];
 
-    if (cgData) {
+    if (cgData && cgData.length > 0) {
+      const storeIds = cgData.map((item: any) => item.store_id);
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, full_name, email, phone")
+        .in("id", storeIds);
+
+      const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
+
       cgData.forEach((item: any) => {
+        const prof = profilesMap.get(item.store_id);
         const st: StoreOption = {
           id: item.store_id,
-          name: item.profiles?.full_name || "Loja",
-          email: item.profiles?.email,
-          phone: item.profiles?.phone,
+          name: prof?.full_name || "Loja",
+          email: prof?.email,
+          phone: prof?.phone,
           status: item.status || "accepted",
         };
         allInvited.push(st);
