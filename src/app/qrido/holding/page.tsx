@@ -194,12 +194,15 @@ function HoldingDashboardContent() {
     if (acceptedGroupIds.length > 0) {
       const { data: cgData } = await supabase
         .from("company_groups")
-        .select("store_id, mall_id")
-        .in("mall_id", acceptedGroupIds)
-        .eq("status", "accepted");
+        .select("store_id, mall_id, status")
+        .in("mall_id", acceptedGroupIds);
 
-      if (cgData && cgData.length > 0) {
-        const storeIds = cgData.map((item: any) => item.store_id);
+      const filteredCgData = (cgData || []).filter((item: any) => 
+        item.status === 'accepted' || item.status === 'active' || !item.status
+      );
+
+      if (filteredCgData.length > 0) {
+        const storeIds = filteredCgData.map((item: any) => item.store_id);
         const { data: storeProfiles } = await supabase
           .from("profiles")
           .select("id, full_name, email, phone")
@@ -207,7 +210,7 @@ function HoldingDashboardContent() {
 
         const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]));
 
-        cgData.forEach((item: any) => {
+        filteredCgData.forEach((item: any) => {
           const prof = storeMap.get(item.store_id);
           const parentGroup = accepted.find(g => g.id === item.mall_id);
           acceptedStores.push({
