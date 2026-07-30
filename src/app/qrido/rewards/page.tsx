@@ -47,48 +47,8 @@ export default function RewardsPage() {
             return
         }
 
-        const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('role, company_type')
-            .eq('id', user.id)
-            .single()
-
-        const userRole = userProfile?.role
-        const companyType = userProfile?.company_type
-        const isHolding = userRole === 'holding' || companyType === 'holding'
-        const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
-
-        let targetUserIds: string[] = [user.id]
-
-        if (isHolding) {
-            // Holding - Buscar todos os grupos vinculados a esta holding
-            const { data: groupsData } = await supabase
-                .from('holding_groups')
-                .select('group_id')
-                .eq('holding_id', user.id)
-
-            const groupIds = (groupsData || []).map((g: any) => g.group_id).filter(Boolean)
-
-            let storeIds: string[] = []
-            if (groupIds.length > 0) {
-                const { data: storesData } = await supabase
-                    .from('company_groups')
-                    .select('store_id')
-                    .in('mall_id', groupIds)
-                storeIds = (storesData || []).map((s: any) => s.store_id).filter(Boolean)
-            }
-
-            targetUserIds = Array.from(new Set([user.id, ...groupIds, ...storeIds]))
-        } else if (isGroup) {
-            // Grupo - Buscar todas as lojas vinculadas a este grupo
-            const { data: storesData } = await supabase
-                .from('company_groups')
-                .select('store_id')
-                .eq('mall_id', user.id)
-
-            const storeIds = (storesData || []).map((s: any) => s.store_id).filter(Boolean)
-            targetUserIds = Array.from(new Set([user.id, ...storeIds]))
-        }
+        // Cada entidade (Loja, Grupo ou Holding) gerencia exclusivamente os seus próprios prêmios no catálogo
+        const targetUserIds = [user.id]
 
         const { data } = await supabase
             .from('rewards')
