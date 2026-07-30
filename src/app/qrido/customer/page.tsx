@@ -638,19 +638,11 @@ export default function CustomerDashboard() {
     async function fetchAllRewards() {
         setRewardsLoading(true)
         const supabase = createClient()
-        const eligibleStores = companies.length > 0 ? companies : myStores
-        if (eligibleStores.length === 0) {
-            setAllRewards([])
-            setRewardsLoading(false)
-            return
-        }
 
-        const companyIds = eligibleStores.map(store => store.id)
-
+        // 1. Buscar todas as recompensas ativas
         const { data, error } = await supabase
             .from('rewards')
             .select('*')
-            .in('user_id', companyIds)
             .eq('is_active', true)
             .order('points_required', { ascending: true })
 
@@ -658,7 +650,18 @@ export default function CustomerDashboard() {
             console.error('Erro ao buscar recompensas:', error)
         }
 
-        if (data) {
+        if (data && data.length > 0) {
+             const companyIds = Array.from(new Set(data.map(r => r.user_id)))
+             const { data: profiles } = await supabase
+                 .from('profiles')
+                 .select('id, full_name')
+                 .in('id', companyIds)
+
+             const companyNameMap: Record<string, string> = {}
+             profiles?.forEach(p => {
+                 companyNameMap[p.id] = p.full_name
+             })
+
              const rewardsByCompany: { [companyId: string]: any[] } = {}
              data.forEach(r => {
                  if (!rewardsByCompany[r.user_id]) rewardsByCompany[r.user_id] = []
@@ -667,13 +670,12 @@ export default function CustomerDashboard() {
 
              const featuredRewards: any[] = []
              Object.keys(rewardsByCompany).forEach(cId => {
-                 const store = eligibleStores.find(s => s.id === cId)
                  const userStore = myStores.find(s => s.id === cId)
                  const storeRewards = rewardsByCompany[cId]
                  if (storeRewards.length > 0) {
                      featuredRewards.push({
                          ...storeRewards[0],
-                         company_name: store?.full_name || 'Empresa Parceira',
+                         company_name: companyNameMap[cId] || userStore?.full_name || 'Empresa Parceira',
                          user_balance: userStore?.points_balance || 0
                      })
                  }
@@ -687,6 +689,8 @@ export default function CustomerDashboard() {
              })
 
              setAllRewards(featuredRewards)
+        } else {
+            setAllRewards([])
         }
         setRewardsLoading(false)
     }
