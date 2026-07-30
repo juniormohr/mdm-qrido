@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { Gift, Plus, Trash2, Award, Pencil, Calendar, Clock, AlertTriangle, RefreshCcw } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 interface Reward {
     id: string
@@ -17,6 +18,7 @@ interface Reward {
     points_required: number
     is_active: boolean
     expires_at: string
+    user_id?: string
 }
 
 export default function RewardsPage() {
@@ -45,10 +47,53 @@ export default function RewardsPage() {
             return
         }
 
+        const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('role, company_type')
+            .eq('id', user.id)
+            .single()
+
+        const userRole = userProfile?.role
+        const companyType = userProfile?.company_type
+        const isHolding = userRole === 'holding' || companyType === 'holding'
+        const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
+
+        let targetUserIds: string[] = [user.id]
+
+        if (isHolding) {
+            // Holding - Buscar todos os grupos vinculados a esta holding
+            const { data: groupsData } = await supabase
+                .from('holding_groups')
+                .select('group_id')
+                .eq('holding_id', user.id)
+
+            const groupIds = (groupsData || []).map((g: any) => g.group_id).filter(Boolean)
+
+            let storeIds: string[] = []
+            if (groupIds.length > 0) {
+                const { data: storesData } = await supabase
+                    .from('company_groups')
+                    .select('store_id')
+                    .in('mall_id', groupIds)
+                storeIds = (storesData || []).map((s: any) => s.store_id).filter(Boolean)
+            }
+
+            targetUserIds = Array.from(new Set([user.id, ...groupIds, ...storeIds]))
+        } else if (isGroup) {
+            // Grupo - Buscar todas as lojas vinculadas a este grupo
+            const { data: storesData } = await supabase
+                .from('company_groups')
+                .select('store_id')
+                .eq('mall_id', user.id)
+
+            const storeIds = (storesData || []).map((s: any) => s.store_id).filter(Boolean)
+            targetUserIds = Array.from(new Set([user.id, ...storeIds]))
+        }
+
         const { data } = await supabase
             .from('rewards')
             .select('*')
-            .eq('user_id', user.id)
+            .in('user_id', targetUserIds)
             .order('points_required', { ascending: true })
 
         if (data) setRewards(data)
@@ -77,7 +122,7 @@ export default function RewardsPage() {
             })
 
             if (error) {
-                alert(`Erro ao criar prêmio do Banco: ${error.message}`)
+                alert(`Erro ao criar prêmio: ${error.message}`)
             } else {
                 setShowNewForm(false)
                 setNewReward({
@@ -104,11 +149,13 @@ export default function RewardsPage() {
                 title: editingReward.title,
                 description: editingReward.description,
                 points_required: editingReward.points_required,
-                expires_at: editingReward.expires_at
+                expires_at: editingReward.expires_at ? editingReward.expires_at.split('T')[0] : editingReward.expires_at
             })
             .eq('id', editingReward.id)
 
-        if (!error) {
+        if (error) {
+            alert(`Erro ao atualizar prêmio: ${error.message}`)
+        } else {
             setEditingReward(null)
             fetchRewards()
         }
@@ -116,7 +163,7 @@ export default function RewardsPage() {
 
     async function handleRenewReward(reward: Reward) {
         const supabase = createClient()
-        const newExpiry = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()
+        const newExpiry = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
         const { error } = await supabase
             .from('rewards')
@@ -131,8 +178,12 @@ export default function RewardsPage() {
     async function handleDeleteReward(id: string) {
         if (!confirm('Deseja excluir este prêmio?')) return
         const supabase = createClient()
-        await supabase.from('rewards').delete().eq('id', id)
-        fetchRewards()
+        const { error } = await supabase.from('rewards').delete().eq('id', id)
+        if (error) {
+            alert(`Erro ao excluir prêmio: ${error.message}`)
+        } else {
+            fetchRewards()
+        }
     }
 
     return (
@@ -220,8 +271,12 @@ export default function RewardsPage() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => setEditingReward(reward)}
-                                            className="text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 transition-all opacity-0 group-hover:opacity-100"
+                                            onClick={() => setEditingReward({
+                                                ...reward,
+                                                expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
+                                            })}
+                                            className="text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-all"
+                                            title="Editar prêmio"
                                         >
                                             <Pencil className="h-4 w-4" />
                                         </Button>
@@ -229,7 +284,8 @@ export default function RewardsPage() {
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => handleDeleteReward(reward.id)}
-                                            className="text-slate-200 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                            className="text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                            title="Excluir prêmio"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -268,6 +324,78 @@ export default function RewardsPage() {
                     ))
                 )}
             </div>
+
+            {/* Modal de Edição de Prêmio */}
+            <Dialog open={!!editingReward} onOpenChange={(open) => !open && setEditingReward(null)}>
+                <DialogContent className="sm:max-w-[500px] bg-white rounded-3xl p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black uppercase italic text-slate-800">
+                            Editar Prêmio
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {editingReward && (
+                        <form onSubmit={handleUpdateReward} className="space-y-4 py-2">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase text-slate-400">Título do Prêmio *</Label>
+                                <Input
+                                    required
+                                    value={editingReward.title}
+                                    onChange={(e) => setEditingReward({ ...editingReward, title: e.target.value })}
+                                    className="h-12 rounded-2xl border-slate-100 font-bold"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-black uppercase text-slate-400">Pontos Necessários *</Label>
+                                    <Input
+                                        type="number"
+                                        required
+                                        value={editingReward.points_required}
+                                        onChange={(e) => setEditingReward({ ...editingReward, points_required: parseInt(e.target.value) || 0 })}
+                                        className="h-12 rounded-2xl border-slate-100 font-black text-brand-orange"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-black uppercase text-slate-400">Validade *</Label>
+                                    <Input
+                                        type="date"
+                                        required
+                                        value={editingReward.expires_at}
+                                        onChange={(e) => setEditingReward({ ...editingReward, expires_at: e.target.value })}
+                                        className="h-12 rounded-2xl border-slate-100 font-bold"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black uppercase text-slate-400">Descrição</Label>
+                                <Input
+                                    value={editingReward.description || ''}
+                                    onChange={(e) => setEditingReward({ ...editingReward, description: e.target.value })}
+                                    className="h-12 rounded-2xl border-slate-100"
+                                />
+                            </div>
+
+                            <DialogFooter className="pt-4 flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setEditingReward(null)}
+                                    className="font-bold"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" className="btn-blue">
+                                    Salvar Alterações
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
+
