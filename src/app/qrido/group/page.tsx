@@ -14,6 +14,7 @@ import {
   Plus,
   Mail,
   Phone,
+  MessageCircle,
   Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,30 @@ function GroupDashboardContent() {
   const [selectedInviteStoreId, setSelectedInviteStoreId] = useState("");
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [mktTemplate, setMktTemplate] = useState<string>('Olá {nome}, tudo bem? Temos novidades exclusivas na nossa rede! 🎁');
+
+  useEffect(() => {
+    async function loadMktTemplate() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: config } = await supabase.from('loyalty_configs').select('whatsapp_template').eq('user_id', user.id).maybeSingle();
+      if (config?.whatsapp_template) {
+        setMktTemplate(config.whatsapp_template);
+      }
+    }
+    loadMktTemplate();
+  }, []);
+
+  const handleWhatsAppSend = (recipientName: string, phone?: string) => {
+    if (!phone) {
+      alert('Telefone não cadastrado.');
+      return;
+    }
+    const cleanPhone = phone.replace(/\D/g, '');
+    const text = mktTemplate.replace(/{nome}/gi, recipientName).replace(/{pontos}/gi, '0');
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
   const [analyticsData, setAnalyticsData] = useState<{
     summary: {
       grand_total_sales: number;
@@ -489,9 +514,17 @@ function GroupDashboardContent() {
                         <Store className="w-5 h-5 text-[#297CCB]" />
                         <span className="font-black text-slate-900 uppercase italic text-sm">{st.name}</span>
                       </div>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => handleRemoveInvite(st.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {st.phone && (
+                          <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold text-xs" title="Enviar mensagem via WhatsApp MKT" onClick={() => handleWhatsAppSend(st.name, st.phone)}>
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            WhatsApp
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={() => handleRemoveInvite(st.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     <div className="text-xs text-slate-500 space-y-1">
                       {st.email && <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {st.email}</p>}

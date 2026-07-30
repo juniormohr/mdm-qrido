@@ -11,7 +11,7 @@ import {
     Plus, Users, User, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, Zap, Power, Lock, Building, Shield,
+    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, MessageCircle, Zap, Power, Lock, Building, Shield,
     Award, Gift, Trophy, ShoppingBag, KeyRound, Loader2, CheckCircle2, AlertCircle, X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -138,6 +138,16 @@ function AdminContent() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
+
+    const handleWhatsAppSend = (name: string, phone?: string) => {
+        if (!phone) {
+            alert('Telefone não cadastrado.')
+            return
+        }
+        const cleanPhone = phone.replace(/\D/g, '')
+        const msg = encodeURIComponent(`Olá ${name}, tudo bem? Mensagem do administrador Qrido.`)
+        window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank')
+    }
     const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
 
     const [showCompanyModal, setShowCompanyModal] = useState(false)
@@ -709,6 +719,11 @@ function AdminContent() {
                                                 <span className={cn("h-1.5 w-1.5 rounded-full", isInactive ? "bg-red-500" : isPending ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse")} />
                                                 {isInactive ? 'INATIVA' : isPending ? 'PENDENTE' : 'ATIVA'}
                                             </button>
+                                            {comp.phone && (
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg" title="Enviar WhatsApp" onClick={() => handleWhatsAppSend(comp.full_name, comp.phone)}>
+                                                    <MessageCircle className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-amber-600 rounded-lg" title="Resetar Senha para 123456" onClick={() => { if (confirm(`Deseja resetar a senha da empresa "${comp.full_name}" para 123456?`)) { handleResetPasswordSubmit(comp.id); } }}>
                                                 <KeyRound className="h-3.5 w-3.5" />
                                             </Button>
