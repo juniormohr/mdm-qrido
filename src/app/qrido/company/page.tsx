@@ -418,6 +418,10 @@ export default function CompanyDashboard() {
 
     async function handleRespondGroupInvite(inviteId: string, status: 'accepted' | 'rejected') {
         const supabase = createClient()
+        // Feedback imediato na UI
+        const previousInvites = [...pendingInvites]
+        setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId))
+
         const { error } = await supabase
             .from('company_groups')
             .update({ status })
@@ -425,6 +429,7 @@ export default function CompanyDashboard() {
 
         if (error) {
             alert('Erro ao responder convite: ' + error.message)
+            setPendingInvites(previousInvites)
         } else {
             if (activeCompanyId) {
                 fetchPendingInvites(activeCompanyId)
@@ -435,6 +440,10 @@ export default function CompanyDashboard() {
 
     async function handleRespondHoldingInvite(inviteId: string, status: 'accepted' | 'rejected') {
         const supabase = createClient()
+        // Feedback imediato na UI
+        const previousInvites = [...pendingInvites]
+        setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId))
+
         const { error } = await supabase
             .from('holding_groups')
             .update({ status })
@@ -442,6 +451,7 @@ export default function CompanyDashboard() {
 
         if (error) {
             alert('Erro ao responder convite: ' + error.message)
+            setPendingInvites(previousInvites)
         } else {
             if (activeCompanyId) {
                 fetchPendingInvites(activeCompanyId)
@@ -453,11 +463,16 @@ export default function CompanyDashboard() {
     async function handleCancelInvite(inviteId: string, inviteType: 'holding_to_group' | 'group_to_store') {
         if (!confirm('Deseja cancelar este convite?')) return
         const supabase = createClient()
+        // Feedback imediato na UI
+        const previousInvites = [...pendingInvites]
+        setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId))
+
         const table = inviteType === 'holding_to_group' ? 'holding_groups' : 'company_groups'
         const { error } = await supabase.from(table).delete().eq('id', inviteId)
 
         if (error) {
             alert('Erro ao cancelar convite: ' + error.message)
+            setPendingInvites(previousInvites)
         } else {
             if (activeCompanyId) {
                 fetchPendingInvites(activeCompanyId)
