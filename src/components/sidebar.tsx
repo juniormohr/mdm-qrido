@@ -71,7 +71,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const adminNav = [
-        { name: 'Dashboard', href: '/qrido/admin?tab=overview', icon: LayoutDashboard },
+        { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
         { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
         { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
         { name: 'Empresas', href: '/qrido/admin?tab=companies', icon: Store },
@@ -83,7 +83,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const holdingNav = [
-        { name: 'Dashboard', href: '/qrido/holding?tab=overview', icon: LayoutDashboard },
+        { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
         { name: 'Meus Grupos', href: '/qrido/holding?tab=groups', icon: Building2 },
         { name: 'Minhas Lojas', href: '/qrido/holding?tab=companies', icon: Store },
         { name: 'Clientes', href: '/qrido/holding?tab=customers', icon: Users },
@@ -95,7 +95,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const groupNav = [
-        { name: 'Dashboard', href: '/qrido/group?tab=overview', icon: LayoutDashboard },
+        { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
         { name: 'Minhas Lojas', href: '/qrido/group?tab=companies', icon: Store },
         { name: 'Clientes', href: '/qrido/group?tab=customers', icon: Users },
         { name: 'Produtos', href: '/qrido/products', icon: Package },

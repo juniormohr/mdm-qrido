@@ -4,10 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy, Building } from "lucide-react"
+import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy, Building, Building2, Store, Calendar, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { HeatmapPixelChart, DailyDataPoint } from "@/components/holding/HeatmapPixelChart"
+
+type DateFilterPreset = "yesterday" | "last_7_days" | "last_30_days" | "custom"
 
 function getExpiryDate() {
     return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
@@ -15,11 +17,11 @@ function getExpiryDate() {
 
 export default function CompanyDashboard() {
     const [stats, setStats] = useState({
-        totalLeads: 0, // Clientes fidelizados (mês atual)
-        leadsThisMonth: 0, // Vendas em R$ (mês atual)
-        topSource: '0', // Pontos distribuídos (mês atual)
-        redemptions: 0, // Resgates quantidade (mês atual)
-        totalPoints: 0 // Resgates pontos (mês atual)
+        totalLeads: 0,
+        leadsThisMonth: 0,
+        topSource: '0',
+        redemptions: 0,
+        totalPoints: 0
     })
     const [heatmapData, setHeatmapData] = useState<DailyDataPoint[]>([])
     const [topCustomers, setTopCustomers] = useState<any[]>([])
@@ -27,70 +29,235 @@ export default function CompanyDashboard() {
     const [pendingInvites, setPendingInvites] = useState<any[]>([])
     const [transitioningItems, setTransitioningItems] = useState<Record<string, any>>({})
     const [tier, setTier] = useState<string>('basic')
-    const [companyType, setCompanyType] = useState<'store' | 'mall'>('store')
+    const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding'>('store')
+    const [userRole, setUserRole] = useState<string>('company')
     const [topRewards, setTopRewards] = useState<any[]>([])
 
-    async function fetchTopRewards(companyId: string, type: 'store' | 'mall') {
+    // Filtros de Período
+    const [preset, setPreset] = useState<DateFilterPreset>("last_30_days")
+    const [startDate, setStartDate] = useState<string>("")
+    const [endDate, setEndDate] = useState<string>("")
+
+    // Seletores de Hierarquia
+    const [holdingsList, setHoldingsList] = useState<Array<{ id: string, name: string }>>([])
+    const [groupsList, setGroupsList] = useState<Array<{ id: string, name: string, holding_id?: string }>>([])
+    const [storesList, setStoresList] = useState<Array<{ id: string, name: string, group_id?: string }>>([])
+
+    const [selectedHoldingId, setSelectedHoldingId] = useState<string>("all")
+    const [selectedGroupId, setSelectedGroupId] = useState<string>("all")
+    const [selectedStoreId, setSelectedStoreId] = useState<string>("all")
+
+    const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
+
+    // Ajustar datas conforme preset
+    useEffect(() => {
+        const today = new Date()
+        if (preset === "yesterday") {
+            const yesterday = new Date(today)
+            yesterday.setDate(today.getDate() - 1)
+            const iso = yesterday.toISOString().split("T")[0]
+            setStartDate(iso)
+            setEndDate(iso)
+        } else if (preset === "last_7_days") {
+            const d7 = new Date(today)
+            d7.setDate(today.getDate() - 7)
+            const iso7 = d7.toISOString().split("T")[0]
+            const isoToday = today.toISOString().split("T")[0]
+            setStartDate(iso7)
+            setEndDate(isoToday)
+        } else if (preset === "last_30_days") {
+            const d30 = new Date(today)
+            d30.setDate(today.getDate() - 30)
+            const iso30 = d30.toISOString().split("T")[0]
+            const isoToday = today.toISOString().split("T")[0]
+            setStartDate(iso30)
+            setEndDate(isoToday)
+        }
+    }, [preset])
+
+    // Calcular quais lojas são elegíveis com base no perfil e seletores
+    const getEligibleStoreIds = async (userId: string, role: string, compType: string): Promise<string[]> => {
         const supabase = createClient()
+        const isHolding = role === 'holding' || compType === 'holding'
+        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+        const isAdmin = role === 'admin'
 
-        // 1. Obter a lista de empresas elegíveis (a própria loja ou as lojas do grupo)
-        const eligibleCompanyIds = [companyId]
-        if (type === 'mall') {
-            const { data: groupStores } = await supabase
-                .from('company_groups')
-                .select('store_id')
-                .eq('mall_id', companyId)
-                .eq('status', 'accepted')
-
-            if (groupStores) {
-                groupStores.forEach(s => {
-                    if (s.store_id) eligibleCompanyIds.push(s.store_id)
-                })
+        if (isAdmin) {
+            if (selectedStoreId !== "all") return [selectedStoreId]
+            
+            // Buscar grupos elegíveis
+            let groupIds: string[] = []
+            if (selectedGroupId !== "all") {
+                groupIds = [selectedGroupId]
+            } else if (selectedHoldingId !== "all") {
+                const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', selectedHoldingId).eq('status', 'accepted')
+                groupIds = (hgData || []).map(h => h.group_id)
             }
+
+            if (groupIds.length > 0) {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', groupIds).eq('status', 'accepted')
+                return (cgData || []).map(c => c.store_id)
+            }
+
+            // Se nada foi filtrado em admin, trazer todas as lojas
+            const { data: allStores } = await supabase.from('profiles').select('id').or('company_type.eq.store,role.eq.company,role.eq.store')
+            return (allStores || []).map(s => s.id)
         }
 
-        // 2. Buscar profiles das empresas elegíveis para ter o nome
+        if (isHolding) {
+            if (selectedStoreId !== "all") return [selectedStoreId]
+
+            let groupIds: string[] = []
+            if (selectedGroupId !== "all") {
+                groupIds = [selectedGroupId]
+            } else {
+                const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', userId).eq('status', 'accepted')
+                groupIds = (hgData || []).map(h => h.group_id)
+            }
+
+            if (groupIds.length > 0) {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', groupIds).eq('status', 'accepted')
+                return (cgData || []).map(c => c.store_id)
+            }
+            return []
+        }
+
+        if (isGroup) {
+            if (selectedStoreId !== "all") return [selectedStoreId]
+            const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', userId).eq('status', 'accepted')
+            return (cgData || []).map(c => c.store_id)
+        }
+
+        return [userId]
+    }
+
+    // Carregar todas as estatísticas consolidadas por Período
+    async function loadConsolidatedData() {
+        if (!activeCompanyId || !startDate || !endDate) return
+        const supabase = createClient()
+
+        const eligibleIds = await getEligibleStoreIds(activeCompanyId, userRole, companyType)
+        if (eligibleIds.length === 0) {
+            setStats({ totalLeads: 0, leadsThisMonth: 0, topSource: '0', redemptions: 0, totalPoints: 0 })
+            setHeatmapData([])
+            setTopCustomers([])
+            setTopRewards([])
+            return
+        }
+
+        const startIso = `${startDate}T00:00:00.000Z`
+        const endIso = `${endDate}T23:59:59.999Z`
+
+        // 1. Vendas e Transações no Período
+        const { data: transactions } = await supabase
+            .from('loyalty_transactions')
+            .select('*, customer:customer_id(name, phone)')
+            .in('user_id', eligibleIds)
+            .gte('created_at', startIso)
+            .lte('created_at', endIso)
+
+        let salesAmount = 0
+        let pointsEarned = 0
+        let redeemCount = 0
+        let redeemPoints = 0
+
+        const dailyMap = new Map<string, { sales: number, transactions: number }>()
+        const customerMap = new Map<string, { id: string, name: string, totalSpent: number, totalPoints: number }>()
+
+        if (transactions) {
+            transactions.forEach(t => {
+                const dateKey = new Date(t.created_at).toISOString().split('T')[0]
+                const currentDaily = dailyMap.get(dateKey) || { sales: 0, transactions: 0 }
+                currentDaily.transactions += 1
+
+                if (t.type === 'earn') {
+                    const amount = Number(t.sale_amount) || 0
+                    const pts = Number(t.points) || 0
+                    salesAmount += amount
+                    pointsEarned += pts
+                    currentDaily.sales += amount
+                } else if (t.type === 'redeem') {
+                    const pts = Number(t.points) || 0
+                    redeemCount += 1
+                    redeemPoints += pts
+                }
+                dailyMap.set(dateKey, currentDaily)
+
+                // Top Clientes
+                const cId = t.customer_id
+                if (cId) {
+                    const cName = t.customer?.name || t.customer?.phone || 'Cliente'
+                    const currCust = customerMap.get(cId) || { id: cId, name: cName, totalSpent: 0, totalPoints: 0 }
+                    if (t.type === 'earn') {
+                        currCust.totalSpent += Number(t.sale_amount) || 0
+                        currCust.totalPoints += Number(t.points) || 0
+                    }
+                    customerMap.set(cId, currCust)
+                }
+            })
+        }
+
+        // 2. Clientes Fidelizados no Período
+        const { data: newCusts } = await supabase
+            .from('customers')
+            .select('id')
+            .in('user_id', eligibleIds)
+            .gte('created_at', startIso)
+            .lte('created_at', endIso)
+
+        const uniqueCustIds = new Set<string>()
+        newCusts?.forEach(c => uniqueCustIds.add(c.id))
+        transactions?.forEach(t => { if (t.customer_id) uniqueCustIds.add(t.customer_id) })
+
+        setStats({
+            totalLeads: uniqueCustIds.size,
+            leadsThisMonth: salesAmount,
+            topSource: String(pointsEarned),
+            redemptions: redeemCount,
+            totalPoints: redeemPoints
+        })
+
+        // Heatmap
+        setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
+
+        // Top Clientes
+        const sortedCusts = Array.from(customerMap.values())
+            .filter(c => c.totalSpent > 0 || c.totalPoints > 0)
+            .sort((a, b) => b.totalSpent - a.totalSpent)
+            .slice(0, 5)
+        setTopCustomers(sortedCusts)
+
+        // Top Recompensas no Período
+        fetchTopRewards(eligibleIds, startIso, endIso)
+    }
+
+    async function fetchTopRewards(eligibleCompanyIds: string[], startIso: string, endIso: string) {
+        const supabase = createClient()
+
         const { data: profiles } = await supabase
             .from('profiles')
             .select('id, full_name')
             .in('id', eligibleCompanyIds)
 
-        // 3. Buscar recompensas ativas
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
             .in('user_id', eligibleCompanyIds)
             .eq('is_active', true)
 
-        // 4. Buscar transações de resgate
         const { data: redeemTransactions } = await supabase
             .from('loyalty_transactions')
             .select('reward_id, user_id')
             .in('user_id', eligibleCompanyIds)
             .eq('type', 'redeem')
+            .gte('created_at', startIso)
+            .lte('created_at', endIso)
 
-        // 5. Buscar todas as transações para calcular volume (engajamento) das empresas
-        const { data: txSummary } = await supabase
-            .from('loyalty_transactions')
-            .select('user_id, type')
-            .in('user_id', eligibleCompanyIds)
-
-        // Count redemptions per reward
         const redeemCounts: Record<string, number> = {}
         if (redeemTransactions) {
             redeemTransactions.forEach(tx => {
                 if (tx.reward_id) {
                     redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
-                }
-            })
-        }
-
-        // Count total company transaction volume (for engagement metric)
-        const companyVolumes: Record<string, number> = {}
-        if (txSummary) {
-            txSummary.forEach(tx => {
-                if (tx.user_id) {
-                    companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
                 }
             })
         }
@@ -101,255 +268,21 @@ export default function CompanyDashboard() {
                 ...r,
                 company_name: company?.full_name || 'Minha Loja',
                 resgates: redeemCounts[r.id] || 0,
-                volume_empresa: companyVolumes[r.user_id] || 0,
             }
         })
 
-        const selectedRewards: any[] = []
-        const selectedCompanyIds = new Set<string>()
-
-        const tryAddRewards = (candidates: any[], checkCompany = true) => {
-            for (const item of candidates) {
-                if (selectedRewards.length >= 3) break
-                if (!checkCompany || !selectedCompanyIds.has(item.user_id)) {
-                    selectedRewards.push(item)
-                    selectedCompanyIds.add(item.user_id)
-                }
-            }
-        }
-
-        // Critério 1: prêmios mais resgatados (resgates > 0), ordenados por resgates desc
-        const crit1 = [...rewardsWithStats]
-            .filter(r => r.resgates > 0)
-            .sort((a, b) => b.resgates - a.resgates)
-        tryAddRewards(crit1)
-
-        // Critério 2: prêmios de empresas mais engajadas (volume_empresa > 0), ordenados por volume_empresa desc
-        if (selectedRewards.length < 3) {
-            const crit2 = [...rewardsWithStats]
-                .filter(r => r.volume_empresa > 0)
-                .sort((a, b) => b.volume_empresa - a.volume_empresa)
-            tryAddRewards(crit2)
-        }
-
-        // Critério 3: prêmios mais fáceis de resgatar (menor pontuação), ordenados por points_required asc
-        if (selectedRewards.length < 3) {
-            const crit3 = [...rewardsWithStats]
-                .sort((a, b) => a.points_required - b.points_required)
-            tryAddRewards(crit3)
-        }
-
-        // Se ainda não tiver 3 e houver mais prêmios cadastrados, permitir repetir empresa
-        if (selectedRewards.length < 3) {
-            const remainingCandidates = [...rewardsWithStats]
-                .filter(r => !selectedRewards.some(sr => sr.id === r.id))
-                .sort((a, b) => {
-                    if (b.resgates !== a.resgates) return b.resgates - a.resgates
-                    if (b.volume_empresa !== a.volume_empresa) return b.volume_empresa - a.volume_empresa
-                    return a.points_required - b.points_required
-                })
-            tryAddRewards(remainingCandidates, false)
-        }
+        const selectedRewards = [...rewardsWithStats]
+            .sort((a, b) => b.resgates - a.resgates || a.points_required - b.points_required)
+            .slice(0, 3)
 
         setTopRewards(selectedRewards)
     }
 
-    async function fetchStats(userId: string) {
-        const supabase = createClient()
-        
-        // 0. Descobrir o tipo da empresa
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('company_type')
-            .eq('id', userId)
-            .single()
-            
-        const isMall = profile?.company_type === 'mall'
-
-        const startOfMonth = new Date()
-        startOfMonth.setDate(1)
-        startOfMonth.setHours(0, 0, 0, 0)
-        const monthStartIso = startOfMonth.toISOString()
-
-        let totalLoyal = 0
-        let totalSalesAmount = 0
-        let totalPointsDistributed = 0
-        let redemptionsCount = 0
-        let redemptionsPoints = 0
-
-        if (isMall) {
-            // 1. Obter todas as lojas parceiras aceitas no grupo
-            const { data: groupStores } = await supabase
-                .from('company_groups')
-                .select('store_id, created_at')
-                .eq('mall_id', userId)
-                .eq('status', 'accepted')
-
-            if (groupStores && groupStores.length > 0) {
-                // Para cada loja, buscar os dados criados após ela se associar ao grupo
-                for (const store of groupStores) {
-                    if (!store.store_id) continue
-                    const joinedAt = store.created_at
-
-                    // 1. Clientes Fidelizados (criados após a adesão OU que transacionaram após a adesão)
-                    const { data: newCusts } = await supabase
-                        .from('customers')
-                        .select('id')
-                        .eq('user_id', store.store_id)
-                        .gte('created_at', joinedAt)
-
-                    const { data: activeCustsData } = await supabase
-                        .from('loyalty_transactions')
-                        .select('customer_id')
-                        .eq('user_id', store.store_id)
-                        .gte('created_at', joinedAt)
-
-                    const uniqueCustIds = new Set<string>()
-                    newCusts?.forEach(c => uniqueCustIds.add(c.id))
-                    activeCustsData?.forEach(t => uniqueCustIds.add(t.customer_id))
-                    
-                    totalLoyal += uniqueCustIds.size
-
-                    // 2. Vendas em R$ (mês atual E criadas após adesão)
-                    const salesSince = joinedAt > monthStartIso ? joinedAt : monthStartIso
-                    const { data: salesData } = await supabase
-                        .from('loyalty_transactions')
-                        .select('sale_amount')
-                        .eq('user_id', store.store_id)
-                        .eq('type', 'earn')
-                        .gte('created_at', salesSince)
-
-                    totalSalesAmount += salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
-
-                    // 3. Pontos distribuídos (criados após adesão)
-                    const { data: pointsData } = await supabase
-                        .from('loyalty_transactions')
-                        .select('points')
-                        .eq('user_id', store.store_id)
-                        .eq('type', 'earn')
-                        .gte('created_at', joinedAt)
-
-                    totalPointsDistributed += pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
-
-                    // 4. Resgates realizados (criados após adesão)
-                    const { data: redemptionsData } = await supabase
-                        .from('loyalty_transactions')
-                        .select('points')
-                        .eq('user_id', store.store_id)
-                        .eq('type', 'redeem')
-                        .gte('created_at', joinedAt)
-
-                    redemptionsCount += redemptionsData?.length || 0
-                    redemptionsPoints += redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
-                }
-            }
-        } else {
-            // 1. Clientes Fidelizados (Total de clientes cadastrados para a empresa)
-            const { data: loyalData } = await supabase
-                .from('customers')
-                .select('id')
-                .eq('user_id', userId)
-
-            totalLoyal = loyalData?.length || 0
-
-            // 2. Vendas em R$ feitas pelo qrido (base do mês atual)
-            const { data: salesData } = await supabase
-                .from('loyalty_transactions')
-                .select('sale_amount')
-                .eq('user_id', userId)
-                .eq('type', 'earn')
-                .gte('created_at', monthStartIso)
-            
-            totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
-
-            // 3. Pontos distribuídos através das vendas (total acumulado histórico)
-            const { data: pointsData } = await supabase
-                .from('loyalty_transactions')
-                .select('points')
-                .eq('user_id', userId)
-                .eq('type', 'earn')
-            
-            totalPointsDistributed = pointsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
-
-            // 4. Resgates Realizados (total acumulado histórico)
-            const { data: redemptionsData } = await supabase
-                .from('loyalty_transactions')
-                .select('points')
-                .eq('user_id', userId)
-                .eq('type', 'redeem')
-
-            redemptionsCount = redemptionsData?.length || 0
-            redemptionsPoints = redemptionsData?.reduce((acc, curr) => acc + (Number(curr.points) || 0), 0) || 0
+    useEffect(() => {
+        if (activeCompanyId && startDate && endDate) {
+            loadConsolidatedData()
         }
-
-        setStats({
-            totalLeads: totalLoyal,
-            leadsThisMonth: totalSalesAmount,
-            topSource: String(totalPointsDistributed),
-            redemptions: redemptionsCount,
-            totalPoints: redemptionsPoints
-        })
-
-        fetchHeatmapAndTopCustomers(userId, isMall)
-    }
-
-    async function fetchHeatmapAndTopCustomers(userId: string, isMall: boolean) {
-        const supabase = createClient()
-        let companyIds = [userId]
-
-        if (isMall) {
-            const { data: groupStores } = await supabase
-                .from('company_groups')
-                .select('store_id')
-                .eq('mall_id', userId)
-                .eq('status', 'accepted')
-            if (groupStores) {
-                groupStores.forEach(s => { if (s.store_id) companyIds.push(s.store_id) })
-            }
-        }
-
-        // Fetch transactions for Heatmap and Top Customers
-        const { data: transactions } = await supabase
-            .from('loyalty_transactions')
-            .select('*, customer:customer_id(name, phone)')
-            .in('user_id', companyIds)
-
-        if (transactions) {
-            // Build daily heatmap map
-            const dailyMap = new Map<string, { sales: number, transactions: number }>()
-            transactions.forEach(t => {
-                const dateKey = new Date(t.created_at).toISOString().split('T')[0]
-                const current = dailyMap.get(dateKey) || { sales: 0, transactions: 0 }
-                if (t.type === 'earn') {
-                    current.sales += Number(t.sale_amount) || 0
-                }
-                current.transactions += 1
-                dailyMap.set(dateKey, current)
-            })
-            setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
-
-            // Build top customers map
-            const customerMap = new Map<string, { id: string, name: string, totalSpent: number, totalPoints: number, company_name: string }>()
-            transactions.forEach(t => {
-                const cId = t.customer_id
-                if (!cId) return
-                const cName = t.customer?.name || t.customer?.phone || 'Cliente'
-                const current = customerMap.get(cId) || { id: cId, name: cName, totalSpent: 0, totalPoints: 0, company_name: '' }
-                if (t.type === 'earn') {
-                    current.totalSpent += Number(t.sale_amount) || 0
-                    current.totalPoints += Number(t.points) || 0
-                }
-                customerMap.set(cId, current)
-            })
-
-            const sortedCusts = Array.from(customerMap.values())
-                .filter(c => c.totalSpent > 0 || c.totalPoints > 0)
-                .sort((a, b) => b.totalSpent - a.totalSpent)
-                .slice(0, 5)
-
-            setTopCustomers(sortedCusts)
-        }
-    }
+    }, [activeCompanyId, startDate, endDate, selectedHoldingId, selectedGroupId, selectedStoreId])
 
     async function fetchPendingRequests(userId: string) {
         const supabase = createClient()
@@ -366,17 +299,96 @@ export default function CompanyDashboard() {
 
     async function fetchPendingInvites(userId: string) {
         const supabase = createClient()
-        const { data, error } = await supabase
+        const allInvites: any[] = []
+
+        // 1. Convites recebidos pela loja vindos de Grupos
+        const { data: storeReceived } = await supabase
             .from('company_groups')
-            .select('*, mall:mall_id(full_name)')
+            .select('*, mall:mall_id(full_name, phone)')
             .eq('store_id', userId)
             .eq('status', 'pending')
 
-        if (error) console.error('Erro ao buscar convites pendentes:', error)
-        if (data) setPendingInvites(data)
+        if (storeReceived) {
+            storeReceived.forEach(inv => {
+                allInvites.push({
+                    id: inv.id,
+                    isInvite: true,
+                    inviteType: 'group_to_store',
+                    direction: 'received',
+                    partnerName: inv.mall?.full_name || 'Grupo',
+                    phone: inv.mall?.phone,
+                    created_at: inv.created_at
+                })
+            })
+        }
+
+        // 2. Convites recebidos pelo grupo vindos de Holdings
+        const { data: groupReceived } = await supabase
+            .from('holding_groups')
+            .select('*, holding:holding_id(full_name, phone)')
+            .eq('group_id', userId)
+            .eq('status', 'pending')
+
+        if (groupReceived) {
+            groupReceived.forEach(inv => {
+                allInvites.push({
+                    id: inv.id,
+                    isInvite: true,
+                    inviteType: 'holding_to_group',
+                    direction: 'received',
+                    partnerName: inv.holding?.full_name || 'Holding',
+                    phone: inv.holding?.phone,
+                    created_at: inv.created_at
+                })
+            })
+        }
+
+        // 3. Convites ENVIADOS pela Holding para Grupos (aguardando confirmação do grupo)
+        const { data: holdingSent } = await supabase
+            .from('holding_groups')
+            .select('*, group:group_id(full_name, phone)')
+            .eq('holding_id', userId)
+            .eq('status', 'pending')
+
+        if (holdingSent) {
+            holdingSent.forEach(inv => {
+                allInvites.push({
+                    id: inv.id,
+                    isInvite: true,
+                    inviteType: 'holding_to_group',
+                    direction: 'sent',
+                    partnerName: inv.group?.full_name || 'Grupo',
+                    phone: inv.group?.phone,
+                    created_at: inv.created_at
+                })
+            })
+        }
+
+        // 4. Convites ENVIADOS pelo Grupo para Lojas (aguardando confirmação da loja)
+        const { data: groupSent } = await supabase
+            .from('company_groups')
+            .select('*, store:store_id(full_name, phone)')
+            .eq('mall_id', userId)
+            .eq('status', 'pending')
+
+        if (groupSent) {
+            groupSent.forEach(inv => {
+                allInvites.push({
+                    id: inv.id,
+                    isInvite: true,
+                    inviteType: 'group_to_store',
+                    direction: 'sent',
+                    partnerName: inv.store?.full_name || 'Loja',
+                    phone: inv.store?.phone,
+                    created_at: inv.created_at
+                })
+            })
+        }
+
+        setPendingInvites(allInvites)
     }
 
-    async function handleRespondInvite(inviteId: string, status: 'accepted' | 'rejected') {
+    async function handleRespondGroupInvite(inviteId: string, status: 'accepted' | 'rejected') {
         const supabase = createClient()
         const { error } = await supabase
             .from('company_groups')
@@ -384,84 +396,46 @@ export default function CompanyDashboard() {
             .eq('id', inviteId)
 
         if (error) {
-            console.error('Erro ao responder convite:', error)
+            alert('Erro ao responder convite: ' + error.message)
         } else {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const { data: profile } = await supabase.from('profiles').select('company_id, role').eq('id', user.id).single()
-                const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
-                fetchPendingInvites(companyId)
-                fetchStats(companyId)
+            if (activeCompanyId) {
+                fetchPendingInvites(activeCompanyId)
+                loadConsolidatedData()
             }
         }
     }
 
-    function subscribeToInvites(userId: string) {
+    async function handleRespondHoldingInvite(inviteId: string, status: 'accepted' | 'rejected') {
         const supabase = createClient()
-        return supabase
-            .channel('company_groups_changes')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'company_groups',
-                filter: `store_id=eq.${userId}`
-            }, () => {
-                console.log('Realtime: mudança detectada em company_groups!')
-                fetchPendingInvites(userId)
-            })
-            .subscribe()
+        const { error } = await supabase
+            .from('holding_groups')
+            .update({ status })
+            .eq('id', inviteId)
+
+        if (error) {
+            alert('Erro ao responder convite: ' + error.message)
+        } else {
+            if (activeCompanyId) {
+                fetchPendingInvites(activeCompanyId)
+                loadConsolidatedData()
+            }
+        }
     }
 
-    function subscribeToRequests(userId: string, isMall: boolean) {
+    async function handleCancelInvite(inviteId: string, inviteType: 'holding_to_group' | 'group_to_store') {
+        if (!confirm('Deseja cancelar este convite?')) return
         const supabase = createClient()
-        return supabase
-            .channel('purchase_requests_changes')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'purchase_requests',
-                ...(isMall ? {} : { filter: `company_id=eq.${userId}` })
-            }, () => {
-                console.log('Realtime: mudança detectada em purchase_requests!')
-                fetchPendingRequests(userId)
-                fetchStats(userId)
-            })
-            .subscribe()
-    }
+        const table = inviteType === 'holding_to_group' ? 'holding_groups' : 'company_groups'
+        const { error } = await supabase.from(table).delete().eq('id', inviteId)
 
-    function subscribeToTransactions(userId: string, isMall: boolean) {
-        const supabase = createClient()
-        return supabase
-            .channel('loyalty_transactions_changes')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'loyalty_transactions',
-                ...(isMall ? {} : { filter: `user_id=eq.${userId}` })
-            }, () => {
-                console.log('Realtime: mudança detectada em loyalty_transactions!')
-                fetchStats(userId)
-            })
-            .subscribe()
+        if (error) {
+            alert('Erro ao cancelar convite: ' + error.message)
+        } else {
+            if (activeCompanyId) {
+                fetchPendingInvites(activeCompanyId)
+            }
+        }
     }
-
-    function subscribeToCustomers(userId: string, isMall: boolean) {
-        const supabase = createClient()
-        return supabase
-            .channel('customers_changes')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'customers',
-                ...(isMall ? {} : { filter: `user_id=eq.${userId}` })
-            }, () => {
-                console.log('Realtime: mudança detectada em customers!')
-                fetchStats(userId)
-            })
-            .subscribe()
-    }
-
-    const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -473,34 +447,54 @@ export default function CompanyDashboard() {
             const companyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
             setActiveCompanyId(companyId)
 
+            const role = profile?.role || 'company'
             const compType = profile?.company_type || 'store'
-            setCompanyType(compType as 'store' | 'mall')
-            const isMall = compType === 'mall'
+            setUserRole(role)
+            setCompanyType(compType as 'store' | 'mall' | 'holding')
 
-            fetchStats(companyId)
+            if (profile) setTier(profile.subscription_tier || 'basic')
+
+            // Carregar listas para seletores de hierarquia
+            const isAdmin = role === 'admin'
+            const isHolding = role === 'holding' || compType === 'holding'
+            const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+
+            if (isAdmin) {
+                const { data: holdings } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.holding,role.eq.holding')
+                const { data: groups } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.mall,role.eq.mall,role.eq.group')
+                const { data: stores } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.store,role.eq.company,role.eq.store')
+
+                setHoldingsList((holdings || []).map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
+                setGroupsList((groups || []).map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
+                setStoresList((stores || []).map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
+            } else if (isHolding) {
+                const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
+                const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
+                setGroupsList(grps)
+
+                if (grps.length > 0) {
+                    const gIds = grps.map(g => g.id)
+                    const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').in('mall_id', gIds).eq('status', 'accepted')
+                    const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+                    setStoresList(strs)
+                }
+            } else if (isGroup) {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').eq('mall_id', user.id).eq('status', 'accepted')
+                const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+                setStoresList(strs)
+            }
+
             fetchPendingRequests(companyId)
             fetchPendingInvites(companyId)
-            subscribeToRequests(companyId, isMall)
-            subscribeToInvites(companyId)
-            subscribeToTransactions(companyId, isMall)
-            subscribeToCustomers(companyId, isMall)
-
-            fetchTopRewards(companyId, compType as 'store' | 'mall')
-
-            if (profile) {
-                setTier(profile.subscription_tier || 'basic')
-            }
         }
 
         fetchInitialData()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     async function handleConfirmRedemption(requestId: string) {
         if (!activeCompanyId) return
         const supabase = createClient()
 
-        // 1. Buscar a solicitação
         const { data: request, error: fetchError } = await supabase
             .from('purchase_requests')
             .select('*, customer:customer_profile_id(full_name, phone)')
@@ -515,10 +509,8 @@ export default function CompanyDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Feedback visual
         setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
 
-        // 3. Debitar pontos e criar transação
         const { data: customer } = await supabase
             .from('customers')
             .select('id, points_balance')
@@ -528,37 +520,23 @@ export default function CompanyDashboard() {
 
         if (!customer) {
             alert('Erro: Cliente não encontrado na base desta loja.')
-            setTransitioningItems(prev => {
-                const newItems = { ...prev }
-                delete newItems[requestId]
-                return newItems
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
         if (customer.points_balance < request.total_points) {
             alert('Erro: Cliente não possui pontos suficientes para este resgate.')
-            setTransitioningItems(prev => {
-                const newItems = { ...prev }
-                delete newItems[requestId]
-                return newItems
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
-        // 4. Executar atualizações
         const { error: updateError } = await supabase.from('customers').update({
             points_balance: customer.points_balance - request.total_points
         }).eq('id', customer.id)
 
         if (updateError) {
-            console.error('Erro ao debitar pontos:', updateError)
             alert('Erro ao processar débito de pontos.')
-            setTransitioningItems(prev => {
-                const newItems = { ...prev }
-                delete newItems[requestId]
-                return newItems
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
@@ -571,19 +549,12 @@ export default function CompanyDashboard() {
             created_by: user.id
         })
 
-        await supabase.from('purchase_requests').update({
-            status: 'completed'
-        }).eq('id', requestId)
+        await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
 
-        // Limpar feedback visual após 3 segundos
         setTimeout(() => {
-            setTransitioningItems(prev => {
-                const newItems = { ...prev }
-                delete newItems[requestId]
-                return newItems
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             fetchPendingRequests(activeCompanyId)
-            fetchStats(activeCompanyId)
+            loadConsolidatedData()
         }, 3000)
     }
 
@@ -591,7 +562,6 @@ export default function CompanyDashboard() {
         if (!activeCompanyId) return
         const supabase = createClient()
 
-        // 1. Buscar detalhes da solicitação
         const { data: request, error: fetchError } = await supabase
             .from('purchase_requests')
             .select('*, customer:customer_profile_id(full_name, phone)')
@@ -606,10 +576,8 @@ export default function CompanyDashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        // Feedback visual imediato
         setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
 
-        // 2. Localizar ou criar o registro do cliente na loja
         let customerId: string
         const { data: existingCustomer } = await supabase
             .from('customers')
@@ -633,7 +601,6 @@ export default function CompanyDashboard() {
             customerId = newCust!.id
         }
 
-        // 3. Registrar Transação
         await supabase.from('loyalty_transactions').insert({
             user_id: activeCompanyId,
             customer_id: customerId,
@@ -644,29 +611,16 @@ export default function CompanyDashboard() {
             created_by: user.id
         })
 
-        // 4. Finalizar Solicitação
-        const { error: updateError } = await supabase
-            .from('purchase_requests')
-            .update({ status: 'completed' })
-            .eq('id', requestId)
+        const { error: updateError } = await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
 
         if (updateError) {
             alert('Erro ao finalizar: ' + updateError.message)
-            setTransitioningItems(prev => {
-                const newState = { ...prev }
-                delete newState[requestId]
-                return newState
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
         } else {
-            // Aguardar 3 segundos para mostrar o "Confirmado"
             setTimeout(() => {
-                setTransitioningItems(prev => {
-                    const newState = { ...prev }
-                    delete newState[requestId]
-                    return newState
-                })
+                setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
                 fetchPendingRequests(activeCompanyId)
-                fetchStats(activeCompanyId)
+                loadConsolidatedData()
             }, 3000)
         }
     }
@@ -680,35 +634,25 @@ export default function CompanyDashboard() {
         const request = pendingRequests.find(r => r.id === requestId)
         if (!request) return
 
-        // Adicionar ao estado de transição para feedback visual
         setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'rejected', transitionStatus: 'rejected' } }))
 
-        const { error } = await supabase
-            .from('purchase_requests')
-            .update({ status: 'rejected' })
-            .eq('id', requestId)
+        const { error } = await supabase.from('purchase_requests').update({ status: 'rejected' }).eq('id', requestId)
 
         if (error) {
             alert('Erro ao recusar: ' + error.message)
-            setTransitioningItems(prev => {
-                const newState = { ...prev }
-                delete newState[requestId]
-                return newState
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
-        // Aguardar 3 segundos antes de remover da tela
         setTimeout(() => {
-            setTransitioningItems(prev => {
-                const newState = { ...prev }
-                delete newState[requestId]
-                return newState
-            })
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             fetchPendingRequests(activeCompanyId)
         }, 3000)
     }
 
+    const isAdmin = userRole === 'admin'
+    const isHolding = userRole === 'holding' || companyType === 'holding'
+    const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
 
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
@@ -728,7 +672,77 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* Grid 2x2 de Métricas Mensais */}
+            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-brand-blue" /> FILTRAR PERÍODO:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                        <button onClick={() => setPreset("yesterday")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "yesterday" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dia -1</button>
+                        <button onClick={() => setPreset("last_7_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_7_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Últimos 7 dias</button>
+                        <button onClick={() => setPreset("last_30_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_30_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Últimos 30 dias</button>
+                        <button onClick={() => setPreset("custom")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "custom" ? "bg-brand-blue text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Personalizado</button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2 border-t border-slate-100">
+                    {/* Filtro por Holding (Admin) */}
+                    {isAdmin && (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <Building2 className="w-3.5 h-3.5 text-purple-600" /> Holding
+                            </label>
+                            <select value={selectedHoldingId} onChange={(e) => setSelectedHoldingId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                                <option value="all">Todas as Holdings</option>
+                                {holdingsList.map(h => (<option key={h.id} value={h.id}>{h.name}</option>))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Filtro por Grupo (Admin & Holding) */}
+                    {(isAdmin || isHolding) && (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <Building className="w-3.5 h-3.5 text-[#167657]" /> Grupo / Mercado
+                            </label>
+                            <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                                <option value="all">Todos os Grupos</option>
+                                {groupsList.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* Filtro por Loja (Admin, Holding & Group) */}
+                    {(isAdmin || isHolding || isGroup) && (
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <Store className="w-3.5 h-3.5 text-[#297CCB]" /> Loja Conveniada
+                            </label>
+                            <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                                <option value="all">Todas as Lojas</option>
+                                {storesList.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-amber-500" /> Data Início
+                        </label>
+                        <input type="date" disabled={preset !== "custom"} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-amber-500" /> Data Fim
+                        </label>
+                        <input type="date" disabled={preset !== "custom"} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50" />
+                    </div>
+                </div>
+            </div>
+
+            {/* Grid 2x2 de Métricas Consolidadas por Período */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-brand-blue rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
                     <div>
@@ -739,7 +753,7 @@ export default function CompanyDashboard() {
                     </div>
                     <div>
                         <h2 className="text-3xl font-black text-white italic">{stats.totalLeads}</h2>
-                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base de clientes</p>
+                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base no período</p>
                     </div>
                 </div>
 
@@ -748,7 +762,7 @@ export default function CompanyDashboard() {
                         <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
                             <TrendingUp className="h-6 w-6 text-white" />
                         </div>
-                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Vendas em R$<br />(Mês)</p>
+                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Vendas em R$<br />(Período)</p>
                     </div>
                     <div>
                         <h2 className="text-3xl font-black text-white italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
@@ -825,7 +839,7 @@ export default function CompanyDashboard() {
                     <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Aprovações</span>
                 </button>
 
-                {companyType === 'mall' && (
+                {isGroup && (
                     <Link
                         href="/qrido/company/groups"
                         className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
@@ -836,11 +850,25 @@ export default function CompanyDashboard() {
                         <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Lojas do Grupo</span>
                     </Link>
                 )}
+
+                {isHolding && (
+                    <Link
+                        href="/qrido/holding?tab=groups"
+                        className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
+                    >
+                        <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                            <Building2 className="h-6 w-6" />
+                        </div>
+                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Grupos da Holding</span>
+                    </Link>
+                )}
             </div>
 
             {/* Heatmap (Mapa de Venda) */}
             <HeatmapPixelChart
                 data={heatmapData}
+                startDate={startDate}
+                endDate={endDate}
                 title="Mapa de Venda"
                 subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial QRido"
             />
@@ -850,7 +878,7 @@ export default function CompanyDashboard() {
                 <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Clientes</CardTitle>
-                        <p className="text-[11px] text-slate-400 font-medium">Clientes que mais consomem na loja.</p>
+                        <p className="text-[11px] text-slate-400 font-medium">Clientes que mais consomem na loja no período.</p>
                     </div>
                     <Trophy className="h-5 w-5 text-amber-500" />
                 </CardHeader>
@@ -858,7 +886,7 @@ export default function CompanyDashboard() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         {topCustomers.length === 0 ? (
                             <div className="col-span-full text-center py-6 text-slate-400 text-xs font-medium">
-                                Nenhum cliente registrado com compras.
+                                Nenhum cliente registrado com compras no período.
                             </div>
                         ) : (
                             topCustomers.map((cust, index) => {
@@ -907,7 +935,6 @@ export default function CompanyDashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {(() => {
-                            // Mesclar solicitações pendentes com itens em transição
                             const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
                             Object.keys(transitioningItems).forEach(id => {
                                 allRequestsMap[id] = transitioningItems[id]
@@ -929,38 +956,68 @@ export default function CompanyDashboard() {
 
                             return displayRequests.map((req: any) => {
                                 if (req.isInvite) {
+                                    const isReceived = req.direction === 'received'
+                                    const isHoldingInvite = req.inviteType === 'holding_to_group'
+
                                     return (
                                         <Card key={req.id} className="border-none shadow-2xl rounded-[40px] overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 text-white animate-in zoom-in-95 duration-200 p-6 flex flex-col justify-between min-h-[260px]">
                                             <div className="space-y-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="p-2 bg-white/20 rounded-2xl w-fit">
-                                                        <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-2 bg-white/20 rounded-2xl w-fit">
+                                                            <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
+                                                        </div>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
+                                                            {isReceived
+                                                                ? (isHoldingInvite ? 'Novo Convite de Holding' : 'Novo Convite de Grupo')
+                                                                : (isHoldingInvite ? 'Convite Enviado para Grupo' : 'Convite Enviado para Loja')}
+                                                        </span>
                                                     </div>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Novo Convite de Grupo</span>
                                                 </div>
+
                                                 <div>
-                                                    <h3 className="text-xl font-black italic uppercase leading-tight">{req.mall?.full_name || 'Grupo Desconhecido'}</h3>
-                                                    <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.mall?.phone || 'Sem telefone'}</p>
+                                                    <h3 className="text-xl font-black italic uppercase leading-tight">{req.partnerName}</h3>
+                                                    <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.phone || 'Sem telefone'}</p>
                                                     <p className="text-xs font-bold text-white/90 leading-relaxed mt-3">
-                                                        Este grupo deseja te associar para que compras na sua loja gerem pontos também para os clientes deste grupo.
+                                                        {isReceived
+                                                            ? (isHoldingInvite
+                                                                ? 'Esta Holding deseja associar seu Grupo/Mercado para consolidação de rede.'
+                                                                : 'Este Grupo deseja associar sua Loja para que compras gerem pontos aos clientes.')
+                                                            : 'Aguardando a confirmação do convite pelo parceiro.'}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
-                                                <Button
-                                                    onClick={() => handleRespondInvite(req.id, 'accepted')}
-                                                    className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
-                                                >
-                                                    Aceitar
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleRespondInvite(req.id, 'rejected')}
-                                                    className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
-                                                >
-                                                    Recusar
-                                                </Button>
-                                            </div>
+
+                                            {isReceived ? (
+                                                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
+                                                    <Button
+                                                        onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'accepted') : handleRespondGroupInvite(req.id, 'accepted')}
+                                                        className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
+                                                    >
+                                                        Aceitar
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'rejected') : handleRespondGroupInvite(req.id, 'rejected')}
+                                                        className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
+                                                    >
+                                                        Recusar
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <div className="pt-4 border-t border-white/10 mt-4 flex items-center justify-between">
+                                                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 px-3 py-1 rounded-full border border-amber-300/30">
+                                                        Aguardando Confirmação
+                                                    </span>
+                                                    <Button
+                                                        variant="ghost"
+                                                        onClick={() => handleCancelInvite(req.id, req.inviteType)}
+                                                        className="h-9 px-3 text-[10px] font-black uppercase text-white/80 hover:text-red-200 hover:bg-white/10 rounded-xl"
+                                                    >
+                                                        Cancelar Convite
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </Card>
                                     )
                                 }
@@ -989,7 +1046,7 @@ export default function CompanyDashboard() {
                                         </CardHeader>
                                         <CardContent className="p-6 space-y-4">
                                             <div className="space-y-2">
-                                                {req.items.map((item: any, idx: number) => (
+                                                {req.items?.map((item: any, idx: number) => (
                                                     <div key={idx} className="flex justify-between text-xs font-bold text-slate-600 italic">
                                                         <span>{item.qty}x {item.name}</span>
                                                         <span className="text-slate-400">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
@@ -1069,7 +1126,7 @@ export default function CompanyDashboard() {
                     <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
                         <CardHeader className="p-6 border-b border-slate-50">
                             <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                            <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos.</p>
+                            <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos no período.</p>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-6">
@@ -1094,7 +1151,7 @@ export default function CompanyDashboard() {
                                                     <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
                                                         {reward.title}
                                                     </p>
-                                                    {companyType === 'mall' && (
+                                                    {(isGroup || isHolding || isAdmin) && (
                                                         <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
                                                             {reward.company_name}
                                                         </p>
