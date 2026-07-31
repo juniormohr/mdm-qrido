@@ -652,11 +652,17 @@ export default function CompanyDashboard() {
         }
 
         // Processar transação com réplica automática para Grupo e Holding via CPF/CNPJ e Telefone
-        await processTransactionAction({
+        const txRes = await processTransactionAction({
             customerId: customerId,
             totalPoints: request.total_points,
             totalAmount: request.total_amount || 0
         })
+
+        if (txRes && 'error' in txRes && txRes.error) {
+            alert('Erro ao processar pontos: ' + txRes.error)
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
+            return
+        }
 
         const { error: updateError } = await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
 

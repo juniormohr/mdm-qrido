@@ -17,9 +17,11 @@ export async function processTransactionAction(data: {
 
     const { customerId, totalPoints, totalAmount } = data
 
+    const adminSupabase = createAdminClient()
+
     // Resolve o ID real da Loja (se o usuário logado for staff, usa o company_id)
     let storeId = user.id
-    const { data: userProfile } = await supabase
+    const { data: userProfile } = await adminSupabase
         .from('profiles')
         .select('role, company_id')
         .eq('id', user.id)
@@ -29,8 +31,8 @@ export async function processTransactionAction(data: {
         storeId = userProfile.company_id
     }
 
-    // 1. Obter dados do cliente na loja de origem
-    const { data: customerStore, error: custFetchError } = await supabase
+    // 1. Obter dados do cliente na loja de origem (usando adminSupabase para garantir permissões)
+    const { data: customerStore, error: custFetchError } = await adminSupabase
         .from('customers')
         .select('*')
         .eq('id', customerId)
@@ -42,7 +44,7 @@ export async function processTransactionAction(data: {
 
     // 2. MOTOR DE FIDELIDADE - LOJA
     // Buscar grupos vinculados à loja física para checagem de duplo ponto
-    const { data: groups } = await supabase
+    const { data: groups } = await adminSupabase
         .from('company_groups')
         .select('mall_id, double_points, event_start_date, event_end_date')
         .eq('store_id', storeId)
@@ -61,7 +63,7 @@ export async function processTransactionAction(data: {
     const storePoints = isDoublePoints ? totalPoints * 2 : totalPoints
 
     // Registrar transação no saldo da LOJA (user_id = storeId, store_id = storeId)
-    const { error: txError } = await supabase.from('loyalty_transactions').insert({
+    const { error: txError } = await adminSupabase.from('loyalty_transactions').insert({
         user_id: storeId,
         store_id: storeId,
         customer_id: customerId,
@@ -74,7 +76,7 @@ export async function processTransactionAction(data: {
     if (txError) return { error: 'Erro ao registrar pontos da loja: ' + txError.message }
 
     // Atualizar saldo do cliente na LOJA
-    const { error: custError } = await supabase
+    const { error: custError } = await adminSupabase
         .from('customers')
         .update({ points_balance: (customerStore.points_balance || 0) + storePoints })
         .eq('id', customerId)
@@ -83,8 +85,6 @@ export async function processTransactionAction(data: {
 
     // 3. MOTOR DE FIDELIDADE - REPLICAÇÃO PARA CARTEIRAS DE GRUPO E HOLDING
     if (groups && groups.length > 0) {
-        const adminSupabase = createAdminClient()
-
         for (const group of groups) {
             const mallId = group.mall_id
 
