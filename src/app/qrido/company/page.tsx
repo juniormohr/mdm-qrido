@@ -167,7 +167,8 @@ export default function CompanyDashboard() {
 
         if (transactions) {
             transactions.forEach(t => {
-                const dateKey = new Date(t.created_at).toISOString().split('T')[0]
+                const dateObj = new Date(t.created_at)
+                const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
                 const currentDaily = dailyMap.get(dateKey) || { sales: 0, transactions: 0 }
                 currentDaily.transactions += 1
 

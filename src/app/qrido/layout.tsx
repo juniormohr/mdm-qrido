@@ -112,10 +112,46 @@ export default function DashboardLayout({
                 const monthStartIso = startOfMonth.toISOString()
 
                 const isMall = compProfile?.company_type === 'mall'
+                const isHolding = compProfile?.company_type === 'holding'
                 let totalCustomers = 0
                 let totalSalesAmount = 0
 
-                if (isMall) {
+                if (isHolding) {
+                    // Buscar lojas de todos os grupos aceitos da holding
+                    const { data: hgData } = await supabase
+                        .from('holding_groups')
+                        .select('group_id')
+                        .eq('holding_id', companyId)
+                        .eq('status', 'accepted')
+
+                    const groupIds = (hgData || []).map(h => h.group_id)
+                    if (groupIds.length > 0) {
+                        const { data: cgData } = await supabase
+                            .from('company_groups')
+                            .select('store_id')
+                            .in('mall_id', groupIds)
+                            .eq('status', 'accepted')
+
+                        const storeIds = Array.from(new Set((cgData || []).map(c => c.store_id)))
+                        if (storeIds.length > 0) {
+                            const { data: newCusts } = await supabase
+                                .from('customers')
+                                .select('id')
+                                .in('user_id', storeIds)
+
+                            totalCustomers = newCusts?.length || 0
+
+                            const { data: storeSales } = await supabase
+                                .from('loyalty_transactions')
+                                .select('sale_amount')
+                                .in('user_id', storeIds)
+                                .eq('type', 'earn')
+                                .gte('created_at', monthStartIso)
+
+                            totalSalesAmount = storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+                        }
+                    }
+                } else if (isMall) {
                     // Buscar lojas parceiras aceitas no grupo
                     const { data: groupStores } = await supabase
                         .from('company_groups')
@@ -124,39 +160,32 @@ export default function DashboardLayout({
                         .eq('status', 'accepted')
 
                     if (groupStores && groupStores.length > 0) {
-                        for (const store of groupStores) {
-                            if (!store.store_id) continue
-                            const joinedAt = store.created_at
-
-                            // Clientes fidelizados do grupo (criados após a adesão OU que transacionaram após a adesão)
+                        const storeIds = groupStores.map(s => s.store_id).filter(Boolean)
+                        if (storeIds.length > 0) {
                             const { data: newCusts } = await supabase
                                 .from('customers')
                                 .select('id')
-                                .eq('user_id', store.store_id)
-                                .gte('created_at', joinedAt)
+                                .in('user_id', storeIds)
 
                             const { data: activeCustsData } = await supabase
                                 .from('loyalty_transactions')
                                 .select('customer_id')
-                                .eq('user_id', store.store_id)
-                                .gte('created_at', joinedAt)
+                                .in('user_id', storeIds)
 
                             const uniqueCustIds = new Set<string>()
                             newCusts?.forEach(c => uniqueCustIds.add(c.id))
                             activeCustsData?.forEach(t => uniqueCustIds.add(t.customer_id))
                             
-                            totalCustomers += uniqueCustIds.size
+                            totalCustomers = uniqueCustIds.size
 
-                            // Vendas em R$ (mês atual E criadas após adesão)
-                            const salesSince = joinedAt > monthStartIso ? joinedAt : monthStartIso
                             const { data: storeSales } = await supabase
                                 .from('loyalty_transactions')
                                 .select('sale_amount')
-                                .eq('user_id', store.store_id)
+                                .in('user_id', storeIds)
                                 .eq('type', 'earn')
-                                .gte('created_at', salesSince)
+                                .gte('created_at', monthStartIso)
 
-                            totalSalesAmount += storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
+                            totalSalesAmount = storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
                         }
                     }
                 } else {

@@ -40,6 +40,7 @@ interface GroupOption {
 
 interface StoreOption {
   id: string;
+  group_id?: string;
   name: string;
   group_name?: string;
   email?: string;
@@ -139,6 +140,7 @@ function HoldingDashboardContent() {
 
   useEffect(() => {
     const today = new Date();
+    const isoToday = today.toISOString().split("T")[0];
     if (preset === "yesterday") {
       const yesterday = new Date(today);
       yesterday.setDate(today.getDate() - 1);
@@ -148,17 +150,13 @@ function HoldingDashboardContent() {
     } else if (preset === "last_7_days") {
       const d7 = new Date(today);
       d7.setDate(today.getDate() - 7);
-      const d1 = new Date(today);
-      d1.setDate(today.getDate() - 1);
       setStartDate(d7.toISOString().split("T")[0]);
-      setEndDate(d1.toISOString().split("T")[0]);
+      setEndDate(isoToday);
     } else if (preset === "last_30_days") {
       const d30 = new Date(today);
       d30.setDate(today.getDate() - 30);
-      const d1 = new Date(today);
-      d1.setDate(today.getDate() - 1);
       setStartDate(d30.toISOString().split("T")[0]);
-      setEndDate(d1.toISOString().split("T")[0]);
+      setEndDate(isoToday);
     }
   }, [preset]);
 
@@ -244,7 +242,12 @@ function HoldingDashboardContent() {
       }));
 
       // Fallback: Se a RPC retornar 0 mas houver lojas carregadas na Holding, calcular diretamente via loyalty_transactions
-      const targetStoreIds = stores.map(s => s.id);
+      const filteredStores = selectedGroupId === "all" 
+        ? stores 
+        : stores.filter(s => s.group_id === selectedGroupId);
+      const targetStoreIds = selectedStoreId === "all" 
+        ? filteredStores.map(s => s.id) 
+        : [selectedStoreId];
       if (summary.grand_total_sales === 0 && targetStoreIds.length > 0) {
         const { data: txs } = await supabase
           .from("loyalty_transactions")
@@ -262,7 +265,8 @@ function HoldingDashboardContent() {
           txs.forEach((t: any) => {
             const amount = Number(t.sale_amount || 0);
             const pts = Number(t.points || 0);
-            const dateStr = new Date(t.created_at).toISOString().split("T")[0];
+            const dObj = new Date(t.created_at);
+            const dateStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
 
             if (t.type === "earn") {
               sales += amount;
@@ -433,7 +437,14 @@ function HoldingDashboardContent() {
                 <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-[#297CCB]" /> Grupo Conveniado
                 </label>
-                <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]">
+                <select 
+                  value={selectedGroupId} 
+                  onChange={(e) => {
+                    setSelectedGroupId(e.target.value);
+                    setSelectedStoreId("all");
+                  }} 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]"
+                >
                   <option value="all">Todos os Grupos Aceitos</option>
                   {acceptedGroups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
                 </select>
@@ -445,7 +456,9 @@ function HoldingDashboardContent() {
                 </label>
                 <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#167657]">
                   <option value="all">Todas as Lojas</option>
-                  {stores.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                  {stores
+                    .filter((s) => selectedGroupId === "all" || s.group_id === selectedGroupId)
+                    .map((s) => (<option key={s.id} value={s.id}>{s.name} ({s.group_name})</option>))}
                 </select>
               </div>
 

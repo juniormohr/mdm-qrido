@@ -73,6 +73,7 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
           const parentGroup = allInvitedGroups.find(g => g.id === item.mall_id)
           stores.push({
             id: item.store_id,
+            group_id: item.mall_id,
             name: prof?.full_name || 'Loja',
             group_name: parentGroup?.name || 'Grupo',
             email: prof?.email,
