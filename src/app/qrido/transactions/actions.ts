@@ -17,6 +17,18 @@ export async function processTransactionAction(data: {
 
     const { customerId, totalPoints, totalAmount } = data
 
+    // Resolve o ID real da Loja (se o usuário logado for staff, usa o company_id)
+    let storeId = user.id
+    const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        storeId = userProfile.company_id
+    }
+
     // 1. Obter dados do cliente na loja de origem
     const { data: customerStore, error: custFetchError } = await supabase
         .from('customers')
@@ -29,11 +41,11 @@ export async function processTransactionAction(data: {
     const now = new Date()
 
     // 2. MOTOR DE FIDELIDADE - LOJA
-    // Buscar grupos vinculados para checagem de duplo ponto ou benefícios de loja
+    // Buscar grupos vinculados à loja física para checagem de duplo ponto
     const { data: groups } = await supabase
         .from('company_groups')
         .select('mall_id, double_points, event_start_date, event_end_date')
-        .eq('store_id', user.id)
+        .eq('store_id', storeId)
         .eq('status', 'accepted')
 
     const isDoublePoints = groups?.some(g => {
@@ -48,10 +60,10 @@ export async function processTransactionAction(data: {
 
     const storePoints = isDoublePoints ? totalPoints * 2 : totalPoints
 
-    // Registrar transação no saldo da LOJA (user_id = loja, store_id = loja)
+    // Registrar transação no saldo da LOJA (user_id = storeId, store_id = storeId)
     const { error: txError } = await supabase.from('loyalty_transactions').insert({
-        user_id: user.id,
-        store_id: user.id,
+        user_id: storeId,
+        store_id: storeId,
         customer_id: customerId,
         type: 'earn',
         points: storePoints,
@@ -154,7 +166,7 @@ export async function processTransactionAction(data: {
                 if (finalMallCustomerId) {
                     await adminSupabase.from('loyalty_transactions').insert({
                         user_id: mallId,
-                        store_id: user.id,
+                        store_id: storeId,
                         customer_id: finalMallCustomerId,
                         type: 'earn',
                         points: groupPoints,
@@ -247,7 +259,7 @@ export async function processTransactionAction(data: {
                         if (finalHoldingCustId) {
                             await adminSupabase.from('loyalty_transactions').insert({
                                 user_id: holdingId,
-                                store_id: user.id,
+                                store_id: storeId,
                                 customer_id: finalHoldingCustId,
                                 type: 'earn',
                                 points: holdingPoints,

@@ -624,24 +624,29 @@ export default function CompanyDashboard() {
         setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
 
         let customerId: string
-        const { data: existingCustomer } = await supabase
-            .from('customers')
-            .select('id, points_balance')
-            .eq('user_id', user.id)
-            .eq('phone', request.customer?.phone)
-            .maybeSingle()
+        const targetUserId = activeCompanyId || user.id
+        const reqPhone = request.customer?.phone
+        const cleanReqPhone = reqPhone ? reqPhone.replace(/\D/g, '') : null
+
+        let existingCustomer = null
+        if (cleanReqPhone) {
+            const { data: byPhone } = await supabase
+                .from('customers')
+                .select('id, points_balance')
+                .eq('user_id', targetUserId)
+                .or(`phone.eq.${reqPhone},phone.eq.${cleanReqPhone}`)
+                .maybeSingle()
+            existingCustomer = byPhone
+        }
 
         if (existingCustomer) {
             customerId = existingCustomer.id
-            await supabase.from('customers').update({
-                points_balance: existingCustomer.points_balance + request.total_points
-            }).eq('id', customerId)
         } else {
             const { data: newCust } = await supabase.from('customers').insert({
-                user_id: user.id,
+                user_id: targetUserId,
                 name: request.customer?.full_name || 'Cliente',
                 phone: request.customer?.phone,
-                points_balance: request.total_points
+                points_balance: 0
             }).select().single()
             customerId = newCust!.id
         }
