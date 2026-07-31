@@ -58,11 +58,14 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
       const { data: cgData } = await supabaseAdmin
         .from('company_groups')
         .select('store_id, mall_id, status')
-        .in('mall_id', acceptedGroupIds)
-        .or('status.eq.accepted,status.is.null')
+        .in('mall_id', acceptedGroupIds);
 
-      if (cgData && cgData.length > 0) {
-        const uniqueStoreIds = Array.from(new Set(cgData.map((item: any) => item.store_id)))
+      const activeCgData = (cgData || []).filter((item: any) => 
+        item.status === 'accepted' || item.status === 'active' || !item.status
+      );
+
+      if (activeCgData.length > 0) {
+        const uniqueStoreIds = Array.from(new Set(activeCgData.map((item: any) => item.store_id)))
         const { data: storeProfiles } = await supabaseAdmin
           .from('profiles')
           .select('id, full_name, email, phone')
@@ -70,7 +73,7 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
 
         const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]))
 
-        cgData.forEach((item: any) => {
+        activeCgData.forEach((item: any) => {
           const prof = storeMap.get(item.store_id)
           const parentGroup = allInvitedGroups.find(g => g.id === item.mall_id)
           stores.push({
@@ -87,11 +90,12 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
 
     // 4. Clientes registrados nas lojas acessíveis
     let customers: any[] = []
-    if (storeIds.length > 0) {
+    const resolvedStoreIds = Array.from(new Set(stores.map(s => s.id)))
+    if (resolvedStoreIds.length > 0) {
       const { data: custData } = await supabaseAdmin
         .from('customers')
         .select('*, profiles:user_id(full_name)')
-        .in('user_id', storeIds)
+        .in('user_id', resolvedStoreIds)
 
       if (custData) {
         customers = custData
