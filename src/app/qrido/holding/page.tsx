@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchHoldingDashboardDataAction } from "./actions";
 import { HeatmapPixelChart, DailyDataPoint } from "@/components/holding/HeatmapPixelChart";
 import { 
   Building2, 
@@ -174,93 +175,13 @@ function HoldingDashboardContent() {
       return;
     }
 
-    // Load groups linked to this holding
-    const { data: hgData } = await supabase
-      .from("holding_groups")
-      .select("group_id, status")
-      .eq("holding_id", user.id);
-
-    const allInvited: GroupOption[] = [];
-    const accepted: GroupOption[] = [];
-    const acceptedGroupIds: string[] = [];
-
-    if (hgData && hgData.length > 0) {
-      const groupIds = hgData.map((item: any) => item.group_id);
-      const { data: groupProfiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, phone")
-        .in("id", groupIds);
-
-      const groupMap = new Map((groupProfiles || []).map(p => [p.id, p]));
-
-      hgData.forEach((item: any) => {
-        const prof = groupMap.get(item.group_id);
-        const grp: GroupOption = {
-          id: item.group_id,
-          name: prof?.full_name || "Grupo Sem Nome",
-          email: prof?.email,
-          phone: prof?.phone,
-          status: item.status || "accepted",
-        };
-        allInvited.push(grp);
-        if (item.status === "accepted" || item.status === "active" || !item.status) {
-          accepted.push(grp);
-          acceptedGroupIds.push(item.group_id);
-        }
-      });
-    }
-
-    setAllInvitedGroups(allInvited);
-    setAcceptedGroups(accepted);
-
-    // Fetch stores of all linked groups
-    let acceptedStores: StoreOption[] = [];
-    let acceptedStoreIds: string[] = [];
-    const groupSearchIds = allInvited.map(g => g.id);
-
-    if (groupSearchIds.length > 0) {
-      const { data: cgData } = await supabase
-        .from("company_groups")
-        .select("store_id, mall_id, status")
-        .in("mall_id", groupSearchIds);
-
-      if (cgData && cgData.length > 0) {
-        const storeIds = cgData.map((item: any) => item.store_id);
-        const { data: storeProfiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, email, phone")
-          .in("id", storeIds);
-
-        const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]));
-
-        cgData.forEach((item: any) => {
-          const prof = storeMap.get(item.store_id);
-          const parentGroup = allInvited.find(g => g.id === item.mall_id);
-          acceptedStores.push({
-            id: item.store_id,
-            name: prof?.full_name || "Loja",
-            group_name: parentGroup?.name || "Grupo",
-            email: prof?.email,
-            phone: prof?.phone,
-          });
-          acceptedStoreIds.push(item.store_id);
-        });
-      }
-    }
-    setStores(acceptedStores);
-
-    // Load clients of accepted stores
-    if (acceptedStoreIds.length > 0) {
-      const { data: storeCusts } = await supabase
-        .from("customers")
-        .select("*, profiles:user_id(full_name)")
-        .in("user_id", acceptedStoreIds);
-
-      if (storeCusts) {
-        setCustomers(storeCusts);
-      }
-    } else {
-      setCustomers([]);
+    // Load groups, stores and customers via Server Action (bypassing RLS restriction on company_groups)
+    const result = await fetchHoldingDashboardDataAction(user.id);
+    if (result && !result.error) {
+      setAllInvitedGroups(result.allInvitedGroups || []);
+      setAcceptedGroups(result.acceptedGroups || []);
+      setStores(result.stores || []);
+      setCustomers(result.customers || []);
     }
 
     // Load available all groups for invite modal
