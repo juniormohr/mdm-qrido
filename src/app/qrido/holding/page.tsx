@@ -191,7 +191,8 @@ function HoldingDashboardContent() {
       .or("company_type.eq.mall,role.eq.mall,role.eq.group");
     
     if (allMalls) {
-      const uninvited = allMalls.filter(m => !allInvited.some(inv => inv.id === m.id));
+      const invitedIds = (result.allInvitedGroups || []).map((inv: any) => inv.id);
+      const uninvited = allMalls.filter(m => !invitedIds.includes(m.id));
       setAvailableAllGroups(uninvited);
     }
 
