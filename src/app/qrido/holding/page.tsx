@@ -232,10 +232,10 @@ function HoldingDashboardContent() {
       if (targetStoreIds.length > 0) {
         const { fetchHoldingAnalyticsAction } = await import("./actions");
         const analyticsRes = await fetchHoldingAnalyticsAction(targetStoreIds, startIso, endIso);
-        if (analyticsRes && !analyticsRes.error) {
+        if (analyticsRes && !analyticsRes.error && analyticsRes.summary) {
           summary = analyticsRes.summary;
-          daily = analyticsRes.daily;
-          storeRankings = analyticsRes.stores;
+          daily = analyticsRes.daily || [];
+          storeRankings = analyticsRes.stores || [];
         }
       }
 
