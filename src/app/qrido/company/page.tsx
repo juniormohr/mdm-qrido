@@ -607,48 +607,97 @@ export default function CompanyDashboard() {
         if (!activeCompanyId) return
         const supabase = createClient()
 
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        setTransitioningItems(prev => ({ ...prev, [requestId]: { status: 'completed', transitionStatus: 'confirmed' } }))
+
         const { data: request, error: fetchError } = await supabase
             .from('purchase_requests')
-            .select('*, customer:customer_profile_id(full_name, phone)')
+            .select('*')
             .eq('id', requestId)
             .single()
 
         if (fetchError || !request) {
             alert('Erro ao buscar detalhes da solicitação.')
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
-
-        let customerId: string
         const targetUserId = activeCompanyId || user.id
-        const reqPhone = request.customer?.phone
-        const cleanReqPhone = reqPhone ? reqPhone.replace(/\D/g, '') : null
+
+        // Usar adminSupabase para buscar o perfil do cliente sem bloqueios de RLS
+        const { createAdminClient } = await import('@/lib/supabase/admin')
+        const adminSupabase = createAdminClient()
+
+        const { data: custProfile } = await adminSupabase
+            .from('profiles')
+            .select('full_name, phone, cpf')
+            .eq('id', request.customer_profile_id)
+            .maybeSingle()
+
+        const custPhone = custProfile?.phone
+        const custCpf = custProfile?.cpf
+        const cleanPhone = custPhone ? custPhone.replace(/\D/g, '') : null
+        const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
 
         let existingCustomer = null
-        if (cleanReqPhone) {
-            const { data: byPhone } = await supabase
+
+        // 1. Tentar por customer_user_id
+        const { data: byUser } = await adminSupabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', targetUserId)
+            .eq('customer_user_id', request.customer_profile_id)
+            .maybeSingle()
+
+        existingCustomer = byUser
+
+        // 2. Tentar por CPF
+        if (!existingCustomer && cleanCpf) {
+            const { data: byCpf } = await adminSupabase
                 .from('customers')
                 .select('id, points_balance')
                 .eq('user_id', targetUserId)
-                .or(`phone.eq.${reqPhone},phone.eq.${cleanReqPhone}`)
+                .or(`cpf.eq.${custCpf},cpf.eq.${cleanCpf}`)
+                .maybeSingle()
+            existingCustomer = byCpf
+        }
+
+        // 3. Tentar por Telefone
+        if (!existingCustomer && cleanPhone) {
+            const { data: byPhone } = await adminSupabase
+                .from('customers')
+                .select('id, points_balance')
+                .eq('user_id', targetUserId)
+                .or(`phone.eq.${custPhone},phone.eq.${cleanPhone}`)
                 .maybeSingle()
             existingCustomer = byPhone
         }
 
+        let customerId: string
         if (existingCustomer) {
             customerId = existingCustomer.id
         } else {
-            const { data: newCust } = await supabase.from('customers').insert({
-                user_id: targetUserId,
-                name: request.customer?.full_name || 'Cliente',
-                phone: request.customer?.phone,
-                points_balance: 0
-            }).select().single()
-            customerId = newCust!.id
+            const { data: newCust, error: newCustErr } = await adminSupabase
+                .from('customers')
+                .insert({
+                    user_id: targetUserId,
+                    customer_user_id: request.customer_profile_id,
+                    name: custProfile?.full_name || 'Cliente',
+                    phone: custPhone || null,
+                    cpf: custCpf || null,
+                    points_balance: 0
+                })
+                .select()
+                .single()
+
+            if (newCustErr || !newCust) {
+                alert('Erro ao criar registro de cliente para a loja: ' + (newCustErr?.message || ''))
+                setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
+                return
+            }
+            customerId = newCust.id
         }
 
         // Processar transação com réplica automática para Grupo e Holding via CPF/CNPJ e Telefone
@@ -674,7 +723,7 @@ export default function CompanyDashboard() {
                 setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
                 fetchPendingRequests(activeCompanyId)
                 loadConsolidatedData()
-            }, 3000)
+            }, 1000)
         }
     }
 
