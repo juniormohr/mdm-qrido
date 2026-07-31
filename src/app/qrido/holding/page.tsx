@@ -302,33 +302,84 @@ function HoldingDashboardContent() {
         p_store_id: selectedStoreId === "all" ? null : selectedStoreId,
       });
 
-      if (!error && rpcData) {
-        setAnalyticsData({
-          summary: {
-            grand_total_sales: Number(rpcData.summary?.grand_total_sales || 0),
-            grand_points_earned: Number(rpcData.summary?.grand_points_earned || 0),
-            grand_points_redeemed: Number(rpcData.summary?.grand_points_redeemed || 0),
-            grand_total_transactions: Number(rpcData.summary?.grand_total_transactions || 0),
-            active_days: Number(rpcData.summary?.active_days || 0),
-          },
-          daily: (rpcData.daily || []).map((d: any) => ({
-            date: d.stat_date,
-            sales: Number(d.total_sales || 0),
-            transactions: Number(d.total_transactions || 0),
-          })),
-          stores: (rpcData.stores || []).map((s: any) => ({
-            store_id: s.store_id,
-            store_name: s.store_name || "Loja",
-            total_sales: Number(s.total_sales || 0),
-            total_transactions: Number(s.total_transactions || 0),
-          })),
-        });
+      let summary = {
+        grand_total_sales: Number(rpcData?.summary?.grand_total_sales || 0),
+        grand_points_earned: Number(rpcData?.summary?.grand_points_earned || 0),
+        grand_points_redeemed: Number(rpcData?.summary?.grand_points_redeemed || 0),
+        grand_total_transactions: Number(rpcData?.summary?.grand_total_transactions || 0),
+        active_days: Number(rpcData?.summary?.active_days || 0),
+      };
+      let daily = (rpcData?.daily || []).map((d: any) => ({
+        date: d.stat_date,
+        sales: Number(d.total_sales || 0),
+        transactions: Number(d.total_transactions || 0),
+      }));
+      let storeRankings = (rpcData?.stores || []).map((s: any) => ({
+        store_id: s.store_id,
+        store_name: s.store_name || "Loja",
+        total_sales: Number(s.total_sales || 0),
+        total_transactions: Number(s.total_transactions || 0),
+      }));
+
+      // Fallback: Se a RPC retornar 0 mas houver lojas carregadas na Holding, calcular diretamente via loyalty_transactions
+      const targetStoreIds = stores.map(s => s.id);
+      if (summary.grand_total_sales === 0 && targetStoreIds.length > 0) {
+        const { data: txs } = await supabase
+          .from("loyalty_transactions")
+          .select("created_at, sale_amount, points, type, user_id")
+          .in("user_id", targetStoreIds)
+          .gte("created_at", startIso)
+          .lte("created_at", endIso);
+
+        if (txs && txs.length > 0) {
+          let sales = 0;
+          let earned = 0;
+          let redeemed = 0;
+          const dailyMap = new Map<string, { sales: number; transactions: number }>();
+
+          txs.forEach((t: any) => {
+            const amount = Number(t.sale_amount || 0);
+            const pts = Number(t.points || 0);
+            const dateStr = new Date(t.created_at).toISOString().split("T")[0];
+
+            if (t.type === "earn") {
+              sales += amount;
+              earned += pts;
+            } else if (t.type === "redeem") {
+              redeemed += pts;
+            }
+
+            const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 };
+            curr.sales += amount;
+            curr.transactions += 1;
+            dailyMap.set(dateStr, curr);
+          });
+
+          summary = {
+            grand_total_sales: sales,
+            grand_points_earned: earned,
+            grand_points_redeemed: redeemed,
+            grand_total_transactions: txs.length,
+            active_days: dailyMap.size,
+          };
+          daily = Array.from(dailyMap.entries()).map(([date, val]) => ({
+            date,
+            sales: val.sales,
+            transactions: val.transactions,
+          }));
+        }
       }
+
+      setAnalyticsData({
+        summary,
+        daily,
+        stores: storeRankings,
+      });
       setLoading(false);
     }
 
     fetchAnalytics();
-  }, [startDate, endDate, selectedGroupId, selectedStoreId]);
+  }, [startDate, endDate, selectedGroupId, selectedStoreId, stores]);
 
   const handleSendInvite = async () => {
     if (!selectedInviteGroupId) return;
