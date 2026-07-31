@@ -228,7 +228,7 @@ function GroupDashboardContent() {
     fetchGroupData();
   }, []);
 
-  // Fetch analytics for accepted stores ONLY
+  // Fetch analytics for accepted stores ONLY via Motor de Analytics
   useEffect(() => {
     async function fetchAnalytics() {
       if (!startDate || !endDate) return;
@@ -252,68 +252,10 @@ function GroupDashboardContent() {
         return;
       }
 
-      const { data: txs } = await supabase
-        .from("loyalty_transactions")
-        .select("created_at, sale_amount, points, type, user_id, profiles(full_name)")
-        .in("user_id", targetStoreIds)
-        .gte("created_at", startIso)
-        .lte("created_at", endIso);
+      const { fetchAnalyticsData } = await import("@/lib/analytics");
+      const result = await fetchAnalyticsData(supabase, targetStoreIds, startIso, endIso);
 
-      let totalSales = 0;
-      let pointsEarned = 0;
-      let pointsRedeemed = 0;
-      const dailyMap = new Map<string, { sales: number; transactions: number }>();
-      const storeMap = new Map<string, { name: string; sales: number; txs: number }>();
-
-      if (txs) {
-        txs.forEach((t: any) => {
-          const dateStr = new Date(t.created_at).toISOString().split("T")[0];
-          const amount = Number(t.sale_amount || 0);
-
-          if (t.type === "earn") {
-            totalSales += amount;
-            pointsEarned += Number(t.points || 0);
-          } else if (t.type === "redeem") {
-            pointsRedeemed += Number(t.points || 0);
-          }
-
-          const currDay = dailyMap.get(dateStr) || { sales: 0, transactions: 0 };
-          currDay.sales += amount;
-          currDay.transactions += 1;
-          dailyMap.set(dateStr, currDay);
-
-          const storeName = t.profiles?.full_name || "Loja";
-          const currStore = storeMap.get(t.user_id) || { name: storeName, sales: 0, txs: 0 };
-          currStore.sales += amount;
-          currStore.txs += 1;
-          storeMap.set(t.user_id, currStore);
-        });
-      }
-
-      const dailyList: DailyDataPoint[] = Array.from(dailyMap.entries()).map(([date, d]) => ({
-        date,
-        sales: d.sales,
-        transactions: d.transactions,
-      }));
-
-      const storeList: StoreRanking[] = Array.from(storeMap.entries()).map(([id, s]) => ({
-        store_id: id,
-        store_name: s.name,
-        total_sales: s.sales,
-        total_transactions: s.txs,
-      })).sort((a, b) => b.total_sales - a.total_sales);
-
-      setAnalyticsData({
-        summary: {
-          grand_total_sales: totalSales,
-          grand_points_earned: pointsEarned,
-          grand_points_redeemed: pointsRedeemed,
-          grand_total_transactions: txs?.length || 0,
-        },
-        daily: dailyList,
-        stores: storeList,
-      });
-
+      setAnalyticsData(result);
       setLoading(false);
     }
 

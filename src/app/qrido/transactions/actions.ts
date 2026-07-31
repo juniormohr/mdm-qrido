@@ -17,14 +17,25 @@ export async function processTransactionAction(data: {
 
     const { customerId, totalPoints, totalAmount } = data
 
-    // 1. Buscar grupos que a loja participa (status = 'accepted')
-    const { data: groups, error: groupsError } = await supabase
+    // 1. Obter dados do cliente na loja de origem
+    const { data: customerStore, error: custFetchError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', customerId)
+        .single()
+
+    if (custFetchError || !customerStore) return { error: 'Erro ao buscar cliente: ' + (custFetchError?.message || 'Cliente não encontrado') }
+
+    const now = new Date()
+
+    // 2. MOTOR DE FIDELIDADE - LOJA
+    // Buscar grupos vinculados para checagem de duplo ponto ou benefícios de loja
+    const { data: groups } = await supabase
         .from('company_groups')
         .select('mall_id, double_points, event_start_date, event_end_date')
         .eq('store_id', user.id)
         .eq('status', 'accepted')
 
-    const now = new Date()
     const isDoublePoints = groups?.some(g => {
         if (!g.double_points) return false
         if (g.event_start_date && g.event_end_date) {
@@ -34,55 +45,47 @@ export async function processTransactionAction(data: {
         }
         return true
     }) || false
-    
-    const finalTotalPoints = isDoublePoints ? totalPoints * 2 : totalPoints
 
-    // 2. Registrar a transação para a Loja atual
+    const storePoints = isDoublePoints ? totalPoints * 2 : totalPoints
+
+    // Registrar transação no saldo da LOJA (user_id = loja, store_id = loja)
     const { error: txError } = await supabase.from('loyalty_transactions').insert({
         user_id: user.id,
+        store_id: user.id,
         customer_id: customerId,
         type: 'earn',
-        points: finalTotalPoints,
+        points: storePoints,
         sale_amount: totalAmount,
         expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
     })
 
     if (txError) return { error: 'Erro ao registrar pontos da loja: ' + txError.message }
 
-    // Obter dados do cliente da loja
-    const { data: customerStore, error: custFetchError } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', customerId)
-        .single()
-
-    if (custFetchError) return { error: 'Erro ao buscar cliente: ' + custFetchError.message }
-
-    // 3. Atualizar saldo do cliente na Loja
+    // Atualizar saldo do cliente na LOJA
     const { error: custError } = await supabase
         .from('customers')
-        .update({ points_balance: (customerStore.points_balance || 0) + finalTotalPoints })
+        .update({ points_balance: (customerStore.points_balance || 0) + storePoints })
         .eq('id', customerId)
 
     if (custError) return { error: 'Erro ao atualizar saldo da loja: ' + custError.message }
 
-    // 4. Lógica de replicação de pontos para GRUPO e HOLDING por vigência de promoção
-    if (!groupsError && groups && groups.length > 0) {
+    // 3. MOTOR DE FIDELIDADE - REPLICAÇÃO PARA CARTEIRAS DE GRUPO E HOLDING
+    if (groups && groups.length > 0) {
         const adminSupabase = createAdminClient()
 
         for (const group of groups) {
             const mallId = group.mall_id
 
-            // Verificar se o Grupo tem campanha ativa em entity_campaigns ou company_groups
-            const { data: activeCampaigns } = await adminSupabase
+            // a) Verificar se o GRUPO possui campanha ativa em entity_campaigns ou company_groups
+            const { data: activeGroupCampaigns } = await adminSupabase
                 .from('entity_campaigns')
                 .select('*')
                 .eq('entity_id', mallId)
                 .eq('is_active', true)
 
             let hasActiveGroupCampaign = false
-            if (activeCampaigns && activeCampaigns.length > 0) {
-                hasActiveGroupCampaign = activeCampaigns.some((c: any) => {
+            if (activeGroupCampaigns && activeGroupCampaigns.length > 0) {
+                hasActiveGroupCampaign = activeGroupCampaigns.some((c: any) => {
                     const startDate = new Date(c.start_date)
                     const endDate = new Date(c.end_date)
                     return now >= startDate && now <= endDate
@@ -99,11 +102,10 @@ export async function processTransactionAction(data: {
                 }
             }
 
-            // Se o Grupo tiver campanha ativa, credita o saldo proporcional no Grupo
+            // Se o GRUPO possui campanha ativa -> Creditar na Carteira do Grupo
             if (hasActiveGroupCampaign) {
-                const groupPoints = finalTotalPoints
+                const groupPoints = storePoints
 
-                // Priorizar busca por CPF/CNPJ se disponível, senão por telefone
                 let mallCustomer = null
                 const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
 
@@ -142,7 +144,7 @@ export async function processTransactionAction(data: {
                         })
                         .select()
                         .single()
-                    
+
                     if (newMallCust) {
                         finalMallCustomerId = newMallCust.id
                         mallCustomer = newMallCust
@@ -152,6 +154,7 @@ export async function processTransactionAction(data: {
                 if (finalMallCustomerId) {
                     await adminSupabase.from('loyalty_transactions').insert({
                         user_id: mallId,
+                        store_id: user.id,
                         customer_id: finalMallCustomerId,
                         type: 'earn',
                         points: groupPoints,
@@ -166,7 +169,7 @@ export async function processTransactionAction(data: {
                 }
             }
 
-            // 5. Verificar se o Grupo faz parte de alguma HOLDING com campanha ativa no período
+            // b) Verificar se o GRUPO pertence a alguma HOLDING com campanha ativa
             const { data: holdingLinks } = await adminSupabase
                 .from('holding_groups')
                 .select('holding_id')
@@ -192,8 +195,9 @@ export async function processTransactionAction(data: {
                         })
                     }
 
+                    // Se a HOLDING possui campanha ativa -> Creditar na Carteira da Holding
                     if (hasHoldingCampaign) {
-                        const holdingPoints = finalTotalPoints
+                        const holdingPoints = storePoints
 
                         let holdingCustomer = null
                         const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
@@ -243,6 +247,7 @@ export async function processTransactionAction(data: {
                         if (finalHoldingCustId) {
                             await adminSupabase.from('loyalty_transactions').insert({
                                 user_id: holdingId,
+                                store_id: user.id,
                                 customer_id: finalHoldingCustId,
                                 type: 'earn',
                                 points: holdingPoints,
