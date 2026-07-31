@@ -110,3 +110,104 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
     return { error: err.message || 'Erro ao carregar dados da holding' }
   }
 }
+
+export async function fetchHoldingAnalyticsAction(storeIds: string[], startIso: string, endIso: string) {
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    if (!storeIds || storeIds.length === 0) {
+      return {
+        summary: {
+          grand_total_sales: 0,
+          grand_points_earned: 0,
+          grand_points_redeemed: 0,
+          grand_total_transactions: 0,
+          active_days: 0,
+        },
+        daily: [],
+        stores: [],
+      }
+    }
+
+    const { data: txs, error: txsError } = await supabaseAdmin
+      .from('loyalty_transactions')
+      .select('created_at, sale_amount, points, type, user_id')
+      .in('user_id', storeIds)
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+
+    if (txsError) {
+      console.error('Error fetching loyalty_transactions for holding:', txsError)
+      return { error: txsError.message }
+    }
+
+    let sales = 0
+    let earned = 0
+    let redeemed = 0
+    const dailyMap = new Map<string, { sales: number; transactions: number }>()
+    const storeSalesMap = new Map<string, { sales: number; transactions: number }>()
+
+    if (txs && txs.length > 0) {
+      txs.forEach((t: any) => {
+        const amount = Number(t.sale_amount || 0)
+        const pts = Number(t.points || 0)
+        const dObj = new Date(t.created_at)
+        const dateStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`
+
+        if (t.type === 'earn') {
+          sales += amount
+          earned += pts
+        } else if (t.type === 'redeem') {
+          redeemed += pts
+        }
+
+        const currDaily = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
+        currDaily.sales += amount
+        currDaily.transactions += 1
+        dailyMap.set(dateStr, currDaily)
+
+        const currStore = storeSalesMap.get(t.user_id) || { sales: 0, transactions: 0 }
+        if (t.type === 'earn') currStore.sales += amount
+        currStore.transactions += 1
+        storeSalesMap.set(t.user_id, currStore)
+      })
+    }
+
+    // Direct store rankings with names
+    const { data: storeProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', storeIds)
+
+    const storeMap = new Map((storeProfiles || []).map(p => [p.id, p.full_name]))
+
+    const storeRankings = storeIds.map(id => {
+      const st = storeSalesMap.get(id) || { sales: 0, transactions: 0 }
+      return {
+        store_id: id,
+        store_name: storeMap.get(id) || 'Loja',
+        total_sales: st.sales,
+        total_transactions: st.transactions,
+      }
+    }).sort((a, b) => b.total_sales - a.total_sales)
+
+    return {
+      summary: {
+        grand_total_sales: sales,
+        grand_points_earned: earned,
+        grand_points_redeemed: redeemed,
+        grand_total_transactions: txs ? txs.length : 0,
+        active_days: dailyMap.size,
+      },
+      daily: Array.from(dailyMap.entries()).map(([date, val]) => ({
+        date,
+        sales: val.sales,
+        transactions: val.transactions,
+      })),
+      stores: storeRankings,
+    }
+  } catch (err: any) {
+    console.error('Unhandled error in fetchHoldingAnalyticsAction:', err)
+    return { error: err.message || 'Erro ao carregar métricas' }
+  }
+}

@@ -214,85 +214,28 @@ function HoldingDashboardContent() {
       const startIso = `${startDate}T00:00:00.000Z`;
       const endIso = `${endDate}T23:59:59.999Z`;
 
-      const { data: rpcData, error } = await supabase.rpc("get_holding_analytics", {
-        p_holding_id: user.id,
-        p_start_date: startIso,
-        p_end_date: endIso,
-        p_group_id: selectedGroupId === "all" ? null : selectedGroupId,
-        p_store_id: selectedStoreId === "all" ? null : selectedStoreId,
-      });
-
       let summary = {
-        grand_total_sales: Number(rpcData?.summary?.grand_total_sales || 0),
-        grand_points_earned: Number(rpcData?.summary?.grand_points_earned || 0),
-        grand_points_redeemed: Number(rpcData?.summary?.grand_points_redeemed || 0),
-        grand_total_transactions: Number(rpcData?.summary?.grand_total_transactions || 0),
-        active_days: Number(rpcData?.summary?.active_days || 0),
+        grand_total_sales: 0,
+        grand_points_earned: 0,
+        grand_points_redeemed: 0,
+        grand_total_transactions: 0,
+        active_days: 0,
       };
-      let daily = (rpcData?.daily || []).map((d: any) => ({
-        date: d.stat_date,
-        sales: Number(d.total_sales || 0),
-        transactions: Number(d.total_transactions || 0),
-      }));
-      let storeRankings = (rpcData?.stores || []).map((s: any) => ({
-        store_id: s.store_id,
-        store_name: s.store_name || "Loja",
-        total_sales: Number(s.total_sales || 0),
-        total_transactions: Number(s.total_transactions || 0),
-      }));
+      let daily: any[] = [];
+      let storeRankings: any[] = [];
 
-      // Fallback: Se a RPC retornar 0 mas houver lojas carregadas na Holding, calcular diretamente via loyalty_transactions
-      const filteredStores = selectedGroupId === "all" 
-        ? stores 
-        : stores.filter(s => s.group_id === selectedGroupId);
+      // Buscar analytics via Server Action admin (bypassing RLS em loyalty_transactions e company_groups)
       const targetStoreIds = selectedStoreId === "all" 
-        ? filteredStores.map(s => s.id) 
+        ? (selectedGroupId === "all" ? stores.map(s => s.id) : stores.filter(s => s.group_id === selectedGroupId).map(s => s.id))
         : [selectedStoreId];
-      if (summary.grand_total_sales === 0 && targetStoreIds.length > 0) {
-        const { data: txs } = await supabase
-          .from("loyalty_transactions")
-          .select("created_at, sale_amount, points, type, user_id")
-          .in("user_id", targetStoreIds)
-          .gte("created_at", startIso)
-          .lte("created_at", endIso);
 
-        if (txs && txs.length > 0) {
-          let sales = 0;
-          let earned = 0;
-          let redeemed = 0;
-          const dailyMap = new Map<string, { sales: number; transactions: number }>();
-
-          txs.forEach((t: any) => {
-            const amount = Number(t.sale_amount || 0);
-            const pts = Number(t.points || 0);
-            const dObj = new Date(t.created_at);
-            const dateStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
-
-            if (t.type === "earn") {
-              sales += amount;
-              earned += pts;
-            } else if (t.type === "redeem") {
-              redeemed += pts;
-            }
-
-            const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 };
-            curr.sales += amount;
-            curr.transactions += 1;
-            dailyMap.set(dateStr, curr);
-          });
-
-          summary = {
-            grand_total_sales: sales,
-            grand_points_earned: earned,
-            grand_points_redeemed: redeemed,
-            grand_total_transactions: txs.length,
-            active_days: dailyMap.size,
-          };
-          daily = Array.from(dailyMap.entries()).map(([date, val]) => ({
-            date,
-            sales: val.sales,
-            transactions: val.transactions,
-          }));
+      if (targetStoreIds.length > 0) {
+        const { fetchHoldingAnalyticsAction } = await import("./actions");
+        const analyticsRes = await fetchHoldingAnalyticsAction(targetStoreIds, startIso, endIso);
+        if (analyticsRes && !analyticsRes.error) {
+          summary = analyticsRes.summary;
+          daily = analyticsRes.daily;
+          storeRankings = analyticsRes.stores;
         }
       }
 
