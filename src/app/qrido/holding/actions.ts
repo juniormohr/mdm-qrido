@@ -51,13 +51,14 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
     const stores: any[] = []
     const storeIds: string[] = []
 
-    const searchGroupIds = allInvitedGroups.map(g => g.id)
+    const searchGroupIds = acceptedGroupIds
 
     if (searchGroupIds.length > 0) {
       const { data: cgData } = await supabaseAdmin
         .from('company_groups')
         .select('store_id, mall_id, status')
         .in('mall_id', searchGroupIds)
+        .or('status.eq.accepted,status.is.null')
 
       if (cgData && cgData.length > 0) {
         const uniqueStoreIds = Array.from(new Set(cgData.map((item: any) => item.store_id)))
