@@ -3,6 +3,311 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+export async function confirmPurchaseRequestAction(data: {
+    requestId: string,
+    storeId: string
+}): Promise<{ error?: string, success?: boolean }> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return { error: 'Usuário não autenticado.' }
+    }
+
+    const adminSupabase = createAdminClient()
+
+    // Resolve o ID real da Loja (se o usuário logado for staff, usa o company_id)
+    let resolvedStoreId = data.storeId
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        resolvedStoreId = userProfile.company_id
+    }
+
+    // 1. Buscar o purchase_request
+    const { data: request, error: fetchError } = await adminSupabase
+        .from('purchase_requests')
+        .select('*')
+        .eq('id', data.requestId)
+        .single()
+
+    if (fetchError || !request) {
+        return { error: 'Erro ao buscar solicitação: ' + (fetchError?.message || 'Não encontrada') }
+    }
+
+    // Verificar que o request pertence a esta loja
+    if (request.company_id !== resolvedStoreId) {
+        return { error: 'Esta solicitação não pertence a esta loja.' }
+    }
+
+    // 2. Buscar perfil do cliente (sem RLS)
+    const { data: custProfile } = await adminSupabase
+        .from('profiles')
+        .select('full_name, phone, cpf')
+        .eq('id', request.customer_profile_id)
+        .maybeSingle()
+
+    const custPhone = custProfile?.phone
+    const custCpf = custProfile?.cpf
+    const cleanPhone = custPhone ? custPhone.replace(/\D/g, '') : null
+    const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
+
+    // 3. Encontrar ou criar registro do cliente na loja
+    let existingCustomer = null
+
+    // 3a. Por customer_user_id
+    const { data: byUser } = await adminSupabase
+        .from('customers')
+        .select('id, points_balance')
+        .eq('user_id', resolvedStoreId)
+        .eq('customer_user_id', request.customer_profile_id)
+        .maybeSingle()
+    existingCustomer = byUser
+
+    // 3b. Por CPF
+    if (!existingCustomer && cleanCpf) {
+        const { data: byCpf } = await adminSupabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', resolvedStoreId)
+            .or(`cpf.eq.${custCpf},cpf.eq.${cleanCpf}`)
+            .maybeSingle()
+        existingCustomer = byCpf
+    }
+
+    // 3c. Por Telefone
+    if (!existingCustomer && cleanPhone) {
+        const { data: byPhone } = await adminSupabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', resolvedStoreId)
+            .or(`phone.eq.${custPhone},phone.eq.${cleanPhone}`)
+            .maybeSingle()
+        existingCustomer = byPhone
+    }
+
+    let customerId: string
+    if (existingCustomer) {
+        customerId = existingCustomer.id
+        // Garantir que customer_user_id esteja preenchido
+        if (!byUser) {
+            await adminSupabase
+                .from('customers')
+                .update({ customer_user_id: request.customer_profile_id })
+                .eq('id', customerId)
+        }
+    } else {
+        const { data: newCust, error: newCustErr } = await adminSupabase
+            .from('customers')
+            .insert({
+                user_id: resolvedStoreId,
+                customer_user_id: request.customer_profile_id,
+                name: custProfile?.full_name || 'Cliente',
+                phone: custPhone || null,
+                cpf: custCpf || null,
+                points_balance: 0
+            })
+            .select()
+            .single()
+
+        if (newCustErr || !newCust) {
+            return { error: 'Erro ao criar registro de cliente: ' + (newCustErr?.message || '') }
+        }
+        customerId = newCust.id
+    }
+
+    // 4. Processar transação de pontos (chama processTransactionAction internamente)
+    const txRes = await processTransactionAction({
+        customerId: customerId,
+        totalPoints: request.total_points || 0,
+        totalAmount: request.total_amount || 0
+    })
+
+    if (txRes && 'error' in txRes && txRes.error) {
+        return { error: 'Erro ao processar pontos: ' + txRes.error }
+    }
+
+    // 5. Atualizar status do purchase_request para 'completed'
+    const { error: updateError } = await adminSupabase
+        .from('purchase_requests')
+        .update({ status: 'completed' })
+        .eq('id', data.requestId)
+
+    if (updateError) {
+        return { error: 'Erro ao finalizar solicitação: ' + updateError.message }
+    }
+
+    return { success: true }
+}
+
+export async function fetchPendingRequestsAction(storeId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { error: 'Usuário não autenticado.', data: [] }
+
+    const adminSupabase = createAdminClient()
+
+    // Resolve o ID real da Loja
+    let resolvedStoreId = storeId
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        resolvedStoreId = userProfile.company_id
+    }
+
+    // Buscar purchase_requests sem JOIN (para evitar problemas de RLS)
+    const { data: requests, error } = await adminSupabase
+        .from('purchase_requests')
+        .select('*')
+        .eq('company_id', resolvedStoreId)
+        .in('status', ['pending', 'confirmed'])
+        .order('created_at', { ascending: false })
+
+    if (error) return { error: error.message, data: [] }
+    if (!requests || requests.length === 0) return { data: [] }
+
+    // Buscar perfis dos clientes separadamente (sem RLS)
+    const customerProfileIds = [...new Set(requests.map(r => r.customer_profile_id))]
+    const { data: profiles } = await adminSupabase
+        .from('profiles')
+        .select('id, full_name, phone')
+        .in('id', customerProfileIds)
+
+    // Mesclar dados
+    const enrichedRequests = requests.map(req => {
+        const profile = profiles?.find(p => p.id === req.customer_profile_id)
+        return {
+            ...req,
+            customer: profile ? { full_name: profile.full_name, phone: profile.phone } : null
+        }
+    })
+
+    return { data: enrichedRequests }
+}
+
+export async function confirmRedemptionAction(data: {
+    requestId: string,
+    storeId: string
+}): Promise<{ error?: string, success?: boolean }> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { error: 'Usuário não autenticado.' }
+
+    const adminSupabase = createAdminClient()
+
+    // Resolve o ID real da Loja
+    let resolvedStoreId = data.storeId
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        resolvedStoreId = userProfile.company_id
+    }
+
+    // 1. Buscar purchase_request
+    const { data: request, error: fetchError } = await adminSupabase
+        .from('purchase_requests')
+        .select('*')
+        .eq('id', data.requestId)
+        .single()
+
+    if (fetchError || !request) {
+        return { error: 'Erro ao buscar solicitação: ' + (fetchError?.message || 'Não encontrada') }
+    }
+
+    // 2. Buscar perfil do cliente
+    const { data: custProfile } = await adminSupabase
+        .from('profiles')
+        .select('full_name, phone, cpf')
+        .eq('id', request.customer_profile_id)
+        .maybeSingle()
+
+    const custPhone = custProfile?.phone
+    const custCpf = custProfile?.cpf
+    const cleanPhone = custPhone ? custPhone.replace(/\D/g, '') : null
+    const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
+
+    // 3. Encontrar o cliente na loja (por customer_user_id, CPF ou telefone)
+    let customer = null
+
+    const { data: byUser } = await adminSupabase
+        .from('customers')
+        .select('id, points_balance')
+        .eq('user_id', resolvedStoreId)
+        .eq('customer_user_id', request.customer_profile_id)
+        .maybeSingle()
+    customer = byUser
+
+    if (!customer && cleanCpf) {
+        const { data: byCpf } = await adminSupabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', resolvedStoreId)
+            .or(`cpf.eq.${custCpf},cpf.eq.${cleanCpf}`)
+            .maybeSingle()
+        customer = byCpf
+    }
+
+    if (!customer && cleanPhone) {
+        const { data: byPhone } = await adminSupabase
+            .from('customers')
+            .select('id, points_balance')
+            .eq('user_id', resolvedStoreId)
+            .or(`phone.eq.${custPhone},phone.eq.${cleanPhone}`)
+            .maybeSingle()
+        customer = byPhone
+    }
+
+    if (!customer) {
+        return { error: 'Cliente não encontrado na base desta loja.' }
+    }
+
+    if ((customer.points_balance || 0) < (request.total_points || 0)) {
+        return { error: 'Cliente não possui pontos suficientes para este resgate.' }
+    }
+
+    // 4. Debitar pontos
+    const { error: updateError } = await adminSupabase
+        .from('customers')
+        .update({ points_balance: (customer.points_balance || 0) - (request.total_points || 0) })
+        .eq('id', customer.id)
+
+    if (updateError) {
+        return { error: 'Erro ao processar débito de pontos: ' + updateError.message }
+    }
+
+    // 5. Registrar transação de resgate
+    await adminSupabase.from('loyalty_transactions').insert({
+        user_id: resolvedStoreId,
+        customer_id: customer.id,
+        type: 'redeem',
+        points: request.total_points || 0,
+        reward_id: request.reward_id,
+        created_by: user.id
+    })
+
+    // 6. Atualizar status
+    await adminSupabase
+        .from('purchase_requests')
+        .update({ status: 'completed' })
+        .eq('id', data.requestId)
+
+    return { success: true }
+}
+
 export async function processTransactionAction(data: {
     customerId: string,
     totalPoints: number,

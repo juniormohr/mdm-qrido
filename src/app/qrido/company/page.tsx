@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-import { processTransactionAction } from "../transactions/actions"
+import { confirmPurchaseRequestAction, confirmRedemptionAction, fetchPendingRequestsAction } from "../transactions/actions"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap, Settings, Crown, Trophy, Building, Building2, Store, Calendar, Trash2 } from "lucide-react"
@@ -287,16 +287,9 @@ export default function CompanyDashboard() {
     }, [activeCompanyId, startDate, endDate, selectedHoldingId, selectedGroupId, selectedStoreId])
 
     async function fetchPendingRequests(userId: string) {
-        const supabase = createClient()
-        const { data, error } = await supabase
-            .from('purchase_requests')
-            .select('*, customer:customer_profile_id(full_name, phone)')
-            .eq('company_id', userId)
-            .in('status', ['pending', 'confirmed'])
-            .order('created_at', { ascending: false })
-
-        if (error) console.error('Erro ao buscar solicitações:', error)
-        if (data) setPendingRequests(data)
+        const result = await fetchPendingRequestsAction(userId)
+        if (result.error) console.error('Erro ao buscar solicitações:', result.error)
+        if (result.data) setPendingRequests(result.data)
     }
 
     async function fetchPendingInvites(userId: string) {
@@ -538,193 +531,48 @@ export default function CompanyDashboard() {
 
     async function handleConfirmRedemption(requestId: string) {
         if (!activeCompanyId) return
-        const supabase = createClient()
 
-        const { data: request, error: fetchError } = await supabase
-            .from('purchase_requests')
-            .select('*, customer:customer_profile_id(full_name, phone)')
-            .eq('id', requestId)
-            .single()
+        setTransitioningItems(prev => ({ ...prev, [requestId]: { status: 'completed', transitionStatus: 'confirmed' } }))
 
-        if (fetchError || !request) {
-            alert('Erro ao buscar solicitação.')
-            return
-        }
-
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        setTransitioningItems(prev => ({ ...prev, [requestId]: { ...request, status: 'completed', transitionStatus: 'confirmed' } }))
-
-        const { data: customer } = await supabase
-            .from('customers')
-            .select('id, points_balance')
-            .eq('user_id', user.id)
-            .eq('phone', request.customer?.phone)
-            .maybeSingle()
-
-        if (!customer) {
-            alert('Erro: Cliente não encontrado na base desta loja.')
-            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-            return
-        }
-
-        if (customer.points_balance < request.total_points) {
-            alert('Erro: Cliente não possui pontos suficientes para este resgate.')
-            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-            return
-        }
-
-        const { error: updateError } = await supabase.from('customers').update({
-            points_balance: customer.points_balance - request.total_points
-        }).eq('id', customer.id)
-
-        if (updateError) {
-            alert('Erro ao processar débito de pontos.')
-            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-            return
-        }
-
-        await supabase.from('loyalty_transactions').insert({
-            user_id: activeCompanyId,
-            customer_id: customer.id,
-            type: 'redeem',
-            points: request.total_points,
-            reward_id: request.reward_id,
-            created_by: user.id
+        const result = await confirmRedemptionAction({
+            requestId,
+            storeId: activeCompanyId
         })
 
-        await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
+        if (result.error) {
+            alert('Erro: ' + result.error)
+            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
+            return
+        }
 
         setTimeout(() => {
             setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             fetchPendingRequests(activeCompanyId)
             loadConsolidatedData()
-        }, 3000)
+        }, 1000)
     }
 
     async function handleConfirmRequest(requestId: string) {
         if (!activeCompanyId) return
-        const supabase = createClient()
-
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
 
         setTransitioningItems(prev => ({ ...prev, [requestId]: { status: 'completed', transitionStatus: 'confirmed' } }))
 
-        const { data: request, error: fetchError } = await supabase
-            .from('purchase_requests')
-            .select('*')
-            .eq('id', requestId)
-            .single()
-
-        if (fetchError || !request) {
-            alert('Erro ao buscar detalhes da solicitação.')
-            setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-            return
-        }
-
-        const targetUserId = activeCompanyId || user.id
-
-        // Usar adminSupabase para buscar o perfil do cliente sem bloqueios de RLS
-        const { createAdminClient } = await import('@/lib/supabase/admin')
-        const adminSupabase = createAdminClient()
-
-        const { data: custProfile } = await adminSupabase
-            .from('profiles')
-            .select('full_name, phone, cpf')
-            .eq('id', request.customer_profile_id)
-            .maybeSingle()
-
-        const custPhone = custProfile?.phone
-        const custCpf = custProfile?.cpf
-        const cleanPhone = custPhone ? custPhone.replace(/\D/g, '') : null
-        const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
-
-        let existingCustomer = null
-
-        // 1. Tentar por customer_user_id
-        const { data: byUser } = await adminSupabase
-            .from('customers')
-            .select('id, points_balance')
-            .eq('user_id', targetUserId)
-            .eq('customer_user_id', request.customer_profile_id)
-            .maybeSingle()
-
-        existingCustomer = byUser
-
-        // 2. Tentar por CPF
-        if (!existingCustomer && cleanCpf) {
-            const { data: byCpf } = await adminSupabase
-                .from('customers')
-                .select('id, points_balance')
-                .eq('user_id', targetUserId)
-                .or(`cpf.eq.${custCpf},cpf.eq.${cleanCpf}`)
-                .maybeSingle()
-            existingCustomer = byCpf
-        }
-
-        // 3. Tentar por Telefone
-        if (!existingCustomer && cleanPhone) {
-            const { data: byPhone } = await adminSupabase
-                .from('customers')
-                .select('id, points_balance')
-                .eq('user_id', targetUserId)
-                .or(`phone.eq.${custPhone},phone.eq.${cleanPhone}`)
-                .maybeSingle()
-            existingCustomer = byPhone
-        }
-
-        let customerId: string
-        if (existingCustomer) {
-            customerId = existingCustomer.id
-        } else {
-            const { data: newCust, error: newCustErr } = await adminSupabase
-                .from('customers')
-                .insert({
-                    user_id: targetUserId,
-                    customer_user_id: request.customer_profile_id,
-                    name: custProfile?.full_name || 'Cliente',
-                    phone: custPhone || null,
-                    cpf: custCpf || null,
-                    points_balance: 0
-                })
-                .select()
-                .single()
-
-            if (newCustErr || !newCust) {
-                alert('Erro ao criar registro de cliente para a loja: ' + (newCustErr?.message || ''))
-                setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-                return
-            }
-            customerId = newCust.id
-        }
-
-        // Processar transação com réplica automática para Grupo e Holding via CPF/CNPJ e Telefone
-        const txRes = await processTransactionAction({
-            customerId: customerId,
-            totalPoints: request.total_points,
-            totalAmount: request.total_amount || 0
+        const result = await confirmPurchaseRequestAction({
+            requestId,
+            storeId: activeCompanyId
         })
 
-        if (txRes && 'error' in txRes && txRes.error) {
-            alert('Erro ao processar pontos: ' + txRes.error)
+        if (result.error) {
+            alert('Erro ao confirmar: ' + result.error)
             setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
             return
         }
 
-        const { error: updateError } = await supabase.from('purchase_requests').update({ status: 'completed' }).eq('id', requestId)
-
-        if (updateError) {
-            alert('Erro ao finalizar: ' + updateError.message)
+        setTimeout(() => {
             setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-        } else {
-            setTimeout(() => {
-                setTransitioningItems(prev => { const n = { ...prev }; delete n[requestId]; return n })
-                fetchPendingRequests(activeCompanyId)
-                loadConsolidatedData()
-            }, 1000)
-        }
+            fetchPendingRequests(activeCompanyId)
+            loadConsolidatedData()
+        }, 1000)
     }
 
     async function handleRejectRequest(requestId: string) {
