@@ -370,7 +370,6 @@ export async function processTransactionAction(data: {
     // Registrar transação no saldo da LOJA (user_id = storeId, store_id = storeId)
     const { error: txError } = await adminSupabase.from('loyalty_transactions').insert({
         user_id: storeId,
-        store_id: storeId,
         customer_id: customerId,
         type: 'earn',
         points: storePoints,
@@ -471,7 +470,6 @@ export async function processTransactionAction(data: {
                 if (finalMallCustomerId) {
                     await adminSupabase.from('loyalty_transactions').insert({
                         user_id: mallId,
-                        store_id: storeId,
                         customer_id: finalMallCustomerId,
                         type: 'earn',
                         points: groupPoints,
@@ -564,7 +562,6 @@ export async function processTransactionAction(data: {
                         if (finalHoldingCustId) {
                             await adminSupabase.from('loyalty_transactions').insert({
                                 user_id: holdingId,
-                                store_id: storeId,
                                 customer_id: finalHoldingCustId,
                                 type: 'earn',
                                 points: holdingPoints,
