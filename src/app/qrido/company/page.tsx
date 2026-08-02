@@ -887,7 +887,7 @@ export default function CompanyDashboard() {
                         {(() => {
                             const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
                             Object.keys(transitioningItems).forEach(id => {
-                                allRequestsMap[id] = transitioningItems[id]
+                                allRequestsMap[id] = { ...(allRequestsMap[id] || {}), ...transitioningItems[id] }
                             })
                             const displayRequests = [
                                 ...Object.values(allRequestsMap),

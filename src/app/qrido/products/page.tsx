@@ -42,6 +42,7 @@ function ProductManagementContent() {
     const [showUpsellModal, setShowUpsellModal] = useState(false)
     const [upsellLimit, setUpsellLimit] = useState(0)
     const [pointsPerReal, setPointsPerReal] = useState<number>(1.0)
+    const [userRole, setUserRole] = useState<string | null>(null)
     
     // Estados do Destaque
     const [tier, setTier] = useState<string>('basic')
@@ -72,18 +73,21 @@ function ProductManagementContent() {
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('subscription_tier')
+            .select('subscription_tier, role, company_id')
             .eq('id', user.id)
             .single()
 
         if (profile) {
             setTier(profile.subscription_tier || 'basic')
+            setUserRole(profile.role)
         }
+
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
 
         const { data: loyaltyData } = await supabase
             .from('loyalty_configs')
             .select('points_per_real')
-            .eq('user_id', user.id)
+            .eq('user_id', resolvedCompanyId)
             .maybeSingle()
 
         const ratio = loyaltyData && loyaltyData.points_per_real !== null ? Number(loyaltyData.points_per_real) : 1.0
@@ -92,7 +96,7 @@ function ProductManagementContent() {
         const { data } = await supabase
             .from('products')
             .select('*')
-            .eq('company_id', user.id)
+            .eq('company_id', resolvedCompanyId)
             .order('created_at', { ascending: false })
 
         if (data) setProducts(data)
@@ -192,9 +196,17 @@ function ProductManagementContent() {
 
         if (!user) return
 
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_id')
+            .eq('id', user.id)
+            .single()
+
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+
         // Check limits
         const { checkTierLimits } = await import('@/lib/limits')
-        const { allowed, count, limit } = await checkTierLimits(user.id, 'products')
+        const { allowed, count, limit } = await checkTierLimits(resolvedCompanyId, 'products')
 
         if (!allowed) {
             setUpsellLimit(limit)
@@ -206,7 +218,7 @@ function ProductManagementContent() {
         const calcPoints = Math.round(numericPrice * pointsPerReal)
 
         const { error } = await supabase.from('products').insert({
-            company_id: user.id,
+            company_id: resolvedCompanyId,
             name: newProduct.name,
             description: newProduct.description,
             price: numericPrice,
@@ -258,6 +270,11 @@ function ProductManagementContent() {
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
+            {userRole === 'company_staff' && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
+                    Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para adicionar, editar ou excluir produtos.
+                </div>
+            )}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex flex-col gap-4">
                     <BackButton />
@@ -266,10 +283,12 @@ function ProductManagementContent() {
                         <p className="subheading-mobile">Cadastre os produtos que seus clientes podem comprar para gerar pontos.</p>
                     </div>
                 </div>
-                <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2 w-full sm:w-auto h-14 sm:h-auto">
-                    <Plus className="h-4 w-4 text-[#F7AA1C]" />
-                    Novo Produto
-                </Button>
+                {userRole !== 'company_staff' && (
+                    <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2 w-full sm:w-auto h-14 sm:h-auto">
+                        <Plus className="h-4 w-4 text-[#F7AA1C]" />
+                        Novo Produto
+                    </Button>
+                )}
             </div>
 
             {showNewForm && (
@@ -420,24 +439,26 @@ function ProductManagementContent() {
                                     <div className="p-3 bg-brand-blue/10 rounded-2xl text-brand-blue ring-4 ring-brand-blue/5">
                                         <ShoppingBag className="h-6 w-6" />
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => setEditingProduct(product)}
-                                            className="text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 transition-all opacity-0 group-hover:opacity-100"
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleDeleteProduct(product.id)}
-                                            className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                                    {userRole !== 'company_staff' && (
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => setEditingProduct(product)}
+                                                className="text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDeleteProduct(product.id)}
+                                                className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{product.name}</h3>
@@ -450,11 +471,12 @@ function ProductManagementContent() {
                                             </span>
                                             <p className="text-[9px] text-slate-400 font-medium">Permitir pontuar em dobro</p>
                                         </div>
-                                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <label className={`relative inline-flex items-center cursor-pointer select-none ${userRole === 'company_staff' ? 'pointer-events-none opacity-60' : ''}`}>
                                             <input
                                                 type="checkbox"
                                                 className="sr-only peer"
                                                 checked={product.double_points_active !== false}
+                                                disabled={userRole === 'company_staff'}
                                                 onChange={() => handleToggleProductDoublePoints(product)}
                                             />
                                             <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>

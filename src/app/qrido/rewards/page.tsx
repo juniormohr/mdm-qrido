@@ -32,6 +32,7 @@ export default function RewardsPage() {
         expires_at: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 6 months default
     })
     const [editingReward, setEditingReward] = useState<Reward | null>(null)
+    const [userRole, setUserRole] = useState<string | null>(null)
 
     useEffect(() => {
         fetchRewards()
@@ -47,8 +48,20 @@ export default function RewardsPage() {
             return
         }
 
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_id')
+            .eq('id', user.id)
+            .single()
+
+        if (profile) {
+            setUserRole(profile.role)
+        }
+
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+
         // Cada entidade (Loja, Grupo ou Holding) gerencia exclusivamente os seus próprios prêmios no catálogo
-        const targetUserIds = [user.id]
+        const targetUserIds = [resolvedCompanyId]
 
         const { data } = await supabase
             .from('rewards')
@@ -68,6 +81,14 @@ export default function RewardsPage() {
 
             if (!user) return
 
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role, company_id')
+                .eq('id', user.id)
+                .single()
+
+            const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+
             let newId = typeof crypto !== 'undefined' && crypto.randomUUID 
                 ? crypto.randomUUID() 
                 : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -77,7 +98,7 @@ export default function RewardsPage() {
 
             const { error } = await supabase.from('rewards').insert({
                 id: newId,
-                user_id: user.id,
+                user_id: resolvedCompanyId,
                 ...newReward
             })
 
@@ -148,6 +169,11 @@ export default function RewardsPage() {
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
+            {userRole === 'company_staff' && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
+                    Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para adicionar, editar ou excluir prêmios.
+                </div>
+            )}
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-4">
                     <BackButton />
@@ -156,10 +182,12 @@ export default function RewardsPage() {
                         <p className="text-slate-500 font-medium">Gerencie as recompensas que seus clientes podem resgatar.</p>
                     </div>
                 </div>
-                <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2">
-                    <Plus className="h-4 w-4 text-[#F7AA1C]" />
-                    Novo Prêmio
-                </Button>
+                {userRole !== 'company_staff' && (
+                    <Button onClick={() => setShowNewForm(true)} className="btn-orange gap-2">
+                        <Plus className="h-4 w-4 text-[#F7AA1C]" />
+                        Novo Prêmio
+                    </Button>
+                )}
             </div>
 
             {showNewForm && (
@@ -227,29 +255,31 @@ export default function RewardsPage() {
                                     <div className="p-3 bg-brand-orange/10 rounded-2xl">
                                         <Award className="h-6 w-6 text-brand-orange" />
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => setEditingReward({
-                                                ...reward,
-                                                expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
-                                            })}
-                                            className="text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-all"
-                                            title="Editar prêmio"
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleDeleteReward(reward.id)}
-                                            className="text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                                            title="Excluir prêmio"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                                    {userRole !== 'company_staff' && (
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => setEditingReward({
+                                                    ...reward,
+                                                    expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
+                                                })}
+                                                className="text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-all"
+                                                title="Editar prêmio"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDeleteReward(reward.id)}
+                                                className="text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                title="Excluir prêmio"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{reward.title}</h3>

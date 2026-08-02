@@ -19,6 +19,7 @@ export default function LoyaltySettings() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+    const [userRole, setUserRole] = useState<string | null>(null)
 
     const [existingId, setExistingId] = useState<string | null>(null)
 
@@ -31,10 +32,22 @@ export default function LoyaltySettings() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_id')
+            .eq('id', user.id)
+            .single()
+
+        if (profile) {
+            setUserRole(profile.role)
+        }
+
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+
         const { data } = await supabase
             .from('loyalty_configs')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', resolvedCompanyId)
             .single()
 
         if (data) {
@@ -50,12 +63,24 @@ export default function LoyaltySettings() {
     }
 
     async function handleSave() {
+        if (userRole === 'company_staff') {
+            alert('Acesso negado: equipe não pode editar regras de fidelidade.')
+            return
+        }
         setSaving(true)
         setMessage(null)
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
 
         if (!user) return
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_id')
+            .eq('id', user.id)
+            .single()
+
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
 
         let error
 
@@ -75,7 +100,7 @@ export default function LoyaltySettings() {
                 .from('loyalty_configs')
                 .insert({
                     id: crypto.randomUUID(),
-                    user_id: user.id,
+                    user_id: resolvedCompanyId,
                     points_per_real: config.points_per_real,
                     min_points_to_redeem: config.min_points_to_redeem,
                     double_points_active: config.double_points_active,
@@ -97,7 +122,7 @@ export default function LoyaltySettings() {
                 const { data: products } = await supabase
                     .from('products')
                     .select('id, price')
-                    .eq('company_id', user.id)
+                    .eq('company_id', resolvedCompanyId)
 
                 if (products && products.length > 0) {
                     for (const prod of products) {
@@ -121,6 +146,11 @@ export default function LoyaltySettings() {
 
     return (
         <div className="max-w-2xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10">
+            {userRole === 'company_staff' && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
+                    Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para editar as regras de pontos.
+                </div>
+            )}
             <div className="flex flex-col gap-4">
                 <BackButton />
                 <div>
@@ -153,9 +183,10 @@ export default function LoyaltySettings() {
                                     id="points_per_real"
                                     type="number"
                                     step="0.1"
+                                    disabled={userRole === 'company_staff'}
                                     value={config.points_per_real}
                                     onChange={(e) => setConfig({ ...config, points_per_real: parseFloat(e.target.value) || 0 })}
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white disabled:opacity-60"
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 font-medium ml-1">Ex: 1.0 significa que R$ 1,00 gera 1 ponto.</p>
@@ -168,9 +199,10 @@ export default function LoyaltySettings() {
                                 <Input
                                     id="min_points"
                                     type="number"
+                                    disabled={userRole === 'company_staff'}
                                     value={config.min_points_to_redeem}
                                     onChange={(e) => setConfig({ ...config, min_points_to_redeem: parseInt(e.target.value) || 0 })}
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white disabled:opacity-60"
                                 />
                             </div>
                             <p className="text-[10px] text-slate-400 font-medium ml-1">Quantidade mínima de pontos que o cliente deve ter para trocar.</p>
@@ -178,18 +210,20 @@ export default function LoyaltySettings() {
 
                     </div>
 
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="w-full btn-blue h-14 text-base font-black italic rounded-2xl shadow-xl shadow-brand-blue/20"
-                    >
-                        {saving ? 'SALVANDO...' : (
-                            <div className="flex items-center gap-2">
-                                <Save className="h-5 w-5" />
-                                SALVAR REGRAS
-                            </div>
-                        )}
-                    </Button>
+                    {userRole !== 'company_staff' && (
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="w-full btn-blue h-14 text-base font-black italic rounded-2xl shadow-xl shadow-brand-blue/20"
+                        >
+                            {saving ? 'SALVANDO...' : (
+                                <div className="flex items-center gap-2">
+                                    <Save className="h-5 w-5" />
+                                    SALVAR REGRAS
+                                </div>
+                            )}
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
         </div>

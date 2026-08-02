@@ -32,13 +32,29 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role, company_type')
+                .select('role, company_type, company_id')
                 .eq('id', user.id)
                 .single()
 
             if (profile) {
-                setRole(profile.role)
-                setCompanyType(profile.company_type)
+                let resolvedRole = profile.role
+                let resolvedCompanyType = profile.company_type
+
+                // Se for staff, resolve as permissões do perfil pai (empresa/holding/grupo/admin)
+                if (profile.role === 'company_staff' && profile.company_id) {
+                    const { data: parentProfile } = await supabase
+                        .from('profiles')
+                        .select('role, company_type')
+                        .eq('id', profile.company_id)
+                        .single()
+                    if (parentProfile) {
+                        resolvedRole = parentProfile.role
+                        resolvedCompanyType = parentProfile.company_type
+                    }
+                }
+
+                setRole(resolvedRole)
+                setCompanyType(resolvedCompanyType)
             }
             setLoading(false)
         }
@@ -78,6 +94,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Clientes Globais', href: '/qrido/admin?tab=customers', icon: Users },
         { name: 'Produtos', href: '/qrido/products', icon: Package },
         { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Equipe', href: '/qrido/company/users', icon: Users },
         { name: 'MKT', href: '/qrido/mkt', icon: Megaphone },
         { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
     ]
@@ -89,6 +106,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Clientes', href: '/qrido/holding?tab=customers', icon: Users },
         { name: 'Produtos', href: '/qrido/products', icon: Package },
         { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Equipe', href: '/qrido/company/users', icon: Users },
         { name: 'Mkt', href: '/qrido/mkt', icon: Megaphone },
         { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
         { name: 'Configurações', href: '/qrido/settings', icon: Settings },
@@ -100,6 +118,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         { name: 'Clientes', href: '/qrido/group?tab=customers', icon: Users },
         { name: 'Produtos', href: '/qrido/products', icon: Package },
         { name: 'Prêmios', href: '/qrido/rewards', icon: Gift },
+        { name: 'Equipe', href: '/qrido/company/users', icon: Users },
         { name: 'Mkt', href: '/qrido/mkt', icon: Megaphone },
         { name: 'Regra de Pontos', href: '/qrido/loyalty-settings', icon: Settings2 },
         { name: 'Configurações', href: '/qrido/settings', icon: Settings },

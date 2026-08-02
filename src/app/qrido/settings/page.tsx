@@ -47,6 +47,7 @@ export default function QRidoSettings() {
     const [savingAddress, setSavingAddress] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
     const [addressMessage, setAddressMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null)
+    const [isStaff, setIsStaff] = useState(false)
 
     useEffect(() => {
         fetchProfileAndAddress()
@@ -59,26 +60,45 @@ export default function QRidoSettings() {
 
         const { data } = await supabase
             .from('profiles')
-            .select('full_name, phone, role, subscription_tier, cpf_cnpj')
+            .select('full_name, phone, role, subscription_tier, cpf_cnpj, company_id')
             .eq('id', user.id)
             .single()
 
-        const tier = data?.subscription_tier || 'basic'
+        const isUserStaff = data?.role === 'company_staff'
+        setIsStaff(isUserStaff)
+
+        const resolvedCompanyId = (isUserStaff && data.company_id) ? data.company_id : user.id
+
+        let companyProfileData = data
+        let parentEmail = user.email
+
+        if (isUserStaff && data.company_id) {
+            const { data: parentProfile } = await supabase
+                .from('profiles')
+                .select('full_name, phone, role, subscription_tier, cpf_cnpj, company_id')
+                .eq('id', data.company_id)
+                .single()
+            if (parentProfile) {
+                companyProfileData = parentProfile
+            }
+        }
+
+        const tier = companyProfileData?.subscription_tier || 'basic'
 
         setProfile({
-            full_name: data?.full_name || '',
-            phone: data?.phone || '',
-            email: user.email || '',
-            role: data?.role || '',
+            full_name: companyProfileData?.full_name || '',
+            phone: companyProfileData?.phone || '',
+            email: parentEmail || '',
+            role: companyProfileData?.role || '',
             subscription_tier: tier,
-            cpf_cnpj: data?.cpf_cnpj || ''
+            cpf_cnpj: companyProfileData?.cpf_cnpj || ''
         })
 
         // Fetch Address
         const { data: addressData } = await supabase
             .from('addresses')
             .select('*')
-            .eq('profile_id', user.id)
+            .eq('profile_id', resolvedCompanyId)
             .maybeSingle()
 
         if (addressData) {
@@ -98,8 +118,8 @@ export default function QRidoSettings() {
         // Fetch limits
         const { checkTierLimits } = await import('@/lib/limits')
         if (user) {
-            const pLimit = await checkTierLimits(user.id, 'products')
-            const cLimit = await checkTierLimits(user.id, 'customers')
+            const pLimit = await checkTierLimits(resolvedCompanyId, 'products')
+            const cLimit = await checkTierLimits(resolvedCompanyId, 'customers')
 
             setLimits({
                 products: { count: pLimit.count, limit: pLimit.limit, percentage: (pLimit.count / pLimit.limit) * 100 },
@@ -141,6 +161,10 @@ export default function QRidoSettings() {
     }
 
     async function handleSave() {
+        if (isStaff) {
+            alert('Acesso negado: equipe não tem permissão para alterar os dados do perfil.')
+            return
+        }
         setSaving(true)
         setMessage(null)
         const supabase = createClient()
@@ -250,6 +274,10 @@ export default function QRidoSettings() {
     }
 
     async function handleSaveAddress() {
+        if (isStaff) {
+            alert('Acesso negado: equipe não tem permissão para alterar os dados da empresa.')
+            return
+        }
         setSavingAddress(true)
         setAddressMessage(null)
         const supabase = createClient()
@@ -297,6 +325,11 @@ export default function QRidoSettings() {
 
     return (
         <div className="max-w-3xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-10 pb-32">
+            {isStaff && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
+                    Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para alterar os dados do perfil e endereço da empresa.
+                </div>
+            )}
             <div className="flex flex-col gap-4">
                 <BackButton />
                 <div className="flex flex-col gap-1">
@@ -340,10 +373,11 @@ export default function QRidoSettings() {
                                 <User className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                 <Input
                                     id="name"
+                                    disabled={isStaff}
                                     value={profile.full_name}
                                     onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
                                     placeholder="Seu nome"
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -354,9 +388,10 @@ export default function QRidoSettings() {
                                 <Mail className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                 <Input
                                     id="email"
+                                    disabled={isStaff}
                                     value={profile.email}
                                     onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 bg-white"
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 bg-white disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -367,10 +402,11 @@ export default function QRidoSettings() {
                                 <Phone className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                 <Input
                                     id="phone"
+                                    disabled={isStaff}
                                     value={profile.phone}
                                     onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                                     placeholder="(00) 0 0000-0000"
-                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white"
+                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -385,6 +421,7 @@ export default function QRidoSettings() {
                                     <Lock className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                     <Input
                                         id="cpf-admin-locked"
+                                        disabled={isStaff}
                                         value={formatCpfCnpj(profile.cpf_cnpj)}
                                         onChange={(e) => {
                                             let val = e.target.value.replace(/\D/g, '')
@@ -395,7 +432,7 @@ export default function QRidoSettings() {
                                             setProfile({ ...profile, cpf_cnpj: masked })
                                         }}
                                         placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                                        className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold"
+                                        className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold disabled:opacity-60"
                                     />
                                 </div>
                             </div>
@@ -423,6 +460,7 @@ export default function QRidoSettings() {
                                                 <Mail className="absolute left-4 top-3.5 h-5 w-5 text-slate-300" />
                                                 <Input
                                                     id="cnpj-editable"
+                                                    disabled={isStaff}
                                                     value={newCnpj}
                                                     onChange={(e) => {
                                                         let val = e.target.value.replace(/\D/g, '')
@@ -435,7 +473,7 @@ export default function QRidoSettings() {
                                                         setNewCnpj(masked)
                                                     }}
                                                     placeholder="00.000.000/0000-00"
-                                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold"
+                                                    className="pl-12 h-12 rounded-2xl border-slate-100 focus:border-brand-blue bg-white font-bold disabled:opacity-60"
                                                 />
                                             </div>
                                             <div className="bg-amber-50 text-amber-800 border border-amber-100 p-4 rounded-2xl flex items-center gap-3">
@@ -461,18 +499,20 @@ export default function QRidoSettings() {
                         )}
                     </div>
 
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="w-full btn-blue h-14 text-base font-black italic rounded-2xl shadow-xl shadow-brand-blue/20"
-                    >
-                        {saving ? 'SALVANDO...' : (
-                            <div className="flex items-center gap-2">
-                                <Save className="h-5 w-5" />
-                                SALVAR PERFIL
-                            </div>
-                        )}
-                    </Button>
+                    {!isStaff && (
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="w-full btn-blue h-14 text-base font-black italic rounded-2xl shadow-xl shadow-brand-blue/20"
+                        >
+                            {saving ? 'SALVANDO...' : (
+                                <div className="flex items-center gap-2">
+                                    <Save className="h-5 w-5" />
+                                    SALVAR PERFIL
+                                </div>
+                            )}
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
 
@@ -507,70 +547,77 @@ export default function QRidoSettings() {
                                 <Label className="text-xs font-bold text-slate-500">CEP</Label>
                                 <Input
                                     name="zip_code"
+                                    disabled={isStaff}
                                     value={address.zip_code}
                                     onChange={(e) => handleCepChange(e.target.value)}
                                     placeholder="00000-000"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
                                 <Label className="text-xs font-bold text-slate-500">Logradouro (Rua, Av, etc)</Label>
                                 <Input
                                     name="street"
+                                    disabled={isStaff}
                                     value={address.street}
                                     onChange={handleAddressChange}
                                     placeholder="Sua Rua"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Número</Label>
                                 <Input
                                     name="number"
+                                    disabled={isStaff}
                                     value={address.number}
                                     onChange={handleAddressChange}
                                     placeholder="123"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Complemento</Label>
                                 <Input
                                     name="complement"
+                                    disabled={isStaff}
                                     value={address.complement}
                                     onChange={handleAddressChange}
                                     placeholder="Sala 101, Bloco B"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Bairro</Label>
                                 <Input
                                     name="neighborhood"
+                                    disabled={isStaff}
                                     value={address.neighborhood}
                                     onChange={handleAddressChange}
                                     placeholder="Centro"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label className="text-xs font-bold text-slate-500">Cidade</Label>
                                 <Input
                                     name="city"
+                                    disabled={isStaff}
                                     value={address.city}
                                     onChange={handleAddressChange}
                                     placeholder="São Paulo"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
                                 <Label className="text-xs font-bold text-slate-500">Estado (UF)</Label>
                                 <Input
                                     name="state"
+                                    disabled={isStaff}
                                     value={address.state}
                                     onChange={handleAddressChange}
                                     placeholder="SP"
-                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium"
+                                    className="h-12 bg-slate-50 border-slate-100 rounded-2xl font-medium disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -603,24 +650,28 @@ export default function QRidoSettings() {
                             />
                         </div>
 
-                        <Button
-                            type="button"
-                            onClick={handleGetLocation}
-                            className="w-full bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue border-none h-12 rounded-2xl font-black italic uppercase text-xs transition-colors"
-                        >
-                            <Navigation className="mr-2 h-4 w-4" />
-                            Pegar Minha Localização Atual
-                        </Button>
+                        {!isStaff && (
+                            <Button
+                                type="button"
+                                onClick={handleGetLocation}
+                                className="w-full bg-brand-blue/10 hover:bg-brand-blue/20 text-brand-blue border-none h-12 rounded-2xl font-black italic uppercase text-xs transition-colors"
+                            >
+                                <Navigation className="mr-2 h-4 w-4" />
+                                Pegar Minha Localização Atual
+                            </Button>
+                        )}
                     </div>
 
-                    <Button
-                        onClick={handleSaveAddress}
-                        disabled={savingAddress}
-                        className="w-full bg-brand-green hover:bg-brand-green/90 text-white h-14 rounded-2xl shadow-xl shadow-brand-green/20 font-black italic uppercase text-sm"
-                    >
-                        <Save className="mr-2 h-5 w-5" />
-                        {savingAddress ? "SALVANDO..." : "SALVAR ENDEREÇO E LOCALIZAÇÃO"}
-                    </Button>
+                    {!isStaff && (
+                        <Button
+                            onClick={handleSaveAddress}
+                            disabled={savingAddress}
+                            className="w-full bg-brand-green hover:bg-brand-green/90 text-white h-14 rounded-2xl shadow-xl shadow-brand-green/20 font-black italic uppercase text-sm"
+                        >
+                            <Save className="mr-2 h-5 w-5" />
+                            {savingAddress ? "SALVANDO..." : "SALVAR ENDEREÇO E LOCALIZAÇÃO"}
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
 

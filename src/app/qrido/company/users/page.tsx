@@ -35,21 +35,25 @@ export default function UsersPage() {
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id, staff_slots, subscription_tier')
+            .select('id, staff_slots, subscription_tier, role, company_id')
             .eq('id', user.id)
             .single()
 
         setCompanyProfile(profile)
 
+        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+
         const { data: staffList } = await supabase
             .from('profiles')
             .select('*')
-            .eq('company_id', user.id)
+            .eq('company_id', resolvedCompanyId)
             .eq('role', 'company_staff')
 
         setStaffs(staffList || [])
         setLoading(false)
     }
+
+    const isStaff = companyProfile?.role === 'company_staff'
 
     let tier = companyProfile?.subscription_tier || 'basic'
     let baseSlots = 1
@@ -107,7 +111,7 @@ export default function UsersPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...newStaff,
-                    company_id: companyProfile.id
+                    company_id: (companyProfile.role === 'company_staff' && companyProfile.company_id) ? companyProfile.company_id : companyProfile.id
                 })
             })
 
@@ -119,7 +123,7 @@ export default function UsersPage() {
             setNewStaff({ name: '', email: '', cpf: '' })
             fetchData()
         } catch (error: any) {
-             alert(`Erro: ${error.message}`)
+              alert(`Erro: ${error.message}`)
         } finally {
             setIsCreating(false)
         }
@@ -127,15 +131,22 @@ export default function UsersPage() {
 
     return (
         <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
+            {isStaff && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
+                    Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para incluir ou remover membros.
+                </div>
+            )}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-black italic uppercase text-slate-900 tracking-tight">Equipe</h1>
                     <p className="text-slate-500 font-medium">Gerencie o acesso dos seus funcionários ao QRido.</p>
                 </div>
                 <div className="flex gap-4">
-                    <Button onClick={() => setIsCreateModalOpen(true)} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl">
-                        <Plus className="mr-2 h-4 w-4" /> Incluir Usuário
-                    </Button>
+                    {!isStaff && (
+                        <Button onClick={() => setIsCreateModalOpen(true)} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl">
+                            <Plus className="mr-2 h-4 w-4" /> Incluir Usuário
+                        </Button>
+                    )}
                 </div>
             </div>
 

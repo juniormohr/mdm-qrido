@@ -580,5 +580,99 @@ export async function processTransactionAction(data: {
         }
     }
 
+    // 4. MOTOR DE FIDELIDADE - REPLICAÇÃO PARA CARTEIRA DO ADMIN
+    const { data: admins } = await adminSupabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+
+    if (admins && admins.length > 0) {
+        for (const admin of admins) {
+            const adminId = admin.id
+
+            // Verificar se o ADMIN possui campanha ativa
+            const { data: adminCampaigns } = await adminSupabase
+                .from('entity_campaigns')
+                .select('*')
+                .eq('entity_id', adminId)
+                .eq('is_active', true)
+
+            let hasActiveAdminCampaign = false
+            if (adminCampaigns && adminCampaigns.length > 0) {
+                hasActiveAdminCampaign = adminCampaigns.some((c: any) => {
+                    const startDate = new Date(c.start_date)
+                    const endDate = new Date(c.end_date)
+                    return now >= startDate && now <= endDate
+                })
+            }
+
+            // Se o ADMIN possui campanha ativa -> Creditar na Carteira do Admin
+            if (hasActiveAdminCampaign) {
+                const adminPoints = storePoints
+
+                let adminCustomer = null
+                const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
+
+                if (cleanCpf) {
+                    const { data: byCpf } = await adminSupabase
+                        .from('customers')
+                        .select('*')
+                        .eq('user_id', adminId)
+                        .or(`cpf.eq.${customerStore.cpf},cpf.eq.${cleanCpf}`)
+                        .maybeSingle()
+                    adminCustomer = byCpf
+                }
+
+                if (!adminCustomer && customerStore.phone) {
+                    const cleanPhone = customerStore.phone.replace(/\D/g, '')
+                    const { data: byPhone } = await adminSupabase
+                        .from('customers')
+                        .select('*')
+                        .eq('user_id', adminId)
+                        .or(`phone.eq.${customerStore.phone},phone.eq.${cleanPhone}`)
+                        .maybeSingle()
+                    adminCustomer = byPhone
+                }
+
+                let finalAdminCustomerId = adminCustomer?.id
+
+                if (!adminCustomer) {
+                    const { data: newAdminCust } = await adminSupabase
+                        .from('customers')
+                        .insert({
+                            user_id: adminId,
+                            name: customerStore.name,
+                            phone: customerStore.phone,
+                            cpf: customerStore.cpf || null,
+                            points_balance: 0
+                        })
+                        .select()
+                        .single()
+
+                    if (newAdminCust) {
+                        finalAdminCustomerId = newAdminCust.id
+                        adminCustomer = newAdminCust
+                    }
+                }
+
+                if (finalAdminCustomerId) {
+                    await adminSupabase.from('loyalty_transactions').insert({
+                        user_id: adminId,
+                        customer_id: finalAdminCustomerId,
+                        type: 'earn',
+                        points: adminPoints,
+                        sale_amount: totalAmount,
+                        expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+                    })
+
+                    await adminSupabase
+                        .from('customers')
+                        .update({ points_balance: (adminCustomer?.points_balance || 0) + adminPoints })
+                        .eq('id', finalAdminCustomerId)
+                }
+            }
+        }
+    }
+
     return { success: true }
 }
