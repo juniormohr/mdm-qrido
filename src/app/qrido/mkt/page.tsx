@@ -25,9 +25,15 @@ export default function MarketingSettings() {
         title: 'Campanha Especial de Pontos',
         start_date: new Date().toISOString().split('T')[0],
         end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        is_active: true
+        is_active: true,
+        reward_ids: [] as string[],
+        target_holding: true,
+        target_group: true,
+        target_store: true,
+        target_customer: true
     })
 
+    const [availableRewards, setAvailableRewards] = useState<{ id: string, title: string }[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
@@ -46,23 +52,42 @@ export default function MarketingSettings() {
         // Fetch User Profile
         const { data: profile } = await supabase
             .from('profiles')
-            .select('role, company_type')
+            .select('role, company_type, company_id')
             .eq('id', user.id)
             .single()
 
+        let currentRole = profile?.role
+        let currentType = profile?.company_type
         if (profile) {
             setUserRole(profile.role)
             setCompanyType(profile.company_type)
         }
 
-        const isHolding = profile?.role === 'holding' || profile?.company_type === 'holding'
-        const isGroup = profile?.role === 'mall' || profile?.role === 'group' || profile?.company_type === 'mall'
+        const isUserStaff = currentRole === 'company_staff'
+        const resolvedCompanyId = (isUserStaff && profile?.company_id) ? profile.company_id : user.id
+
+        // Se for staff, vamos pegar o papel da empresa pai
+        if (isUserStaff && profile?.company_id) {
+            const { data: parentProfile } = await supabase
+                .from('profiles')
+                .select('role, company_type')
+                .eq('id', profile.company_id)
+                .single()
+            if (parentProfile) {
+                currentRole = parentProfile.role
+                currentType = parentProfile.company_type
+            }
+        }
+
+        const isHolding = currentRole === 'holding' || currentType === 'holding'
+        const isGroup = currentRole === 'mall' || currentRole === 'group' || currentType === 'mall'
+        const isAdmin = currentRole === 'admin'
 
         // 1. Fetch Loyalty Config
         const { data: configData } = await supabase
             .from('loyalty_configs')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', resolvedCompanyId)
             .single()
 
         if (configData) {
@@ -75,12 +100,12 @@ export default function MarketingSettings() {
             })
         }
 
-        // 2. Fetch Entity Campaign if Holding or Group
-        if (isHolding || isGroup) {
+        // 2. Fetch Entity Campaign
+        if (isHolding || isGroup || isAdmin) {
             const { data: campData } = await supabase
                 .from('entity_campaigns')
                 .select('*')
-                .eq('entity_id', user.id)
+                .eq('entity_id', resolvedCompanyId)
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .maybeSingle()
@@ -91,9 +116,25 @@ export default function MarketingSettings() {
                     title: campData.title || 'Campanha Especial de Pontos',
                     start_date: campData.start_date ? new Date(campData.start_date).toISOString().split('T')[0] : '',
                     end_date: campData.end_date ? new Date(campData.end_date).toISOString().split('T')[0] : '',
-                    is_active: campData.is_active !== false
+                    is_active: campData.is_active !== false,
+                    reward_ids: campData.reward_ids || [],
+                    target_holding: campData.target_holding !== false,
+                    target_group: campData.target_group !== false,
+                    target_store: campData.target_store !== false,
+                    target_customer: campData.target_customer !== false
                 })
             }
+        }
+
+        // 3. Fetch Available Rewards
+        const { data: rewardsData } = await supabase
+            .from('rewards')
+            .select('id, title')
+            .eq('user_id', resolvedCompanyId)
+            .order('title', { ascending: true })
+
+        if (rewardsData) {
+            setAvailableRewards(rewardsData)
         }
 
         setLoading(false)
@@ -106,8 +147,40 @@ export default function MarketingSettings() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const isHolding = userRole === 'holding' || companyType === 'holding'
-        const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
+        // Fetch User Profile to get role
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_type, company_id')
+            .eq('id', user.id)
+            .single()
+
+        let currentRole = profile?.role
+        let currentType = profile?.company_type
+        const isUserStaff = currentRole === 'company_staff'
+        const resolvedCompanyId = (isUserStaff && profile?.company_id) ? profile.company_id : user.id
+
+        if (isUserStaff && profile?.company_id) {
+            const { data: parentProfile } = await supabase
+                .from('profiles')
+                .select('role, company_type')
+                .eq('id', profile.company_id)
+                .single()
+            if (parentProfile) {
+                currentRole = parentProfile.role
+                currentType = parentProfile.company_type
+            }
+        }
+
+        const isHolding = currentRole === 'holding' || currentType === 'holding'
+        const isGroup = currentRole === 'mall' || currentRole === 'group' || currentType === 'mall'
+        const isAdmin = currentRole === 'admin'
+
+        // Validação obrigatória de brinde
+        if ((isHolding || isGroup || isAdmin) && campaign.reward_ids.length === 0) {
+            setMessage({ type: 'error', text: 'Você precisa vincular pelo menos 1 brinde (prêmio) à campanha!' })
+            setSaving(false)
+            return
+        }
 
         // Save Loyalty Config
         if (existingId) {
@@ -118,7 +191,7 @@ export default function MarketingSettings() {
         } else {
             await supabase.from('loyalty_configs').insert({
                 id: crypto.randomUUID(),
-                user_id: user.id,
+                user_id: resolvedCompanyId,
                 points_per_real: config.points_per_real,
                 min_points_to_redeem: config.min_points_to_redeem,
                 double_points_active: config.double_points_active,
@@ -133,11 +206,11 @@ export default function MarketingSettings() {
                 const { data: hgData } = await supabase
                     .from('holding_groups')
                     .select('group_id')
-                    .eq('holding_id', user.id)
+                    .eq('holding_id', resolvedCompanyId)
                     .eq('status', 'accepted')
 
                 const groupIds = hgData?.map(g => g.group_id) || []
-                let storeIds: string[] = [user.id]
+                let storeIds: string[] = [resolvedCompanyId]
 
                 if (groupIds.length > 0) {
                     const { data: cgData } = await supabase
@@ -158,10 +231,10 @@ export default function MarketingSettings() {
                 const { data: cgData } = await supabase
                     .from('company_groups')
                     .select('store_id')
-                    .eq('mall_id', user.id)
+                    .eq('mall_id', resolvedCompanyId)
                     .eq('status', 'accepted')
 
-                const storeIds = [user.id, ...(cgData?.map(s => s.store_id) || [])]
+                const storeIds = [resolvedCompanyId, ...(cgData?.map(s => s.store_id) || [])]
 
                 await supabase
                     .from('products')
@@ -171,21 +244,26 @@ export default function MarketingSettings() {
                 await supabase
                     .from('products')
                     .update({ double_points_active: newValue })
-                    .eq('company_id', user.id)
+                    .eq('company_id', resolvedCompanyId)
             }
         } catch (err) {
             console.error('Erro ao sincronizar produtos em dobro:', err)
         }
 
-        // Save Campaign for Holding or Group
-        if (isHolding || isGroup) {
+        // Save Campaign for Holding, Group or Admin
+        if (isHolding || isGroup || isAdmin) {
             const campPayload = {
-                entity_id: user.id,
+                entity_id: resolvedCompanyId,
                 title: campaign.title,
                 start_date: `${campaign.start_date}T00:00:00.000Z`,
                 end_date: `${campaign.end_date}T23:59:59.999Z`,
                 is_active: campaign.is_active,
-                double_points: config.double_points_active
+                double_points: config.double_points_active,
+                reward_ids: campaign.reward_ids,
+                target_holding: isHolding ? false : campaign.target_holding, // Holding cannot target Holding
+                target_group: isGroup ? false : campaign.target_group, // Group cannot target Group
+                target_store: campaign.target_store,
+                target_customer: campaign.target_customer
             }
 
             if (campaign.id) {
@@ -202,6 +280,7 @@ export default function MarketingSettings() {
 
     const isHolding = userRole === 'holding' || companyType === 'holding'
     const isGroup = userRole === 'mall' || userRole === 'group' || companyType === 'mall'
+    const isAdmin = userRole === 'admin'
 
     if (loading) return <div className="p-8 text-center text-slate-400 font-bold animate-pulse">CARREGANDO MKT...</div>
 
@@ -228,13 +307,13 @@ export default function MarketingSettings() {
                 </div>
             )}
 
-            {/* CARD 1: DEFINIÇÃO DE PERÍODO DA PROMOÇÃO (Para Holding & Grupo) */}
-            {(isHolding || isGroup) && (
+            {/* CARD 1: DEFINIÇÃO DE PERÍODO DA PROMOÇÃO (Para Holding, Grupo & Admin) */}
+            {(isHolding || isGroup || isAdmin) && (
                 <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[36px]">
                     <CardHeader className="bg-slate-50 p-6 border-b border-slate-100">
                         <CardTitle className="text-xl font-black italic uppercase text-brand-blue flex items-center gap-3">
                             <Calendar className="h-6 w-6" />
-                            Período de Promoção Vigente ({isHolding ? 'Holding' : 'Grupo'})
+                            Período de Promoção Vigente ({isHolding ? 'Holding' : isGroup ? 'Grupo' : 'Admin'})
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
@@ -267,7 +346,103 @@ export default function MarketingSettings() {
                                 />
                             </div>
                         </div>
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-2">
+
+                        {/* Seleção de Brindes/Prêmios vinculados */}
+                        <div className="space-y-2 mt-4 pt-4 border-t border-slate-100">
+                            <Label className="text-xs font-black uppercase text-slate-400">Vincular Brindes da Campanha (Obrigatorio - Selecione 1 ou mais)</Label>
+                            {availableRewards.length === 0 ? (
+                                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold leading-relaxed">
+                                    Aviso: Você precisa cadastrar brindes no menu "Prêmios" antes de criar uma campanha.
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[160px] overflow-y-auto p-1">
+                                    {availableRewards.map(reward => {
+                                        const isChecked = campaign.reward_ids.includes(reward.id)
+                                        return (
+                                            <label key={reward.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors text-sm font-semibold text-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 text-brand-blue focus:ring-brand-blue h-4 w-4"
+                                                    checked={isChecked}
+                                                    onChange={() => {
+                                                        const newIds = isChecked
+                                                            ? campaign.reward_ids.filter(id => id !== reward.id)
+                                                            : [...campaign.reward_ids, reward.id]
+                                                        setCampaign({ ...campaign, reward_ids: newIds })
+                                                    }}
+                                                />
+                                                {reward.title}
+                                            </label>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Direcionamento / Segmentação */}
+                        <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
+                            <Label className="text-xs font-black uppercase text-slate-400">Direcionar Campanha para (Público-Alvo)</Label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {isAdmin && (
+                                    <div className="flex flex-col gap-2 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 items-center justify-between text-center">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 italic">Holding</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={campaign.target_holding}
+                                                onChange={(e) => setCampaign({ ...campaign, target_holding: e.target.checked })}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#167657]"></div>
+                                        </label>
+                                    </div>
+                                )}
+                                {(isAdmin || isHolding) && (
+                                    <div className="flex flex-col gap-2 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 items-center justify-between text-center">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 italic">Grupos</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={campaign.target_group}
+                                                onChange={(e) => setCampaign({ ...campaign, target_group: e.target.checked })}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#167657]"></div>
+                                        </label>
+                                    </div>
+                                )}
+                                {(isAdmin || isHolding || isGroup) && (
+                                    <div className="flex flex-col gap-2 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 items-center justify-between text-center">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 italic">Lojas</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={campaign.target_store}
+                                                onChange={(e) => setCampaign({ ...campaign, target_store: e.target.checked })}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#167657]"></div>
+                                        </label>
+                                    </div>
+                                )}
+                                {(isAdmin || isHolding || isGroup) && (
+                                    <div className="flex flex-col gap-2 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 items-center justify-between text-center">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 italic">Clientes</span>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={campaign.target_customer}
+                                                onChange={(e) => setCampaign({ ...campaign, target_customer: e.target.checked })}
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#167657]"></div>
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-4">
                             <span className="text-xs font-black uppercase text-slate-700">Status da Campanha</span>
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
@@ -280,7 +455,7 @@ export default function MarketingSettings() {
                             </label>
                         </div>
                         <p className="text-[11px] text-slate-400 font-medium italic">
-                          * Enquanto esta promoção estiver ATIVA no período vigente, qualquer compra efetuada nas lojas da rede vai pontuar automaticamente o cliente neste({isHolding ? 'Holding' : 'Grupo'})!
+                          * Enquanto esta promoção estiver ATIVA no período vigente, as transações nas lojas associadas e selecionadas pontuarão automaticamente!
                         </p>
                     </CardContent>
                 </Card>
