@@ -106,11 +106,6 @@ export default function DashboardLayout({
                     .eq('id', companyId)
                     .single()
 
-                const startOfMonth = new Date()
-                startOfMonth.setDate(1)
-                startOfMonth.setHours(0, 0, 0, 0)
-                const monthStartIso = startOfMonth.toISOString()
-
                 const isMall = compProfile?.company_type === 'mall'
                 const isHolding = compProfile?.company_type === 'holding'
                 let totalCustomers = 0
@@ -146,7 +141,6 @@ export default function DashboardLayout({
                                 .select('sale_amount')
                                 .in('user_id', storeIds)
                                 .eq('type', 'earn')
-                                .gte('created_at', monthStartIso)
 
                             totalSalesAmount = storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
                         }
@@ -183,7 +177,6 @@ export default function DashboardLayout({
                                 .select('sale_amount')
                                 .in('user_id', storeIds)
                                 .eq('type', 'earn')
-                                .gte('created_at', monthStartIso)
 
                             totalSalesAmount = storeSales?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
                         }
@@ -196,13 +189,12 @@ export default function DashboardLayout({
                         .eq('user_id', companyId)
                     totalCustomers = count || 0
 
-                    // Fetch total sales (mês atual) for single store
+                    // Fetch total sales for single store
                     const { data: salesData } = await supabase
                         .from('loyalty_transactions')
                         .select('sale_amount')
                         .eq('user_id', companyId)
                         .eq('type', 'earn')
-                        .gte('created_at', monthStartIso)
                     
                     totalSalesAmount = salesData?.reduce((acc, curr) => acc + (Number(curr.sale_amount) || 0), 0) || 0
                 }
