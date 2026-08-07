@@ -740,21 +740,23 @@ export default function CustomerDashboard() {
             if (cleanCpf && cleanCpf !== userCpf) cpfTerms.push(cleanCpf)
         }
 
-        let query = supabase
-            .from('customers')
-            .select('id, user_id, points_balance, profiles:user_id(full_name)')
-
-        if (cpfTerms.length > 0 && searchTerms.length > 0) {
-            query = query.or(`cpf.in.(${cpfTerms.map(c => `"${c}"`).join(',')}),phone.in.(${searchTerms.map(s => `"${s}"`).join(',')})`)
-        } else if (cpfTerms.length > 0) {
-            query = query.in('cpf', cpfTerms)
-        } else if (searchTerms.length > 0) {
-            query = query.in('phone', searchTerms)
-        } else {
-            return
+        const orConditions: string[] = []
+        if (profileId) {
+            orConditions.push(`customer_user_id.eq.${profileId}`)
+        }
+        if (cpfTerms.length > 0) {
+            orConditions.push(`cpf.in.(${cpfTerms.map(c => `"${c}"`).join(',')})`)
+        }
+        if (searchTerms.length > 0) {
+            orConditions.push(`phone.in.(${searchTerms.map(s => `"${s}"`).join(',')})`)
         }
 
-        const { data: myCustRecords, error: custError } = await query
+        if (orConditions.length === 0) return
+
+        const { data: myCustRecords, error: custError } = await supabase
+            .from('customers')
+            .select('id, user_id, points_balance, profiles:user_id(full_name)')
+            .or(orConditions.join(','))
 
         if (custError) {
             console.error('Erro ao buscar registros de fidelidade:', custError)
