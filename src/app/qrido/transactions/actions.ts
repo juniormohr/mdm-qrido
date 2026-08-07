@@ -57,30 +57,10 @@ export async function confirmPurchaseRequestAction(data: {
     const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
 
     // 3. Encontrar ou criar registro do cliente na loja
+    // 3. Encontrar ou criar registro do cliente na loja (por telefone)
     let existingCustomer = null
 
-    // 3a. Por customer_user_id
-    const { data: byUser } = await adminSupabase
-        .from('customers')
-        .select('id, points_balance')
-        .eq('user_id', resolvedStoreId)
-        .eq('customer_user_id', request.customer_profile_id)
-        .maybeSingle()
-    existingCustomer = byUser
-
-    // 3b. Por CPF
-    if (!existingCustomer && cleanCpf) {
-        const { data: byCpf } = await adminSupabase
-            .from('customers')
-            .select('id, points_balance')
-            .eq('user_id', resolvedStoreId)
-            .or(`cpf.eq.${custCpf},cpf.eq.${cleanCpf}`)
-            .maybeSingle()
-        existingCustomer = byCpf
-    }
-
-    // 3c. Por Telefone
-    if (!existingCustomer && cleanPhone) {
+    if (cleanPhone) {
         const { data: byPhone } = await adminSupabase
             .from('customers')
             .select('id, points_balance')
@@ -93,22 +73,13 @@ export async function confirmPurchaseRequestAction(data: {
     let customerId: string
     if (existingCustomer) {
         customerId = existingCustomer.id
-        // Garantir que customer_user_id esteja preenchido
-        if (!byUser) {
-            await adminSupabase
-                .from('customers')
-                .update({ customer_user_id: request.customer_profile_id })
-                .eq('id', customerId)
-        }
     } else {
         const { data: newCust, error: newCustErr } = await adminSupabase
             .from('customers')
             .insert({
                 user_id: resolvedStoreId,
-                customer_user_id: request.customer_profile_id,
                 name: custProfile?.full_name || 'Cliente',
                 phone: custPhone || null,
-                cpf: custCpf || null,
                 points_balance: 0
             })
             .select()
@@ -438,31 +409,7 @@ export async function processTransactionAction(data: {
 
                 let mallCustomer = null
 
-                // 1. Tentar por customer_user_id
-                if (customerStore.customer_user_id) {
-                    const { data: byUser } = await adminSupabase
-                        .from('customers')
-                        .select('*')
-                        .eq('user_id', mallId)
-                        .eq('customer_user_id', customerStore.customer_user_id)
-                        .maybeSingle()
-                    mallCustomer = byUser
-                }
-
-                // 2. Tentar por CPF
-                const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
-                if (!mallCustomer && cleanCpf) {
-                    const { data: byCpf } = await adminSupabase
-                        .from('customers')
-                        .select('*')
-                        .eq('user_id', mallId)
-                        .or(`cpf.eq.${customerStore.cpf},cpf.eq.${cleanCpf}`)
-                        .maybeSingle()
-                    mallCustomer = byCpf
-                }
-
-                // 3. Tentar por Telefone
-                if (!mallCustomer && customerStore.phone) {
+                if (customerStore.phone) {
                     const cleanPhone = customerStore.phone.replace(/\D/g, '')
                     const { data: byPhone } = await adminSupabase
                         .from('customers')
@@ -480,10 +427,8 @@ export async function processTransactionAction(data: {
                         .from('customers')
                         .insert({
                             user_id: mallId,
-                            customer_user_id: customerStore.customer_user_id || null,
                             name: customerStore.name,
                             phone: customerStore.phone,
-                            cpf: customerStore.cpf || null,
                             points_balance: 0
                         })
                         .select()
@@ -493,12 +438,6 @@ export async function processTransactionAction(data: {
                         finalMallCustomerId = newMallCust.id
                         mallCustomer = newMallCust
                     }
-                } else if (!mallCustomer.customer_user_id && customerStore.customer_user_id) {
-                    // Atualizar customer_user_id no registro do grupo caso estivesse ausente
-                    await adminSupabase
-                        .from('customers')
-                        .update({ customer_user_id: customerStore.customer_user_id })
-                        .eq('id', mallCustomer.id)
                 }
 
                 if (finalMallCustomerId) {
@@ -550,28 +489,7 @@ export async function processTransactionAction(data: {
 
                         let holdingCustomer = null
 
-                        if (customerStore.customer_user_id) {
-                            const { data: byUser } = await adminSupabase
-                                .from('customers')
-                                .select('*')
-                                .eq('user_id', holdingId)
-                                .eq('customer_user_id', customerStore.customer_user_id)
-                                .maybeSingle()
-                            holdingCustomer = byUser
-                        }
-
-                        const cleanCpf = customerStore.cpf ? customerStore.cpf.replace(/\D/g, '') : null
-                        if (!holdingCustomer && cleanCpf) {
-                            const { data: byCpf } = await adminSupabase
-                                .from('customers')
-                                .select('*')
-                                .eq('user_id', holdingId)
-                                .or(`cpf.eq.${customerStore.cpf},cpf.eq.${cleanCpf}`)
-                                .maybeSingle()
-                            holdingCustomer = byCpf
-                        }
-
-                        if (!holdingCustomer && customerStore.phone) {
+                        if (customerStore.phone) {
                             const cleanPhone = customerStore.phone.replace(/\D/g, '')
                             const { data: byPhone } = await adminSupabase
                                 .from('customers')
@@ -589,10 +507,8 @@ export async function processTransactionAction(data: {
                                 .from('customers')
                                 .insert({
                                     user_id: holdingId,
-                                    customer_user_id: customerStore.customer_user_id || null,
                                     name: customerStore.name,
                                     phone: customerStore.phone,
-                                    cpf: customerStore.cpf || null,
                                     points_balance: 0
                                 })
                                 .select()
@@ -602,11 +518,6 @@ export async function processTransactionAction(data: {
                                 finalHoldingCustId = newHoldingCust.id
                                 holdingCustomer = newHoldingCust
                             }
-                        } else if (!holdingCustomer.customer_user_id && customerStore.customer_user_id) {
-                            await adminSupabase
-                                .from('customers')
-                                .update({ customer_user_id: customerStore.customer_user_id })
-                                .eq('id', holdingCustomer.id)
                         }
 
                         if (finalHoldingCustId) {

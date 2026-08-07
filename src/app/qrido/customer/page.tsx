@@ -740,23 +740,12 @@ export default function CustomerDashboard() {
             if (cleanCpf && cleanCpf !== userCpf) cpfTerms.push(cleanCpf)
         }
 
-        const orConditions: string[] = []
-        if (profileId) {
-            orConditions.push(`customer_user_id.eq.${profileId}`)
-        }
-        if (cpfTerms.length > 0) {
-            orConditions.push(`cpf.in.(${cpfTerms.map(c => `"${c}"`).join(',')})`)
-        }
-        if (searchTerms.length > 0) {
-            orConditions.push(`phone.in.(${searchTerms.map(s => `"${s}"`).join(',')})`)
-        }
-
-        if (orConditions.length === 0) return
+        if (searchTerms.length === 0) return
 
         const { data: myCustRecords, error: custError } = await supabase
             .from('customers')
             .select('id, user_id, points_balance, profiles:user_id(full_name)')
-            .or(orConditions.join(','))
+            .in('phone', searchTerms)
 
         if (custError) {
             console.error('Erro ao buscar registros de fidelidade:', custError)
