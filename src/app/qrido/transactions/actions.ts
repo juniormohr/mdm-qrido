@@ -47,16 +47,15 @@ export async function confirmPurchaseRequestAction(data: {
     // 2. Buscar perfil do cliente (sem RLS)
     const { data: custProfile } = await adminSupabase
         .from('profiles')
-        .select('full_name, phone, cpf')
+        .select('full_name, phone, cpf_cnpj')
         .eq('id', request.customer_profile_id)
         .maybeSingle()
 
     const custPhone = custProfile?.phone
-    const custCpf = custProfile?.cpf
+    const custCpf = (custProfile as any)?.cpf_cnpj || (custProfile as any)?.cpf
     const cleanPhone = custPhone ? custPhone.replace(/\D/g, '') : null
     const cleanCpf = custCpf ? custCpf.replace(/\D/g, '') : null
 
-    // 3. Encontrar ou criar registro do cliente na loja
     // 3. Encontrar ou criar registro do cliente na loja (por telefone)
     let existingCustomer = null
 
@@ -82,7 +81,7 @@ export async function confirmPurchaseRequestAction(data: {
                 phone: custPhone || null,
                 points_balance: 0
             })
-            .select()
+            .select('id, points_balance')
             .single()
 
         if (newCustErr || !newCust) {
