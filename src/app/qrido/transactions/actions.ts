@@ -316,17 +316,8 @@ export async function processTransactionAction(data: {
     if (custFetchError || !customerStore) return { error: 'Erro ao buscar cliente: ' + (custFetchError?.message || 'Cliente não encontrado') }
 
     // Resolve o ID real da Loja da transação
-    let storeId = customerStore.user_id || user.id
-    if (!customerStore.user_id) {
-        const { data: userProfile } = await adminSupabase
-            .from('profiles')
-            .select('role, company_id')
-            .eq('id', user.id)
-            .maybeSingle()
-
-        if (userProfile?.role === 'company_staff' && userProfile.company_id) {
-            storeId = userProfile.company_id
-        }
+    if (customerStore.user_id) {
+        storeId = customerStore.user_id
     }
 
     const now = new Date()
