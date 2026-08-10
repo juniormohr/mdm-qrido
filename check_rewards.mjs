@@ -4,8 +4,10 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function test() {
-  const { data, error } = await supabase.from('rewards').select('*')
-  console.log('Error:', error)
-  console.log('Data:', data)
+  const { data: cust } = await supabase.from('customers').select('*').eq('user_id', '3311e8fe-d821-418e-97a2-4d67666f0a19')
+  console.log('Group Customers:', cust)
+
+  const { data: txs } = await supabase.from('loyalty_transactions').select('*').eq('user_id', '3311e8fe-d821-418e-97a2-4d67666f0a19')
+  console.log('Group Transactions:', txs)
 }
 test()

@@ -185,16 +185,18 @@ export default function CompanyDashboard() {
                 }
                 dailyMap.set(dateKey, currentDaily)
 
-                // Top Clientes
+                // Top Clientes (Garantir 1 por telefone/nome)
                 const cId = t.customer_id
                 if (cId) {
+                    const cPhone = (t.customer?.phone || '').replace(/\D/g, '')
                     const cName = t.customer?.name || t.customer?.phone || 'Cliente'
-                    const currCust = customerMap.get(cId) || { id: cId, name: cName, totalSpent: 0, totalPoints: 0 }
+                    const groupKey = cPhone || cName || cId
+                    const currCust = customerMap.get(groupKey) || { id: cId, name: cName, totalSpent: 0, totalPoints: 0 }
                     if (t.type === 'earn') {
                         currCust.totalSpent += Number(t.sale_amount) || 0
                         currCust.totalPoints += Number(t.points) || 0
                     }
-                    customerMap.set(cId, currCust)
+                    customerMap.set(groupKey, currCust)
                 }
             })
         }
@@ -619,18 +621,21 @@ export default function CompanyDashboard() {
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 -mt-8 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-32">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-4xl font-black tracking-tight text-slate-900 italic uppercase">QRIDO PAINEL</h1>
+                    <h1 className="text-4xl font-black tracking-tight text-[#1E242B] italic uppercase">QRIDO PAINEL</h1>
                     <p className="text-slate-500 mt-1 font-medium">Sua plataforma de fidelidade e recorrência.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Link
                         href="/qrido/settings"
-                        className="h-10 w-10 flex items-center justify-center bg-white border border-slate-200 rounded-full text-slate-400 hover:text-brand-blue hover:shadow-md transition-all"
+                        className="h-10 w-10 flex items-center justify-center bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all"
                         title="Configurações"
                     >
                         <Settings className="h-5 w-5" />
                     </Link>
-                </div>            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia - NOVO ESTILO QRIDO */}
+                </div>
+            </div>
+
+            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia - NOVO ESTILO QRIDO */}
             <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <span className="text-xs font-black uppercase tracking-wider text-[#1E242B] flex items-center gap-2">
@@ -698,7 +703,6 @@ export default function CompanyDashboard() {
                         <input type="date" disabled={preset !== "custom"} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] disabled:opacity-50" />
                     </div>
                 </div>
-            </div>
             </div>
 
             {/* Grid 2x2 de Métricas Consolidadas por Período */}

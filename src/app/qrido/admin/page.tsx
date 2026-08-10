@@ -475,10 +475,13 @@ function AdminContent() {
                     pointsAccumulated += pts
                     if (is30Days) { sales30Days += amount; points30Days += pts }
                     if (t.customer_id) {
-                        const curr = customerSpendMap.get(t.customer_id) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
+                        const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
+                        const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
+                        
+                        const curr = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
                         curr.totalSpent += amount
                         curr.totalPoints += pts
-                        customerSpendMap.set(t.customer_id, curr)
+                        customerSpendMap.set(groupKey, curr)
                     }
                 } else if (t.type === 'redeem') {
                     redemptionsAccumulated += 1
@@ -488,30 +491,20 @@ function AdminContent() {
         }
 
         const topCustomersList = Array.from(customerSpendMap.values())
-            .reduce((acc: any[], item) => {
-                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
-                const phoneOrCpf = (foundCust?.phone || item.customerId).replace(/\D/g, '') || item.customerId
-                const existing = acc.find(c => c.key === phoneOrCpf)
-                const company = (profiles || []).find(p => p.id === item.companyId)
-                
-                if (existing) {
-                    existing.totalSpent += item.totalSpent
-                    existing.totalPoints += item.totalPoints
-                } else {
-                    acc.push({
-                        key: phoneOrCpf,
-                        id: item.customerId,
-                        name: foundCust?.name || 'Cliente Especial',
-                        phone: foundCust?.phone || '-',
-                        company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
-                        totalSpent: item.totalSpent,
-                        totalPoints: item.totalPoints
-                    })
-                }
-                return acc
-            }, [])
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
+            .map(item => {
+                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
+                const company = (profiles || []).find(p => p.id === item.companyId)
+                return {
+                    id: item.customerId,
+                    name: foundCust?.name || 'Cliente Especial',
+                    phone: foundCust?.phone || '-',
+                    company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
+                    totalSpent: item.totalSpent,
+                    totalPoints: item.totalPoints
+                }
+            })
 
         setTopCustomers(topCustomersList)
 

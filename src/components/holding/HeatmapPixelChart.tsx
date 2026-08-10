@@ -210,37 +210,37 @@ export function HeatmapPixelChart({
   };
 
   return (
-    <div className="bg-[#fff5ed] border border-[#fbdcc4] rounded-3xl p-6 sm:p-8 shadow-sm text-slate-800 font-sans max-w-4xl mx-auto transition-all">
+    <div className="bg-white border-2 border-[#1E242B] rounded-3xl p-6 sm:p-8 shadow-[4px_4px_0px_#1E242B] text-slate-800 font-sans max-w-4xl mx-auto transition-all">
       {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-[#fcd5b8] gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b-2 border-[#1E242B]/10 gap-4">
         <div>
-          <h3 className="text-2xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
+          <h3 className="text-2xl font-black text-[#1E242B] uppercase italic flex items-center gap-2.5 tracking-tight">
             <span className="w-3.5 h-3.5 rounded-full bg-[#167657] inline-block animate-pulse shadow-sm"></span>
             {title}
           </h3>
-          <p className="text-sm font-medium text-slate-500 mt-0.5">{subtitle}</p>
+          <p className="text-xs font-bold text-slate-500 italic mt-0.5">{subtitle}</p>
         </div>
 
         {/* Month Navigation */}
-        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm border border-[#fcd5b8] rounded-2xl px-4 py-2 shadow-xs">
+        <div className="flex items-center gap-3 bg-[#FAF8F5] border-2 border-[#1E242B] rounded-2xl px-4 py-2 shadow-[2px_2px_0px_#1E242B]">
           <button
             onClick={handlePrevMonth}
-            className="p-1.5 rounded-lg hover:bg-[#fff5ed] text-slate-600 hover:text-slate-900 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-white text-slate-700 hover:text-[#1E242B] transition-colors"
             title="Mês anterior"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="text-center min-w-[130px]">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block leading-none">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block leading-none">
               {viewYear}
             </span>
-            <span className="text-base font-black text-slate-900 capitalize">
+            <span className="text-base font-black text-[#1E242B] uppercase italic">
               {MONTH_NAMES[viewMonth]}
             </span>
           </div>
           <button
             onClick={handleNextMonth}
-            className="p-1.5 rounded-lg hover:bg-[#fff5ed] text-slate-600 hover:text-slate-900 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-white text-slate-700 hover:text-[#1E242B] transition-colors"
             title="Próximo mês"
           >
             <ChevronRight className="w-5 h-5" />
@@ -249,12 +249,12 @@ export function HeatmapPixelChart({
       </div>
 
       {/* Fixed Info Bar (Displays Month Totals by default, or hovered/selected day details) */}
-      <div className="mt-4 bg-white/90 border border-[#fcd5b8] px-5 py-3 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs transition-all">
+      <div className="mt-4 bg-[#FAF8F5] border-2 border-[#1E242B] px-5 py-3 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-3 shadow-[2px_2px_0px_#1E242B] transition-all">
         <div className="flex items-center gap-2">
-          <span className="text-slate-400 font-semibold text-xs">
+          <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">
             {activeSpecificDay ? "Data:" : "Período:"}
           </span>{" "}
-          <strong className="text-slate-800 text-sm font-bold font-mono">
+          <strong className="text-[#1E242B] text-sm font-black italic">
             {activeSpecificDay
               ? formatDateBR(activeSpecificDay.dateStr)
               : `${MONTH_NAMES[viewMonth]} / ${viewYear}`}
@@ -262,8 +262,8 @@ export function HeatmapPixelChart({
         </div>
         <div className="flex items-center gap-6">
           <div>
-            <span className="text-slate-400 font-semibold">Vendas:</span>{" "}
-            <strong className="text-[#167657] font-extrabold text-sm sm:text-base ml-1">
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Vendas:</span>{" "}
+            <strong className="text-[#167657] font-black italic text-sm sm:text-base ml-1">
               {(activeSpecificDay ? activeSpecificDay.sales : monthTotalSales).toLocaleString("pt-BR", {
                 style: "currency",
                 currency: "BRL",
@@ -271,8 +271,8 @@ export function HeatmapPixelChart({
             </strong>
           </div>
           <div>
-            <span className="text-slate-400 font-semibold">Transações:</span>{" "}
-            <strong className="text-[#f7aa1c] font-extrabold text-sm sm:text-base ml-1">
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Transações:</span>{" "}
+            <strong className="text-[#F7AA1C] font-black italic text-sm sm:text-base ml-1">
               {activeSpecificDay ? activeSpecificDay.transactions : monthTotalTransactions}
             </strong>
           </div>
@@ -284,7 +284,7 @@ export function HeatmapPixelChart({
         {/* Days of Week Header */}
         <div className="grid grid-cols-7 gap-2 mb-3 text-center">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+            <div key={day} className="text-[11px] font-black uppercase tracking-widest text-[#1E242B]">
               {day}
             </div>
           ))}
@@ -304,22 +304,22 @@ export function HeatmapPixelChart({
                 onMouseEnter={() => setHoveredDay(cell)}
                 onMouseLeave={() => setHoveredDay(null)}
                 onClick={() => setSelectedDay(cell)}
-                className={`relative flex flex-col items-center justify-center p-2 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                className={`relative flex flex-col items-center justify-center p-2 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${
                   isSelected
-                    ? "border-[#167657] bg-emerald-50/80 shadow-sm ring-2 ring-[#167657]/30 scale-105"
+                    ? "border-[#167657] bg-emerald-50 shadow-[2px_2px_0px_#1E242B] scale-105"
                     : !cell.isCurrentMonth
-                    ? "opacity-30 border-transparent bg-slate-100/40"
+                    ? "opacity-30 border-transparent bg-slate-100"
                     : cell.isInSelectedPeriod
-                    ? "border-white/60 bg-white/70 shadow-xs hover:shadow-md hover:scale-105"
-                    : "border-slate-200/50 bg-slate-100/60"
+                    ? "border-[#1E242B] bg-white shadow-[2px_2px_0px_#1E242B] hover:scale-105"
+                    : "border-[#1E242B]/20 bg-slate-50"
                 } ${isDimmed ? "opacity-25" : ""}`}
               >
                 {/* Circle Indicator matching Reference UI */}
                 <div
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-transform shadow-xs ${
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-black text-xs sm:text-sm transition-transform border border-[#1E242B]/20 shadow-xs ${
                     cell.isInSelectedPeriod && cell.level !== "none"
                       ? "text-white"
-                      : "text-slate-600"
+                      : "text-slate-700"
                   }`}
                   style={{ backgroundColor: color }}
                 >
@@ -332,22 +332,22 @@ export function HeatmapPixelChart({
       </div>
 
       {/* Interactive Legend */}
-      <div className="pt-6 border-t border-[#fcd5b8] grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="pt-6 border-t-2 border-[#1E242B]/10 grid grid-cols-2 sm:grid-cols-4 gap-3">
         {/* Alto Volume */}
         <button
           onClick={() =>
             setSelectedCategory(selectedCategory === "high" ? null : "high")
           }
-          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${
             selectedCategory === "high"
-              ? "bg-[#167657]/15 border-[#167657] shadow-xs"
-              : "bg-white/80 border-[#fcd5b8] hover:border-[#167657]/50"
+              ? "bg-[#167657]/15 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]"
+              : "bg-white border-[#1E242B]/30 hover:border-[#1E242B]"
           }`}
         >
-          <div className="w-4 h-4 rounded-full bg-[#167657] shadow-sm" />
+          <div className="w-4 h-4 rounded-full bg-[#167657] border border-[#1E242B]/30 shadow-sm" />
           <div className="text-left">
             <p className="text-base font-black text-[#167657] leading-none">{countHigh}</p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Alto volume</p>
+            <p className="text-xs font-bold text-slate-600 mt-1 uppercase italic">Alto volume</p>
           </div>
         </button>
 
@@ -356,16 +356,16 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "medium" ? null : "medium")
           }
-          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${
             selectedCategory === "medium"
-              ? "bg-[#f7aa1c]/15 border-[#f7aa1c] shadow-xs"
-              : "bg-white/80 border-[#fcd5b8] hover:border-[#f7aa1c]/50"
+              ? "bg-[#F7AA1C]/15 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]"
+              : "bg-white border-[#1E242B]/30 hover:border-[#1E242B]"
           }`}
         >
-          <div className="w-4 h-4 rounded-full bg-[#f7aa1c] shadow-sm" />
+          <div className="w-4 h-4 rounded-full bg-[#F7AA1C] border border-[#1E242B]/30 shadow-sm" />
           <div className="text-left">
-            <p className="text-base font-black text-[#f7aa1c] leading-none">{countMedium}</p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Médio volume</p>
+            <p className="text-base font-black text-[#F7AA1C] leading-none">{countMedium}</p>
+            <p className="text-xs font-bold text-slate-600 mt-1 uppercase italic">Médio volume</p>
           </div>
         </button>
 
@@ -374,16 +374,16 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "low" ? null : "low")
           }
-          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${
             selectedCategory === "low"
-              ? "bg-[#e9592c]/15 border-[#e9592c] shadow-xs"
-              : "bg-white/80 border-[#fcd5b8] hover:border-[#e9592c]/50"
+              ? "bg-[#E9592C]/15 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]"
+              : "bg-white border-[#1E242B]/30 hover:border-[#1E242B]"
           }`}
         >
-          <div className="w-4 h-4 rounded-full bg-[#e9592c] shadow-sm" />
+          <div className="w-4 h-4 rounded-full bg-[#E9592C] border border-[#1E242B]/30 shadow-sm" />
           <div className="text-left">
-            <p className="text-base font-black text-[#e9592c] leading-none">{countLow}</p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Baixo volume</p>
+            <p className="text-base font-black text-[#E9592C] leading-none">{countLow}</p>
+            <p className="text-xs font-bold text-slate-600 mt-1 uppercase italic">Baixo volume</p>
           </div>
         </button>
 
@@ -392,16 +392,16 @@ export function HeatmapPixelChart({
           onClick={() =>
             setSelectedCategory(selectedCategory === "none" ? null : "none")
           }
-          className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${
+          className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${
             selectedCategory === "none"
-              ? "bg-slate-200 border-slate-400 shadow-xs"
-              : "bg-white/80 border-[#fcd5b8] hover:border-slate-400"
+              ? "bg-slate-200 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]"
+              : "bg-white border-[#1E242B]/30 hover:border-[#1E242B]"
           }`}
         >
-          <div className="w-4 h-4 rounded-full bg-[#cbd5e1] shadow-sm" />
+          <div className="w-4 h-4 rounded-full bg-[#cbd5e1] border border-[#1E242B]/30 shadow-sm" />
           <div className="text-left">
-            <p className="text-base font-black text-slate-600 leading-none">{countNone}</p>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Sem movimento</p>
+            <p className="text-base font-black text-slate-700 leading-none">{countNone}</p>
+            <p className="text-xs font-bold text-slate-600 mt-1 uppercase italic">Sem movimento</p>
           </div>
         </button>
       </div>
