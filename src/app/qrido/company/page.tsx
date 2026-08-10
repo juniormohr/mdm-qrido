@@ -630,31 +630,28 @@ export default function CompanyDashboard() {
                     >
                         <Settings className="h-5 w-5" />
                     </Link>
-                </div>
-            </div>
-
-            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-5">
+                </div>            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia - NOVO ESTILO QRIDO */}
+            <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-4">
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-brand-blue" /> FILTRAR PERÍODO:
+                    <span className="text-xs font-black uppercase tracking-wider text-[#1E242B] flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-[#F7AA1C]" /> FILTRAR PERÍODO:
                     </span>
-                    <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-                        <button onClick={() => setPreset("yesterday")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "yesterday" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Dia -1</button>
-                        <button onClick={() => setPreset("last_7_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_7_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Últimos 7 dias</button>
-                        <button onClick={() => setPreset("last_30_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_30_days" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Últimos 30 dias</button>
-                        <button onClick={() => setPreset("custom")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "custom" ? "bg-brand-blue text-white shadow-sm" : "text-slate-600 hover:text-slate-900"}`}>Personalizado</button>
+                    <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F5] p-1.5 rounded-2xl border-2 border-[#1E242B]">
+                        <button onClick={() => setPreset("yesterday")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "yesterday" ? "bg-[#1E242B] text-white shadow-sm" : "text-slate-700 hover:text-[#1E242B]"}`}>Dia -1</button>
+                        <button onClick={() => setPreset("last_7_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_7_days" ? "bg-[#1E242B] text-white shadow-sm" : "text-slate-700 hover:text-[#1E242B]"}`}>Últimos 7 dias</button>
+                        <button onClick={() => setPreset("last_30_days")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "last_30_days" ? "bg-[#1E242B] text-white shadow-sm" : "text-slate-700 hover:text-[#1E242B]"}`}>Últimos 30 dias</button>
+                        <button onClick={() => setPreset("custom")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "custom" ? "bg-[#E9592C] text-white shadow-sm" : "text-slate-700 hover:text-[#1E242B]"}`}>Personalizado</button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-3 border-t-2 border-[#1E242B]/10">
                     {/* Filtro por Holding (Admin) */}
                     {isAdmin && (
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                                 <Building2 className="w-3.5 h-3.5 text-purple-600" /> Holding
                             </label>
-                            <select value={selectedHoldingId} onChange={(e) => setSelectedHoldingId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                            <select value={selectedHoldingId} onChange={(e) => setSelectedHoldingId(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] focus:outline-none focus:ring-2 focus:ring-[#F7AA1C]">
                                 <option value="all">Todas as Holdings</option>
                                 {holdingsList.map(h => (<option key={h.id} value={h.id}>{h.name}</option>))}
                             </select>
@@ -664,10 +661,10 @@ export default function CompanyDashboard() {
                     {/* Filtro por Grupo (Admin & Holding) */}
                     {(isAdmin || isHolding) && (
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                                 <Building className="w-3.5 h-3.5 text-[#167657]" /> Grupo / Mercado
                             </label>
-                            <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                            <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] focus:outline-none focus:ring-2 focus:ring-[#F7AA1C]">
                                 <option value="all">Todos os Grupos</option>
                                 {groupsList.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
                             </select>
@@ -677,10 +674,10 @@ export default function CompanyDashboard() {
                     {/* Filtro por Loja (Admin, Holding & Group) */}
                     {(isAdmin || isHolding || isGroup) && (
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                                 <Store className="w-3.5 h-3.5 text-[#297CCB]" /> Loja Conveniada
                             </label>
-                            <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-blue">
+                            <select value={selectedStoreId} onChange={(e) => setSelectedStoreId(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] focus:outline-none focus:ring-2 focus:ring-[#F7AA1C]">
                                 <option value="all">Todas as Lojas</option>
                                 {storesList.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
                             </select>
@@ -688,19 +685,20 @@ export default function CompanyDashboard() {
                     )}
 
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-amber-500" /> Data Início
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-[#E9592C]" /> Data Início
                         </label>
-                        <input type="date" disabled={preset !== "custom"} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50" />
+                        <input type="date" disabled={preset !== "custom"} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] disabled:opacity-50" />
                     </div>
 
                     <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-amber-500" /> Data Fim
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-[#E9592C]" /> Data Fim
                         </label>
-                        <input type="date" disabled={preset !== "custom"} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50" />
+                        <input type="date" disabled={preset !== "custom"} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-white border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B] disabled:opacity-50" />
                     </div>
                 </div>
+            </div>
             </div>
 
             {/* Grid 2x2 de Métricas Consolidadas por Período */}
