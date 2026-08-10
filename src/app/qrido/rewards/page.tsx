@@ -249,11 +249,11 @@ export default function RewardsPage() {
                     <p className="text-slate-400 font-medium col-span-full py-10 text-center">Nenhum prêmio cadastrado ainda.</p>
                 ) : (
                     rewards.map(reward => (
-                        <Card key={reward.id} className="p-6 border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white hover:shadow-lg transition-all group">
+                        <Card key={reward.id} className="p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl hover:translate-x-0.5 hover:translate-y-0.5 transition-all group">
                             <div className="flex flex-col h-full space-y-4">
                                 <div className="flex items-start justify-between">
-                                    <div className="p-3 bg-brand-orange/10 rounded-2xl">
-                                        <Award className="h-6 w-6 text-brand-orange" />
+                                    <div className="p-3 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                                        <Award className="h-6 w-6" />
                                     </div>
                                     {userRole !== 'company_staff' && (
                                         <div className="flex items-center gap-1">
@@ -264,7 +264,7 @@ export default function RewardsPage() {
                                                     ...reward,
                                                     expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
                                                 })}
-                                                className="text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 transition-all"
+                                                className="text-[#1E242B] hover:bg-[#FAF8F5] transition-all"
                                                 title="Editar prêmio"
                                             >
                                                 <Pencil className="h-4 w-4" />
@@ -273,7 +273,7 @@ export default function RewardsPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleDeleteReward(reward.id)}
-                                                className="text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                className="text-red-500 hover:bg-red-50 transition-all"
                                                 title="Excluir prêmio"
                                             >
                                                 <Trash2 className="h-4 w-4" />
@@ -281,32 +281,36 @@ export default function RewardsPage() {
                                         </div>
                                     )}
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{reward.title}</h3>
-                                    <p className="text-slate-400 text-sm mt-1 font-medium">{reward.description || 'Sem descrição'}</p>
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <Clock className="h-3.5 w-3.5 text-slate-300" />
+                                <div className="flex-1 space-y-1">
+                                    <h3 className="text-xl font-black text-[#1E242B] uppercase italic leading-tight">{reward.title}</h3>
+                                    <p className="text-slate-500 text-xs mt-1 font-bold">{reward.description || 'Sem descrição'}</p>
+                                    <div className="mt-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-xl border border-[#1E242B]/20 w-fit">
+                                        <Clock className="h-3.5 w-3.5 text-[#E9592C]" />
                                         <span className={cn(
-                                            "text-[10px] font-bold uppercase",
-                                            new Date(reward.expires_at) < new Date() ? "text-red-500" : "text-slate-400"
+                                            "text-[10px] font-black uppercase italic",
+                                            reward.expires_at && new Date(reward.expires_at) < new Date()
+                                                ? "text-red-600"
+                                                : "text-slate-700"
                                         )}>
-                                            {new Date(reward.expires_at) < new Date() ? "Expirado" : `Vence em: ${new Date(reward.expires_at).toLocaleDateString()}`}
+                                            {reward.expires_at
+                                                ? `Válido até ${new Date(reward.expires_at).toLocaleDateString('pt-BR')}`
+                                                : 'Sem data de expiração'}
                                         </span>
                                     </div>
                                 </div>
-                                <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-50">
-                                    <span className="text-2xl font-black text-brand-blue">{reward.points_required} <span className="text-xs uppercase tracking-tighter">pts</span></span>
+                                <div className="mt-auto pt-4 flex items-center justify-between border-t-2 border-[#1E242B]/10">
+                                    <span className="text-2xl font-black text-[#297CCB] italic">{reward.points_required} <span className="text-xs uppercase tracking-tighter font-black">pts</span></span>
                                     {new Date(reward.expires_at) < new Date() ? (
                                         <Button
                                             size="sm"
                                             onClick={() => handleRenewReward(reward)}
-                                            className="h-8 btn-orange text-[10px] font-black uppercase px-3 gap-1.5"
+                                            className="h-9 bg-[#E9592C] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] text-[10px] font-black uppercase px-3 gap-1.5"
                                         >
                                             <RefreshCcw className="h-3 w-3" />
                                             Renovar
                                         </Button>
                                     ) : (
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-green bg-brand-green/10 px-2 py-1 rounded-md">Ativo</span>
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#167657] bg-[#167657]/15 border border-[#167657] px-2.5 py-1 rounded-lg">Ativo</span>
                                     )}
                                 </div>
                             </div>

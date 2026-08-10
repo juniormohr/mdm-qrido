@@ -94,11 +94,12 @@ export default function AdminRewardsPage() {
                 </div>
             </div>
 
-            <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 max-w-md">
-                <Search className="h-5 w-5 text-slate-300 ml-2" />
+            {/* Search Bar */}
+            <div className="flex items-center gap-4 bg-white p-4 rounded-3xl shadow-[3px_3px_0px_#1E242B] border-2 border-[#1E242B]">
+                <Search className="h-5 w-5 text-slate-400 ml-2" />
                 <Input
                     placeholder="Buscar por loja ou nome do prêmio..."
-                    className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
+                    className="border-none shadow-none focus-visible:ring-0 text-[#1E242B] font-bold placeholder:text-slate-400"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -107,43 +108,43 @@ export default function AdminRewardsPage() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="h-44 bg-slate-200 rounded-[32px]" />
+                        <div key={i} className="h-44 bg-slate-200 border-2 border-[#1E242B] rounded-3xl" />
                     ))}
                 </div>
             ) : filteredRewards.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-base font-medium">
+                <div className="text-center py-12 text-slate-500 text-base font-black italic">
                     Nenhum prêmio encontrado com esses critérios.
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredRewards.map((reward) => (
-                        <Card key={reward.id} className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all duration-300">
-                            <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center gap-3">
-                                <div className="h-12 w-12 bg-brand-blue/10 text-brand-blue rounded-2xl flex items-center justify-center font-bold text-lg shrink-0">
+                        <Card key={reward.id} className="border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl overflow-hidden group hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                            <CardHeader className="p-6 pb-4 border-b-2 border-[#1E242B]/10 flex flex-row items-center gap-3 bg-[#FAF8F5]">
+                                <div className="h-12 w-12 bg-[#297CCB] text-white border-2 border-[#1E242B] rounded-2xl flex items-center justify-center font-black text-lg shrink-0 shadow-[2px_2px_0px_#1E242B]">
                                     <Store className="h-6 w-6" />
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-[10px] font-black text-brand-blue uppercase tracking-wider leading-none">
+                                    <p className="text-[10px] font-black text-[#297CCB] uppercase tracking-wider leading-none">
                                         {reward.company_name}
                                     </p>
-                                    <CardTitle className="text-base font-bold text-slate-800 uppercase mt-1 truncate">
+                                    <CardTitle className="text-base font-black text-[#1E242B] uppercase italic mt-1 truncate">
                                         {reward.title}
                                     </CardTitle>
                                 </div>
                             </CardHeader>
-                            <CardContent className="p-6 flex flex-col justify-between h-[120px]">
-                                <p className="text-xs text-slate-400 font-medium line-clamp-2">
+                            <CardContent className="p-6 flex flex-col justify-between h-[130px]">
+                                <p className="text-xs text-slate-600 font-bold line-clamp-2">
                                     {reward.description || 'Sem descrição cadastrada.'}
                                 </p>
-                                <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                                <div className="flex items-center justify-between pt-3 border-t-2 border-[#1E242B]/10">
                                     <div className="flex items-center gap-1.5">
-                                        <Flame className="h-4 w-4 text-brand-orange" />
+                                        <Flame className="h-4 w-4 text-[#E9592C]" />
                                         <span className="text-xs font-black text-slate-500 italic">
                                             {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
                                         </span>
                                     </div>
-                                    <div className="flex items-center gap-1 bg-brand-blue/5 text-brand-blue px-3 py-1 rounded-full text-xs font-black">
-                                        <Zap className="h-3.5 w-3.5 fill-brand-blue" />
+                                    <div className="flex items-center gap-1 bg-[#297CCB]/10 text-[#297CCB] px-3 py-1 rounded-full text-xs font-black border border-[#297CCB]">
+                                        <Zap className="h-3.5 w-3.5 fill-[#297CCB]" />
                                         {reward.points_required} PTS
                                     </div>
                                 </div>

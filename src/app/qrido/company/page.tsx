@@ -805,24 +805,24 @@ export default function CompanyDashboard() {
                 {isGroup && (
                     <Link
                         href="/qrido/company/groups"
-                        className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
+                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 md:col-span-1"
                     >
-                        <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                        <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                             <CheckCircle2 className="h-6 w-6" />
                         </div>
-                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Lojas do Grupo</span>
+                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Lojas do Grupo</span>
                     </Link>
                 )}
 
                 {isHolding && (
                     <Link
                         href="/qrido/holding?tab=groups"
-                        className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group col-span-2 md:col-span-1"
+                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 md:col-span-1"
                     >
-                        <div className="h-12 w-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                        <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                             <Building2 className="h-6 w-6" />
                         </div>
-                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Grupos da Holding</span>
+                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Grupos da Holding</span>
                     </Link>
                 )}
             </div>
@@ -836,43 +836,45 @@ export default function CompanyDashboard() {
                 subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial QRido"
             />
 
-            {/* Top Clientes (Quem mais gasta) */}
-            <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
+            {/* Top Clientes (Quem mais gasta) - NOVO ESTILO QRIDO */}
+            <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
+                <CardHeader className="p-6 border-b-2 border-[#1E242B]/10 flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Clientes</CardTitle>
-                        <p className="text-[11px] text-slate-400 font-medium">Clientes que mais consomem na loja no período.</p>
+                        <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Clientes</CardTitle>
+                        <p className="text-xs text-slate-500 font-bold">Clientes que mais consomem na loja no período.</p>
                     </div>
-                    <Trophy className="h-5 w-5 text-amber-500" />
+                    <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                        <Trophy className="h-5 w-5" />
+                    </div>
                 </CardHeader>
                 <CardContent className="p-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                         {topCustomers.length === 0 ? (
-                            <div className="col-span-full text-center py-6 text-slate-400 text-xs font-medium">
+                            <div className="col-span-full text-center py-6 text-slate-400 text-xs font-bold italic">
                                 Nenhum cliente registrado com compras no período.
                             </div>
                         ) : (
                             topCustomers.map((cust, index) => {
                                 const rank = index + 1
                                 return (
-                                    <div key={cust.id + index} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 group">
+                                    <div key={cust.id + index} className="flex items-center gap-3 p-3.5 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] group">
                                         <div className={cn(
-                                            "h-9 w-9 rounded-xl flex items-center justify-center font-black text-xs transition-all shrink-0",
+                                            "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0 transition-all",
                                             rank === 1
-                                                ? "bg-amber-50 text-amber-500 border border-amber-200"
-                                                : "bg-white text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                ? "bg-[#F7AA1C] text-[#1E242B]"
+                                                : "bg-white text-[#1E242B]"
                                         )}>
                                             {rank === 1 ? '👑' : rank}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
+                                            <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
                                                 {cust.name}
                                             </p>
-                                            <div className="flex items-center justify-between mt-1">
-                                                <span className="text-[10px] font-black text-emerald-600 italic">
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <span className="text-xs font-black text-[#167657] italic">
                                                     R$ {cust.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                 </span>
-                                                <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                                                <span className="text-[10px] font-black text-[#1E242B] bg-[#F7AA1C] px-2 py-0.5 rounded-lg border border-[#1E242B]">
                                                     {cust.totalPoints} pts
                                                 </span>
                                             </div>
@@ -886,14 +888,14 @@ export default function CompanyDashboard() {
             </Card>
 
             {/* Grid de Conteúdo: Aguardando Confirmação e Top Recompensas */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-slate-100">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6">
                 {/* Solicitações Pendentes Section */}
                 <div id="solicitacoes-pendentes" className="lg:col-span-2 space-y-6">
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange">
+                        <div className="h-10 w-10 bg-[#E9592C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
                             <Plus className="h-6 w-6" />
                         </div>
-                        <h2 className="text-2xl font-black text-slate-900 uppercase italic">Aguardando Confirmação</h2>
+                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Aguardando Confirmação</h2>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -911,7 +913,7 @@ export default function CompanyDashboard() {
 
                             if (displayRequests.length === 0) {
                                 return (
-                                    <div className="col-span-full py-12 text-center bg-white/50 rounded-[40px] border-2 border-dashed border-slate-100 italic font-bold text-slate-300">
+                                    <div className="col-span-full py-12 text-center bg-white rounded-3xl border-2 border-dashed border-[#1E242B]/30 italic font-black text-slate-400">
                                         Nenhuma solicitação nova por enquanto.
                                     </div>
                                 )
@@ -923,14 +925,14 @@ export default function CompanyDashboard() {
                                     const isHoldingInvite = req.inviteType === 'holding_to_group'
 
                                     return (
-                                        <Card key={req.id} className="border-none shadow-2xl rounded-[40px] overflow-hidden bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-700 text-white animate-in zoom-in-95 duration-200 p-6 flex flex-col justify-between min-h-[260px]">
+                                        <Card key={req.id} className="border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden bg-[#1E242B] text-white p-6 flex flex-col justify-between min-h-[260px]">
                                             <div className="space-y-4">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="p-2 bg-white/20 rounded-2xl w-fit">
-                                                            <Zap className="h-5 w-5 text-brand-yellow animate-pulse" />
+                                                        <div className="p-2 bg-[#F7AA1C] border border-white/20 rounded-2xl w-fit text-[#1E242B]">
+                                                            <Zap className="h-5 w-5 fill-current" />
                                                         </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">
                                                             {isReceived
                                                                 ? (isHoldingInvite ? 'Novo Convite de Holding' : 'Novo Convite de Grupo')
                                                                 : (isHoldingInvite ? 'Convite Enviado para Grupo' : 'Convite Enviado para Loja')}
@@ -940,8 +942,8 @@ export default function CompanyDashboard() {
 
                                                 <div>
                                                     <h3 className="text-xl font-black italic uppercase leading-tight">{req.partnerName}</h3>
-                                                    <p className="text-xs text-white/70 font-bold mt-1">Contato: {req.phone || 'Sem telefone'}</p>
-                                                    <p className="text-xs font-bold text-white/90 leading-relaxed mt-3">
+                                                    <p className="text-xs text-slate-300 font-bold mt-1">Contato: {req.phone || 'Sem telefone'}</p>
+                                                    <p className="text-xs font-bold text-slate-200 leading-relaxed mt-3">
                                                         {isReceived
                                                             ? (isHoldingInvite
                                                                 ? 'Esta Holding deseja associar seu Grupo/Mercado para consolidação de rede.'
@@ -952,30 +954,30 @@ export default function CompanyDashboard() {
                                             </div>
 
                                             {isReceived ? (
-                                                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 mt-4">
+                                                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/20 mt-4">
                                                     <Button
                                                         onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'accepted') : handleRespondGroupInvite(req.id, 'accepted')}
-                                                        className="bg-white hover:bg-slate-100 text-purple-700 h-11 rounded-xl font-black italic uppercase text-[10px] shadow-lg"
+                                                        className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-white h-11 rounded-xl font-black italic uppercase text-[10px]"
                                                     >
                                                         Aceitar
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
                                                         onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'rejected') : handleRespondGroupInvite(req.id, 'rejected')}
-                                                        className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white/80 hover:text-white hover:bg-white/10"
+                                                        className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white border-2 border-white/40 hover:bg-white/10"
                                                     >
                                                         Recusar
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <div className="pt-4 border-t border-white/10 mt-4 flex items-center justify-between">
-                                                    <span className="text-[10px] font-black uppercase text-amber-300 bg-amber-400/20 px-3 py-1 rounded-full border border-amber-300/30">
+                                                <div className="pt-4 border-t border-white/20 mt-4 flex items-center justify-between">
+                                                    <span className="text-[10px] font-black uppercase text-[#1E242B] bg-[#F7AA1C] px-3 py-1 rounded-full border border-white">
                                                         Aguardando Confirmação
                                                     </span>
                                                     <Button
                                                         variant="ghost"
                                                         onClick={() => handleCancelInvite(req.id, req.inviteType)}
-                                                        className="h-9 px-3 text-[10px] font-black uppercase text-white/80 hover:text-red-200 hover:bg-white/10 rounded-xl"
+                                                        className="h-9 px-3 text-[10px] font-black uppercase text-white/80 hover:text-red-300 hover:bg-white/10 rounded-xl"
                                                     >
                                                         Cancelar Convite
                                                     </Button>
@@ -988,20 +990,20 @@ export default function CompanyDashboard() {
                                 const isRedeem = req.type === 'redeem'
                                 return (
                                     <Card key={req.id} className={cn(
-                                        "border-none shadow-xl rounded-[40px] overflow-hidden animate-in zoom-in-95 duration-200",
-                                        isRedeem ? "bg-amber-50/50 border border-amber-100" : "bg-white"
+                                        "border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
+                                        isRedeem ? "bg-[#FAF8F5]" : "bg-white"
                                     )}>
-                                        <CardHeader className={cn("p-6 border-b", isRedeem ? "bg-amber-100/20 border-amber-100/50" : "bg-slate-50/50 border-slate-100")}>
+                                        <CardHeader className={cn("p-6 border-b-2 border-[#1E242B]/10", isRedeem ? "bg-[#F7AA1C]/10" : "bg-[#FAF8F5]")}>
                                             <div className="flex justify-between items-start">
                                                 <div className="space-y-1">
-                                                    <p className={cn("text-[10px] font-black uppercase tracking-widest italic", isRedeem ? "text-amber-600" : "text-brand-blue")}>
+                                                    <p className={cn("text-[11px] font-black uppercase tracking-widest italic", isRedeem ? "text-[#E9592C]" : "text-[#297CCB]")}>
                                                         {req.customer?.full_name}
                                                     </p>
-                                                    <p className="text-xs text-slate-500 font-bold">{req.customer?.phone}</p>
+                                                    <p className="text-xs text-slate-600 font-bold">{req.customer?.phone}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-[10px] font-black uppercase text-slate-400">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
-                                                    <p className={cn("text-lg font-black italic leading-none", isRedeem ? "text-amber-600" : "text-brand-blue")}>
+                                                    <p className="text-[10px] font-black uppercase text-slate-500">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
+                                                    <p className={cn("text-lg font-black italic leading-none mt-1", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
                                                         {isRedeem ? 'PONTOS' : `R$ ${req.total_amount}`}
                                                     </p>
                                                 </div>
@@ -1010,26 +1012,26 @@ export default function CompanyDashboard() {
                                         <CardContent className="p-6 space-y-4">
                                             <div className="space-y-2">
                                                 {req.items?.map((item: any, idx: number) => (
-                                                    <div key={idx} className="flex justify-between text-xs font-bold text-slate-600 italic">
+                                                    <div key={idx} className="flex justify-between text-xs font-black text-[#1E242B] italic">
                                                         <span>{item.qty}x {item.name}</span>
-                                                        <span className="text-slate-400">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
+                                                        <span className="text-slate-500">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
                                                     </div>
                                                 ))}
                                             </div>
-                                            <div className="pt-4 border-t border-slate-100 flex flex-col gap-4">
-                                                <div className={cn("flex justify-between items-center", isRedeem ? "text-amber-600" : "text-brand-orange")}>
+                                            <div className="pt-4 border-t-2 border-[#1E242B]/10 flex flex-col gap-4">
+                                                <div className={cn("flex justify-between items-center", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
                                                     <span className="text-[10px] font-black uppercase italic">{isRedeem ? 'Pontos a descontar' : 'Pontos a receber'}</span>
                                                     <span className="text-xl font-black">{isRedeem ? '-' : '+'}{req.total_points} PTS</span>
                                                 </div>
 
                                                 {req.transitionStatus === 'rejected' ? (
-                                                    <div className="h-12 flex items-center justify-center bg-red-50 text-red-500 rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300">
+                                                    <div className="h-12 flex items-center justify-center bg-red-100 border-2 border-[#1E242B] text-red-700 rounded-2xl font-black italic uppercase text-xs">
                                                         Pedido Recusado
                                                     </div>
                                                 ) : req.transitionStatus === 'confirmed' ? (
                                                     <div className={cn(
-                                                        "h-12 flex items-center justify-center rounded-2xl font-black italic uppercase text-xs animate-in fade-in zoom-in duration-300",
-                                                        isRedeem ? "bg-amber-100 text-amber-600" : "bg-emerald-50 text-emerald-500"
+                                                        "h-12 flex items-center justify-center border-2 border-[#1E242B] rounded-2xl font-black italic uppercase text-xs",
+                                                        isRedeem ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-[#167657] text-white"
                                                     )}>
                                                         {isRedeem ? 'Resgate Confirmado!' : 'Pontos Enviados!'}
                                                     </div>
@@ -1038,14 +1040,14 @@ export default function CompanyDashboard() {
                                                         <div className="space-y-3">
                                                             <Button
                                                                 onClick={() => handleConfirmRedemption(req.id)}
-                                                                className="w-full bg-brand-blue hover:bg-brand-blue/90 text-white h-12 rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-blue-100"
+                                                                className="w-full bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-xs"
                                                             >
                                                                 Confirmar Resgate
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
                                                                 onClick={() => handleRejectRequest(req.id)}
-                                                                className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                                className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-500 hover:text-red-600"
                                                             >
                                                                 Recusar Resgate
                                                             </Button>
@@ -1054,14 +1056,14 @@ export default function CompanyDashboard() {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <Button
                                                                 onClick={() => handleConfirmRequest(req.id)}
-                                                                className="bg-brand-green hover:bg-brand-green/90 text-white h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                                                className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-[10px]"
                                                             >
                                                                 Confirmar
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
                                                                 onClick={() => handleRejectRequest(req.id)}
-                                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-[#1E242B] border-2 border-[#1E242B]"
                                                             >
                                                                 Recusar
                                                             </Button>
@@ -1080,50 +1082,50 @@ export default function CompanyDashboard() {
                 {/* Top Recompensas Section */}
                 <div className="space-y-6">
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue">
+                        <div className="h-10 w-10 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
                             <Trophy className="h-6 w-6" />
                         </div>
-                        <h2 className="text-2xl font-black text-slate-900 uppercase italic">Top Recompensas</h2>
+                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Top Recompensas</h2>
                     </div>
 
-                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                        <CardHeader className="p-6 border-b border-slate-50">
-                            <CardTitle className="text-xl font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                            <p className="text-xs text-slate-400 font-medium">Os prêmios mais Qridos no período.</p>
+                    <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
+                        <CardHeader className="p-6 border-b-2 border-[#1E242B]/10">
+                            <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Recompensas</CardTitle>
+                            <p className="text-xs text-slate-500 font-bold">Os prêmios mais Qridos no período.</p>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-6">
                                 {topRewards.length === 0 ? (
-                                    <div className="text-center py-6 text-slate-400 text-sm font-medium">
+                                    <div className="text-center py-6 text-slate-400 text-xs font-bold italic">
                                         Nenhum prêmio disponível no momento.
                                     </div>
                                 ) : (
                                     topRewards.map((reward, index) => {
                                         const rank = index + 1
                                         return (
-                                            <div key={reward.id} className="flex items-center gap-4 group">
+                                            <div key={reward.id} className="flex items-center gap-4 p-3 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
                                                 <div className={cn(
-                                                    "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg transition-all",
+                                                    "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0",
                                                     rank === 1 
-                                                        ? "bg-amber-50 text-amber-500 border border-amber-200 text-xl" 
-                                                        : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                        ? "bg-[#F7AA1C] text-[#1E242B]" 
+                                                        : "bg-white text-[#1E242B]"
                                                 )}>
                                                     {rank === 1 ? '🥇' : rank}
                                                 </div>
-                                                <div className="flex-1">
-                                                    <p className="font-bold text-slate-800 italic uppercase leading-none text-sm group-hover:text-brand-blue transition-colors">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
                                                         {reward.title}
                                                     </p>
                                                     {(isGroup || isHolding || isAdmin) && (
-                                                        <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-wider">
+                                                        <p className="text-[9px] text-slate-500 font-bold mt-1 uppercase tracking-wider truncate">
                                                             {reward.company_name}
                                                         </p>
                                                     )}
                                                     <div className="flex items-center justify-between mt-1.5">
-                                                        <span className="text-xs font-bold text-slate-500 italic">
+                                                        <span className="text-xs font-bold text-slate-600 italic">
                                                             {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
                                                         </span>
-                                                        <span className="text-[10px] font-black text-brand-blue bg-brand-blue/5 px-2.5 py-0.5 rounded-full">
+                                                        <span className="text-[10px] font-black text-[#1E242B] bg-[#297CCB]/20 border border-[#1E242B] px-2 py-0.5 rounded-lg">
                                                             {reward.points_required} pts
                                                         </span>
                                                     </div>
@@ -1132,10 +1134,10 @@ export default function CompanyDashboard() {
                                         )
                                     })
                                 )}
-                                <div className="pt-4 border-t border-slate-50">
+                                <div className="pt-4 border-t-2 border-[#1E242B]/10">
                                     <Link 
                                         href="/qrido/rewards"
-                                        className="w-full text-xs font-black text-slate-400 uppercase italic hover:text-brand-blue hover:bg-brand-blue/5 h-10 flex items-center justify-center rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                                        className="w-full text-xs font-black text-[#1E242B] uppercase italic bg-[#F7AA1C] border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] h-11 flex items-center justify-center rounded-2xl transition-all"
                                     >
                                         VER TODOS OS PRÊMIOS
                                     </Link>

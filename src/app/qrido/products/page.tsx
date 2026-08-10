@@ -433,10 +433,10 @@ function ProductManagementContent() {
                     </div>
                 ) : (
                     products.map(product => (
-                        <Card key={product.id} className="p-6 border-none shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white hover:shadow-lg transition-all group overflow-hidden border-2 border-transparent hover:border-brand-blue/10">
+                        <Card key={product.id} className="p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl hover:translate-x-0.5 hover:translate-y-0.5 transition-all group overflow-hidden">
                             <div className="flex flex-col h-full space-y-4">
                                 <div className="flex items-start justify-between">
-                                    <div className="p-3 bg-brand-blue/10 rounded-2xl text-brand-blue ring-4 ring-brand-blue/5">
+                                    <div className="p-3 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl text-white shadow-[2px_2px_0px_#1E242B]">
                                         <ShoppingBag className="h-6 w-6" />
                                     </div>
                                     {userRole !== 'company_staff' && (
@@ -445,7 +445,7 @@ function ProductManagementContent() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => setEditingProduct(product)}
-                                                className="text-slate-300 hover:text-brand-blue hover:bg-brand-blue/5 transition-all opacity-0 group-hover:opacity-100"
+                                                className="text-[#1E242B] hover:bg-[#FAF8F5] transition-all"
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
@@ -453,7 +453,7 @@ function ProductManagementContent() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleDeleteProduct(product.id)}
-                                                className="text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                                className="text-red-500 hover:bg-red-50 transition-all"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -461,15 +461,15 @@ function ProductManagementContent() {
                                     )}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-slate-800 uppercase italic leading-tight">{product.name}</h3>
-                                    <p className="text-slate-400 text-sm mt-1 font-medium line-clamp-2">{product.description || 'Sem descrição'}</p>
-                                    <div className="py-2.5 flex items-center justify-between bg-slate-50/50 px-3.5 py-3 rounded-2xl border border-slate-100/50 mt-2">
+                                    <h3 className="text-xl font-black text-[#1E242B] uppercase italic leading-tight">{product.name}</h3>
+                                    <p className="text-slate-500 text-xs mt-1 font-bold line-clamp-2">{product.description || 'Sem descrição'}</p>
+                                    <div className="py-2.5 flex items-center justify-between bg-[#FAF8F5] px-3.5 rounded-2xl border-2 border-[#1E242B] mt-3">
                                         <div className="space-y-0.5">
-                                            <span className="text-[10px] font-black uppercase text-slate-500 italic tracking-wider flex items-center gap-1.5">
-                                                <Zap className="h-3 w-3 text-amber-500 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase text-[#1E242B] italic tracking-wider flex items-center gap-1.5">
+                                                <Zap className="h-3 w-3 text-[#F7AA1C] fill-current" />
                                                 Pontos em Dobro
                                             </span>
-                                            <p className="text-[9px] text-slate-400 font-medium">Permitir pontuar em dobro</p>
+                                            <p className="text-[9px] text-slate-500 font-bold">Permitir pontuar em dobro</p>
                                         </div>
                                         <label className={`relative inline-flex items-center cursor-pointer select-none ${userRole === 'company_staff' ? 'pointer-events-none opacity-60' : ''}`}>
                                             <input
@@ -479,20 +479,20 @@ function ProductManagementContent() {
                                                 disabled={userRole === 'company_staff'}
                                                 onChange={() => handleToggleProductDoublePoints(product)}
                                             />
-                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                            <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#167657]"></div>
                                         </label>
                                     </div>
                                 </div>
-                                <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-50">
+                                <div className="mt-auto pt-4 flex items-center justify-between border-t-2 border-[#1E242B]/10">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Preço</span>
-                                        <span className="text-lg font-black text-slate-900">R$ {product.price}</span>
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Preço</span>
+                                        <span className="text-xl font-black text-[#167657] italic">R$ {Number(product.price).toFixed(2)}</span>
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Recompensa</span>
-                                        <span className="inline-flex items-center gap-1 font-black text-brand-orange">
-                                            <Award className="h-3 w-3" />
-                                            {product.points_reward} pts
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Pontuação</span>
+                                        <span className="inline-flex items-center gap-1 font-black text-[#1E242B] bg-[#F7AA1C] px-2.5 py-1 rounded-xl border border-[#1E242B] text-xs italic">
+                                            <Award className="h-3.5 w-3.5" />
+                                            +{product.points_reward} pts
                                         </span>
                                     </div>
                                 </div>
