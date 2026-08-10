@@ -635,91 +635,85 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* 1 & 2. Métricas Reordenadas */}
-            <div className="space-y-4">
-                {/* Linha 1: Vendas em R$ / Clientes Fidelizados */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                        <div>
-                            <div className="p-2.5 bg-[#E9592C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#E9592C]">
-                                <TrendingUp className="h-6 w-6" />
-                            </div>
-                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Vendas em R$</p>
+            {/* 1 & 2. Métricas Reordenadas em Grade 2x2 Fixo */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+                <div className="bg-white rounded-3xl p-4 sm:p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[140px] sm:min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                    <div>
+                        <div className="p-2 sm:p-2.5 bg-[#E9592C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-2 sm:mb-4 text-[#E9592C]">
+                            <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
-                        <div>
-                            <h2 className="text-3xl md:text-4xl font-black text-[#E9592C] italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Feitas no período</p>
-                        </div>
+                        <p className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Vendas em R$</p>
                     </div>
-
-                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                        <div>
-                            <div className="p-2.5 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
-                                <Users className="h-6 w-6" />
-                            </div>
-                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Clientes Fidelizados</p>
-                        </div>
-                        <div>
-                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.totalLeads}</h2>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Base no período</p>
-                        </div>
+                    <div>
+                        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-[#E9592C] italic truncate">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mt-1">Feitas no período</p>
                     </div>
                 </div>
 
-                {/* Linha 2: Pontos Enviados / Resgates Feitos */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                        <div>
-                            <div className="p-2.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
-                                <Zap className="h-6 w-6 fill-current" />
-                            </div>
-                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Pontos Enviados</p>
+                <div className="bg-white rounded-3xl p-4 sm:p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[140px] sm:min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                    <div>
+                        <div className="p-2 sm:p-2.5 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-2 sm:mb-4 text-[#1E242B]">
+                            <Users className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
-                        <div>
-                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.topSource}</h2>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Acumulados nas vendas</p>
-                        </div>
+                        <p className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Clientes Fidelizados</p>
                     </div>
+                    <div>
+                        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.totalLeads}</h2>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mt-1">Base no período</p>
+                    </div>
+                </div>
 
-                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                        <div>
-                            <div className="p-2.5 bg-emerald-100 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-emerald-700">
-                                <MessageSquareMore className="h-6 w-6" />
-                            </div>
-                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Resgates Feitos</p>
+                <div className="bg-white rounded-3xl p-4 sm:p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[140px] sm:min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                    <div>
+                        <div className="p-2 sm:p-2.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit mb-2 sm:mb-4 text-[#1E242B]">
+                            <Zap className="h-5 w-5 sm:h-6 sm:w-6 fill-current" />
                         </div>
-                        <div>
-                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.redemptions}</h2>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
+                        <p className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Pontos Enviados</p>
+                    </div>
+                    <div>
+                        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.topSource}</h2>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mt-1">Acumulados nas vendas</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-3xl p-4 sm:p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[140px] sm:min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                    <div>
+                        <div className="p-2 sm:p-2.5 bg-emerald-100 border-2 border-[#1E242B] rounded-2xl w-fit mb-2 sm:mb-4 text-emerald-700">
+                            <MessageSquareMore className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
+                        <p className="text-[10px] sm:text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Resgates Feitos</p>
+                    </div>
+                    <div>
+                        <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.redemptions}</h2>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
                     </div>
                 </div>
             </div>
 
             {/* 3 & 4. Botões de Ação Reordenados com Cores Sólidas Inline */}
             <div className="space-y-4">
-                {/* Linha 1 de Ações: Registrar Venda / Registrar Cliente */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Linha 1 de Ações: Registrar Venda / Registrar Cliente SEMPRE LADO A LADO (grid-cols-2) */}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     <Link
                         href="/qrido/transactions/new"
                         style={{ backgroundColor: '#E9592C', color: '#FFFFFF' }}
-                        className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
+                        className="flex flex-col items-center justify-center gap-2 sm:gap-3 p-4 sm:p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
                     >
-                        <div className="h-12 w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
-                            <Plus className="h-7 w-7 text-white" />
+                        <div className="h-10 w-10 sm:h-12 sm:w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+                            <Plus className="h-5 w-5 sm:h-7 sm:w-7 text-white" />
                         </div>
-                        <span className="text-sm font-black text-white uppercase tracking-wider italic text-center">+ REGISTRAR VENDA</span>
+                        <span className="text-xs sm:text-sm font-black text-white uppercase tracking-wider italic text-center">+ REGISTRAR VENDA</span>
                     </Link>
 
                     <Link
                         href="/qrido/customers/new"
                         style={{ backgroundColor: '#F7AA1C', color: '#1E242B' }}
-                        className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
+                        className="flex flex-col items-center justify-center gap-2 sm:gap-3 p-4 sm:p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
                     >
-                        <div className="h-12 w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                            <Users className="h-7 w-7 text-[#1E242B]" />
+                        <div className="h-10 w-10 sm:h-12 sm:w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                            <Users className="h-5 w-5 sm:h-7 sm:w-7 text-[#1E242B]" />
                         </div>
-                        <span className="text-sm font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ REGISTRAR CLIENTE</span>
+                        <span className="text-xs sm:text-sm font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ REGISTRAR CLIENTE</span>
                     </Link>
                 </div>
 
