@@ -760,8 +760,8 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* Botões de Ação Inferiores */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {/* Botões de Ação Inferiores - ESTÁVEIS E FIXOS */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 <Link
                     href="/qrido/products"
                     className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
@@ -777,7 +777,7 @@ export default function CompanyDashboard() {
                     className="flex flex-col items-center justify-center gap-3 p-5 bg-[#E9592C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#d4481d] text-white transition-all group"
                 >
                     <div className="h-12 w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
-                        <Plus className="h-6 w-6" />
+                        <Plus className="h-6 w-6 text-white" />
                     </div>
                     <span className="text-xs font-black text-white uppercase tracking-wider italic text-center">+ Nova Venda</span>
                 </Link>
@@ -787,7 +787,7 @@ export default function CompanyDashboard() {
                     className="flex flex-col items-center justify-center gap-3 p-5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#e09917] text-[#1E242B] transition-all group"
                 >
                     <div className="h-12 w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                        <Users className="h-6 w-6" />
+                        <Users className="h-6 w-6 text-[#1E242B]" />
                     </div>
                     <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ Novo Cliente</span>
                 </Link>
@@ -797,7 +797,7 @@ export default function CompanyDashboard() {
                     className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
                 >
                     <div className="h-12 w-12 bg-slate-100 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                        <MessageSquareMore className="h-6 w-6" />
+                        <MessageSquareMore className="h-6 w-6 text-[#1E242B]" />
                     </div>
                     <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Aprovações</span>
                 </button>
@@ -805,7 +805,7 @@ export default function CompanyDashboard() {
                 {isGroup && (
                     <Link
                         href="/qrido/company/groups"
-                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 md:col-span-1"
+                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 sm:col-span-1"
                     >
                         <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                             <CheckCircle2 className="h-6 w-6" />
@@ -817,7 +817,7 @@ export default function CompanyDashboard() {
                 {isHolding && (
                     <Link
                         href="/qrido/holding?tab=groups"
-                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 md:col-span-1"
+                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 sm:col-span-1"
                     >
                         <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                             <Building2 className="h-6 w-6" />
