@@ -145,7 +145,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
                     onClick={onClose}
                 />
-               <div className={cn(
+            )}
+
+            <div className={cn(
                 "fixed inset-y-0 left-0 z-50 w-64 bg-[#FAF8F5] border-r-2 border-[#1E242B]/10 shadow-xl lg:shadow-[3px_0_0px_rgba(30,36,43,0.05)] flex flex-col transition-transform duration-300 transform lg:translate-x-0 lg:static lg:inset-0",
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
@@ -182,10 +184,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                         "flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-black italic uppercase transition-all duration-150 border-2",
                                         isActive
                                             ? "bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]"
-                                            : "border-transparent text-slate-600 hover:bg-white hover:border-[#1E242B]/20 hover:text-[#1E242B]"
+                                            : "border-transparent text-[#1E242B]/80 hover:bg-white hover:border-[#1E242B]/20 hover:text-[#1E242B]"
                                     )}
                                 >
-                                    <item.icon className={cn("h-5 w-5", isActive ? "text-[#1E242B]" : "text-slate-500")} />
+                                    <item.icon className={cn("h-5 w-5", isActive ? "text-[#1E242B]" : "text-[#1E242B]/70")} />
                                     {item.name}
                                 </Link>
                             )
@@ -204,7 +206,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                         </button>
                     </form>
                 </div>
-            </div>       </div>
+            </div>
         </>
     )
 }
