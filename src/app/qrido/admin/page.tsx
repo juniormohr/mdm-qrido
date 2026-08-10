@@ -488,20 +488,31 @@ function AdminContent() {
         }
 
         const topCustomersList = Array.from(customerSpendMap.values())
+            .reduce((acc: any[], item) => {
+                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
+                const phoneOrCpf = (foundCust?.phone || item.customerId).replace(/\D/g, '') || item.customerId
+                const existing = acc.find(c => c.key === phoneOrCpf)
+                const company = (profiles || []).find(p => p.id === item.companyId)
+                
+                if (existing) {
+                    existing.totalSpent += item.totalSpent
+                    existing.totalPoints += item.totalPoints
+                } else {
+                    acc.push({
+                        key: phoneOrCpf,
+                        id: item.customerId,
+                        name: foundCust?.name || 'Cliente Especial',
+                        phone: foundCust?.phone || '-',
+                        company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
+                        totalSpent: item.totalSpent,
+                        totalPoints: item.totalPoints
+                    })
+                }
+                return acc
+            }, [])
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
-            .map(item => {
-                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
-                const company = (profiles || []).find(p => p.id === item.companyId)
-                return {
-                    id: item.customerId,
-                    name: foundCust?.name || 'Cliente Especial',
-                    phone: foundCust?.phone || '-',
-                    company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
-                    totalSpent: item.totalSpent,
-                    totalPoints: item.totalPoints
-                }
-            })
+
         setTopCustomers(topCustomersList)
 
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
@@ -665,20 +676,20 @@ function AdminContent() {
                             const isPending = !isInactive && !comp.hasActivePaidSub
 
                             return (
-                                <Card key={comp.id} className={cn("border-none shadow-sm bg-white rounded-[32px] overflow-hidden group hover:shadow-md transition-all", isInactive && "opacity-75 bg-slate-50/80")}>
-                                    <CardHeader className="p-6 pb-2 border-b border-slate-50 flex flex-row items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue font-black uppercase italic">
+                                <Card key={comp.id} className={cn("border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl overflow-hidden group transition-all", isInactive && "opacity-75 bg-slate-50")}>
+                                    <CardHeader className="p-5 pb-3 border-b-2 border-[#1E242B]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                                            <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-xl flex items-center justify-center text-[#1E242B] font-black uppercase italic shrink-0 shadow-[2px_2px_0px_#1E242B]">
                                                 {comp.full_name?.charAt(0) || 'E'}
                                             </div>
-                                            <div>
-                                                <p className="font-black text-slate-900 uppercase italic leading-tight text-sm">{comp.full_name || 'Sem nome'}</p>
-                                                <div className="flex items-center gap-1 mt-0.5">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-black text-[#1E242B] uppercase italic leading-tight text-sm truncate">{comp.full_name || 'Sem nome'}</p>
+                                                <div className="flex items-center gap-1 mt-1 flex-wrap">
                                                     <select
                                                         className={cn(
-                                                            "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border-none cursor-pointer outline-none",
-                                                            comp.subscription_tier === 'master' ? 'bg-brand-yellow/10 text-brand-yellow' :
-                                                                comp.subscription_tier === 'pro' ? 'bg-brand-blue/10 text-brand-blue' : 'bg-slate-100 text-slate-500'
+                                                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border-2 border-[#1E242B] cursor-pointer outline-none shadow-[1px_1px_0px_#1E242B]",
+                                                            comp.subscription_tier === 'master' ? 'bg-[#F7AA1C] text-[#1E242B]' :
+                                                                comp.subscription_tier === 'pro' ? 'bg-[#297CCB] text-white' : 'bg-slate-100 text-slate-700'
                                                         )}
                                                         value={comp.subscription_tier || 'basic'}
                                                         onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
@@ -689,48 +700,50 @@ function AdminContent() {
                                                         <option value="partnership">PARCERIA</option>
                                                     </select>
                                                     {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
-                                                        <div className="flex items-center gap-0.5 text-emerald-500 text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100">
-                                                            <Zap className="h-2 w-2 fill-emerald-500" />
+                                                        <div className="flex items-center gap-0.5 text-[#167657] text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-lg border border-[#167657]/30">
+                                                            <Zap className="h-2 w-2 fill-current" />
                                                             EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
                                                         </div>
                                                     )}
                                                     {comp.isEngaged && (
-                                                        <div className="flex items-center gap-0.5 text-brand-orange text-[8px] font-black uppercase px-2 py-0.5 bg-brand-orange/10 rounded-full">
-                                                            <Flame className="h-2 w-2" />
+                                                        <div className="flex items-center gap-0.5 text-[#E9592C] text-[8px] font-black uppercase px-2 py-0.5 bg-[#E9592C]/10 rounded-lg border border-[#E9592C]/30">
+                                                            <Flame className="h-2.5 w-2.5 fill-current" />
                                                             ENGAGED
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
+
+                                        {/* Barra de Ações 100% Responsiva (Nunca esconde botões) */}
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                                             <button
                                                 onClick={() => handleToggleCompanyStatus(comp.id, comp.is_active !== false)}
                                                 className={cn(
-                                                    "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border cursor-pointer shrink-0",
+                                                    "px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1 border-2 border-[#1E242B] shadow-[1px_1px_0px_#1E242B] cursor-pointer shrink-0",
                                                     isInactive
-                                                        ? "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20"
+                                                        ? "bg-red-500 text-white"
                                                         : isPending
-                                                            ? "bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20"
-                                                            : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20"
+                                                            ? "bg-[#F7AA1C] text-[#1E242B]"
+                                                            : "bg-[#167657] text-white"
                                                 )}
                                                 title={isInactive ? "Clique para ativar loja" : "Clique para inativar loja"}
                                             >
-                                                <span className={cn("h-1.5 w-1.5 rounded-full", isInactive ? "bg-red-500" : isPending ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse")} />
+                                                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                                                 {isInactive ? 'INATIVA' : isPending ? 'PENDENTE' : 'ATIVA'}
                                             </button>
                                             {comp.phone && (
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg" title="Enviar WhatsApp" onClick={() => handleWhatsAppSend(comp.full_name, comp.phone)}>
+                                                <Button variant="outline" size="icon" className="h-8 w-8 text-[#167657] border-2 border-[#1E242B] bg-white hover:bg-emerald-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" title="Enviar WhatsApp" onClick={() => handleWhatsAppSend(comp.full_name, comp.phone)}>
                                                     <MessageCircle className="h-3.5 w-3.5" />
                                                 </Button>
                                             )}
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-amber-600 rounded-lg" title="Resetar Senha para 123456" onClick={() => { if (confirm(`Deseja resetar a senha da empresa "${comp.full_name}" para 123456?`)) { handleResetPasswordSubmit(comp.id); } }}>
+                                            <Button variant="outline" size="icon" className="h-8 w-8 text-[#1E242B] border-2 border-[#1E242B] bg-white hover:bg-amber-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" title="Resetar Senha para 123456" onClick={() => { if (confirm(`Deseja resetar a senha da empresa "${comp.full_name}" para 123456?`)) { handleResetPasswordSubmit(comp.id); } }}>
                                                 <KeyRound className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-brand-blue rounded-lg" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
+                                            <Button variant="outline" size="icon" className="h-8 w-8 text-[#297CCB] border-2 border-[#1E242B] bg-white hover:bg-blue-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
                                                 <Edit2 className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500 rounded-lg" onClick={() => handleDeleteCompany(comp.id)}>
+                                            <Button variant="outline" size="icon" className="h-8 w-8 text-red-600 border-2 border-[#1E242B] bg-white hover:bg-red-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" onClick={() => handleDeleteCompany(comp.id)}>
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>

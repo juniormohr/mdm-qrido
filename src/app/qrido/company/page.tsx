@@ -222,9 +222,20 @@ export default function CompanyDashboard() {
         // Heatmap
         setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
 
-        // Top Clientes
+        // Top Clientes (Único por Telefone/CPF)
         const sortedCusts = Array.from(customerMap.values())
             .filter(c => c.totalSpent > 0 || c.totalPoints > 0)
+            .reduce((acc: any[], curr) => {
+                const cleanPhone = (curr.name || curr.id).replace(/\D/g, '') || curr.id
+                const existing = acc.find(c => c.key === cleanPhone)
+                if (existing) {
+                    existing.totalSpent += curr.totalSpent
+                    existing.totalPoints += curr.totalPoints
+                } else {
+                    acc.push({ ...curr, key: cleanPhone })
+                }
+                return acc
+            }, [])
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
         setTopCustomers(sortedCusts)
