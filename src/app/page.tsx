@@ -1150,42 +1150,35 @@ export default function CustomerDashboard() {
 
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 py-8 space-y-8 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-            {/* Header Estilo App */}
-            <div className="flex items-center justify-between">
+            {/* Header / Perfil do Cliente */}
+            <div className="flex items-center justify-between py-2 border-b-2 border-[#1E242B]/10">
                 <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 bg-brand-blue/10 rounded-full flex items-center justify-center border border-brand-blue/20 overflow-hidden">
-                        {userProfile?.full_name ? (
-                            <div className="text-brand-blue font-black flex items-center justify-center w-full h-full bg-white">
-                                {userProfile.full_name.charAt(0)}
-                            </div>
-                        ) : (
-                            <User className="h-6 w-6 text-brand-blue" />
-                        )}
+                    <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B]">
+                        {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
                     </div>
                     <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Seja bem-vindo</p>
-                        <h2 className="text-lg font-black text-slate-900 italic uppercase">
-                            {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'Visitante'}
-                        </h2>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider italic">
+                            {userProfile ? 'Seja bem-vindo' : 'Seja bem-vindo'}
+                        </p>
+                        <h1 className="text-base sm:text-lg font-black text-[#1E242B] uppercase italic tracking-tight">
+                            {userProfile ? userProfile.full_name : 'VISITANTE'}
+                        </h1>
                     </div>
                 </div>
+
                 <div className="flex items-center gap-2">
                     {userProfile ? (
                         <>
                             <button
-                                onClick={() => alert(hasNewNotifications ? 'Você tem novos pedidos pendentes!' : 'Você não tem novas notificações no momento.')}
-                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors relative"
+                                onClick={() => setActiveTab('requests')}
+                                className="relative p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
+                                title="Notificações / Pedidos"
                             >
                                 <Bell className="h-5 w-5" />
                                 {hasNewNotifications && (
-                                    <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-brand-orange rounded-full border-2 border-white" />
+                                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
                                 )}
                             </button>
-                            <button
-                                onClick={() => router.push('/qrido/settings')}
-                                className="h-10 w-10 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 transition-colors"
-                            >
-                                <Settings className="h-5 w-5" />
                             </button>
                         </>
                     ) : (
@@ -1199,22 +1192,22 @@ export default function CustomerDashboard() {
                 </div>
             </div>
 
-            {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
-            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
-                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
+            {/* Cartão de Score Principal (Hero) - NOVO ESTILO QRIDO */}
+            <div className="relative group overflow-hidden transition-all duration-300">
+                <div className="relative bg-[#1E242B] rounded-3xl p-6 md:p-8 shadow-[6px_6px_0px_#F7AA1C] border-2 border-[#1E242B] text-white">
                     {userProfile ? (
                         <>
                             <div className="flex justify-between items-start mb-4">
                                 <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Total de Pontos Ativos</p>
+                                    <p className="text-[11px] font-black text-[#F7AA1C] uppercase tracking-[2px] italic">Total de Pontos Ativos</p>
                                     <div className="flex items-center gap-3">
-                                        <h2 className="text-6xl font-black text-white italic tracking-tighter">
+                                        <h2 className="text-5xl md:text-6xl font-black text-white italic tracking-tighter">
                                             {showScore ? globalScore : '••••'}
-                                            <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                            <span className="text-xl ml-2 text-white/50 uppercase tracking-normal font-bold">pts</span>
                                         </h2>
                                         <button
                                             onClick={() => setShowScore(!showScore)}
-                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
+                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50"
                                         >
                                             {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                                         </button>
@@ -1222,18 +1215,18 @@ export default function CustomerDashboard() {
                                 </div>
                                 <button
                                     onClick={() => setActiveTab('rewards')}
-                                    className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
+                                    className="h-14 w-14 bg-[#F7AA1C] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] transition-all border-2 border-[#1E242B]"
                                 >
-                                    <Gift className="h-8 w-8" />
+                                    <Gift className="h-7 w-7" />
                                 </button>
                             </div>
 
                             <div
                                 onClick={() => router.push('/qrido/customer')}
-                                className="flex items-center justify-between pt-6 border-t border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
+                                className="flex items-center justify-between pt-4 border-t border-white/10 cursor-pointer hover:opacity-80 transition-opacity"
                             >
-                                <div className="flex items-center gap-2 text-white/80">
-                                    <Plus className="h-4 w-4" />
+                                <div className="flex items-center gap-2 text-white/90">
+                                    <Plus className="h-4 w-4 text-[#F7AA1C]" />
                                     <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
                                 </div>
                                 <ChevronRight className="h-5 w-5 text-white/40" />
@@ -1242,16 +1235,16 @@ export default function CustomerDashboard() {
                     ) : (
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
                             <div className="space-y-2 text-center sm:text-left">
-                                <h3 className="text-2xl font-black italic uppercase tracking-tight">Acumule pontos em compras!</h3>
-                                <p className="text-xs text-white/80 font-bold italic">
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight text-white">Acumule pontos em compras!</h3>
+                                <p className="text-xs text-slate-300 font-bold italic">
                                     Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
                                 </p>
                             </div>
                             <Button
                                 onClick={() => router.push('/login?role=customer')}
-                                className="w-full sm:w-auto bg-white text-brand-blue hover:bg-white/90 font-black italic uppercase tracking-wider text-xs px-6 h-14 rounded-2xl shadow-xl shrink-0"
+                                className="qrido-btn-accent text-xs px-6 h-12 shrink-0"
                             >
-                                Seja Qrido
+                                Seja QRIDO
                             </Button>
                         </div>
                     )}
@@ -1259,13 +1252,13 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Grade de Ações Rápidas (5 Botões Perfeitamente Alinhados) */}
-            <div className="grid grid-cols-5 gap-1 sm:gap-2.5 w-full py-2">
+            <div className="grid grid-cols-5 gap-1.5 sm:gap-3 w-full py-2">
                 {[
-                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-[#E9592C] text-white border-[#E9592C] shadow-orange-500/30' },
-                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-brand-blue text-white border-brand-blue shadow-brand-blue/30' },
-                    { id: 'rewards', label: 'Brindes', icon: Gift, activeColor: 'bg-amber-500 text-white border-amber-500 shadow-amber-500/30' },
-                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-purple-600 text-white border-purple-600 shadow-purple-600/30' },
-                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-brand-green text-white border-brand-green shadow-brand-green/30' },
+                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-[#E9592C] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                    { id: 'rewards', label: 'Brindes', icon: Gift, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-[#297CCB] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-[#167657] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
                 ].map((tab) => (
                     <button
                         key={tab.id}
@@ -1279,16 +1272,16 @@ export default function CustomerDashboard() {
                         className="flex flex-col items-center gap-1.5 group min-w-0"
                     >
                         <div className={cn(
-                            "h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center transition-all border shadow-sm shrink-0",
+                            "h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center transition-all border-2 shrink-0",
                             activeTab === tab.id
-                                ? `${tab.activeColor} shadow-lg scale-105 sm:scale-110`
-                                : "bg-white border-slate-100 text-slate-400 group-hover:border-slate-200"
+                                ? `${tab.activeColor} scale-105`
+                                : "bg-white border-[#1E242B]/10 text-slate-500 group-hover:border-[#1E242B]/30 shadow-sm"
                         )}>
                             <tab.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                         </div>
                         <span className={cn(
                             "text-[9px] sm:text-[10px] font-black uppercase italic tracking-tight transition-colors text-center truncate w-full",
-                            activeTab === tab.id ? "text-slate-900" : "text-slate-500"
+                            activeTab === tab.id ? "text-[#1E242B]" : "text-slate-500"
                         )}>
                             {tab.label}
                         </span>

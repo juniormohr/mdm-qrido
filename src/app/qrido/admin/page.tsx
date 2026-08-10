@@ -832,30 +832,29 @@ function AdminContent() {
     )
 
     return (
-        <div className="space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4 border-b-2 border-[#1E242B]/10">
                 <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-4">
-                        <div className="p-2 bg-brand-blue rounded-xl text-white shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-[#1E242B] border-2 border-[#1E242B] rounded-2xl text-[#F7AA1C] shrink-0 shadow-[3px_3px_0px_#F7AA1C]">
                             <BarChart3 className="h-6 w-6" />
                         </div>
-                        <h1 className="heading-mobile text-slate-900">QRIDO ADMIN MASTER</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black italic uppercase tracking-tight text-[#1E242B]">QRIDO ADMIN MASTER</h1>
                     </div>
-                    <p className="subheading-mobile">Controle total da rede de fidelidade e faturamento.</p>
+                    <p className="text-sm font-bold text-slate-500 italic">Controle total da rede de fidelidade e faturamento.</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <Button variant="outline" className="h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic border-amber-200 bg-amber-50/50 text-amber-700 hover:bg-amber-100/70" onClick={() => { setShowResetModal(true); setResetSuccessMessage(null); setResetErrorMessage(null); }}>
-                        <KeyRound className="h-4 w-4 mr-1.5" /> RESETAR SENHA
+                    <Button variant="outline" className="h-11 px-4 rounded-2xl text-xs font-black uppercase italic border-2 border-[#1E242B] bg-white text-[#1E242B] hover:bg-[#FAF8F5] shadow-[3px_3px_0px_#1E242B]" onClick={() => { setShowResetModal(true); setResetSuccessMessage(null); setResetErrorMessage(null); }}>
+                        <KeyRound className="h-4 w-4 mr-1.5 text-amber-500" /> RESETAR SENHA
                     </Button>
-                    <Button className="btn-emerald h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                    <Button className="h-11 px-4 rounded-2xl text-xs font-black uppercase italic bg-[#167657] text-white border-2 border-[#1E242B] shadow-[3px_3px_0px_#1E242B] hover:bg-[#125e45]" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                         <Plus className="h-4 w-4 mr-1.5" /> NOVA HOLDING
                     </Button>
-                    <Button className="btn-blue h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                    <Button className="h-11 px-4 rounded-2xl text-xs font-black uppercase italic bg-[#297CCB] text-white border-2 border-[#1E242B] shadow-[3px_3px_0px_#1E242B] hover:bg-[#2267aa]" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                         <Plus className="h-4 w-4 mr-1.5" /> NOVO GRUPO
                     </Button>
-                    <Button className="bg-brand-orange hover:bg-brand-orange/90 text-white h-11 px-5 rounded-2xl shadow-sm text-xs font-black uppercase italic" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
+                    <Button className="qrido-btn-primary h-11 px-4 text-xs" onClick={() => { setCurrentEntity(null); setShowCompanyModal(true); }}>
                         <Plus className="h-4 w-4 mr-1.5" /> NOVA EMPRESA
                     </Button>
                 </div>
@@ -960,52 +959,52 @@ function AdminContent() {
                         </div>
                     </div>
 
-                    {/* 1. Desempenho Financeiro e Transacional (Vendas, Pontos, Resgates) - CARDS COLORIDOS */}
+                    {/* 1. Desempenho Financeiro e Transacional (Vendas, Pontos, Resgates) - CARDS COLORIDOS COM SHADOW OFFSET */}
                     <div className="grid gap-6 md:grid-cols-3">
-                        {/* Vendas (R$) - Emerald Vivid Card */}
-                        <Card className="border-none shadow-xl bg-[#167657] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                        {/* Vendas (R$) */}
+                        <Card className="border-2 border-[#1E242B] shadow-[5px_5px_0px_#1E242B] bg-[#167657] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:-translate-y-0.5 transition-all duration-200">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Vendas (R$)</span>
-                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
+                                <span className="text-xs font-black uppercase tracking-wider text-white/80">Vendas (R$)</span>
+                                <div className="p-2.5 bg-white/20 text-white rounded-2xl border border-white/20">
                                     <DollarSign className="w-5 h-5" />
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-white italic">
                                 R$ {stats.sales30Days.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </div>
-                            <p className="text-[11px] font-bold text-white/70">
+                            <p className="text-[11px] font-bold text-white/80">
                                 ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">R$ {stats.salesAccumulated.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
                             </p>
                         </Card>
 
-                        {/* Pontos Distribuídos - Brand Blue Vivid Card */}
-                        <Card className="border-none shadow-xl bg-[#297CCB] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                        {/* Pontos Distribuídos */}
+                        <Card className="border-2 border-[#1E242B] shadow-[5px_5px_0px_#1E242B] bg-[#297CCB] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:-translate-y-0.5 transition-all duration-200">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Pontos Distribuídos</span>
-                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
-                                    <Zap className="w-5 h-5" />
+                                <span className="text-xs font-black uppercase tracking-wider text-white/80">Pontos Distribuídos</span>
+                                <div className="p-2.5 bg-white/20 text-white rounded-2xl border border-white/20">
+                                    <Zap className="w-5 h-5 fill-current" />
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-white italic">
                                 {stats.points30Days.toLocaleString('pt-BR')} <span className="text-sm font-bold text-white/80">pts</span>
                             </div>
-                            <p className="text-[11px] font-bold text-white/70">
+                            <p className="text-[11px] font-bold text-white/80">
                                 ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">{stats.pointsAccumulated.toLocaleString('pt-BR')} pts</strong>
                             </p>
                         </Card>
 
-                        {/* Resgates Realizados - Amber Vivid Card */}
-                        <Card className="border-none shadow-xl bg-brand-orange text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:scale-[1.02] transition-all duration-300">
+                        {/* Resgates Realizados */}
+                        <Card className="border-2 border-[#1E242B] shadow-[5px_5px_0px_#1E242B] bg-[#E9592C] text-white rounded-3xl overflow-hidden p-6 space-y-2 group hover:-translate-y-0.5 transition-all duration-200">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-black uppercase tracking-wider text-white/70">Resgates Realizados</span>
-                                <div className="p-2.5 bg-white/10 text-white rounded-2xl">
+                                <span className="text-xs font-black uppercase tracking-wider text-white/80">Resgates Realizados</span>
+                                <div className="p-2.5 bg-white/20 text-white rounded-2xl border border-white/20">
                                     <Gift className="w-5 h-5" />
                                 </div>
                             </div>
                             <div className="text-3xl font-black text-white italic">
                                 {stats.redemptions30Days} <span className="text-sm font-bold text-white/80">resgates</span>
                             </div>
-                            <p className="text-[11px] font-bold text-white/70">
+                            <p className="text-[11px] font-bold text-white/80">
                                 ÚLTIMOS 30 DIAS <span className="text-white/40 font-normal">•</span> Acumulado: <strong className="text-white">{stats.redemptionsAccumulated} resgates</strong>
                             </p>
                         </Card>
