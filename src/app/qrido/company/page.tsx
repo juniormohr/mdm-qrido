@@ -635,11 +635,467 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* Barra de Filtros de Período e Seletores Combinados de Hierarquia - NOVO ESTILO QRIDO */}
-            <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5">
+            {/* 1 & 2. Métricas Reordenadas */}
+            <div className="space-y-4">
+                {/* Linha 1: Vendas em R$ / Clientes Fidelizados */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                        <div>
+                            <div className="p-2.5 bg-[#E9592C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#E9592C]">
+                                <TrendingUp className="h-6 w-6" />
+                            </div>
+                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Vendas em R$</p>
+                        </div>
+                        <div>
+                            <h2 className="text-3xl md:text-4xl font-black text-[#E9592C] italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Feitas no período</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                        <div>
+                            <div className="p-2.5 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
+                                <Users className="h-6 w-6" />
+                            </div>
+                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Clientes Fidelizados</p>
+                        </div>
+                        <div>
+                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.totalLeads}</h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Base no período</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Linha 2: Pontos Enviados / Resgates Feitos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                        <div>
+                            <div className="p-2.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
+                                <Zap className="h-6 w-6 fill-current" />
+                            </div>
+                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Pontos Enviados</p>
+                        </div>
+                        <div>
+                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.topSource}</h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Acumulados nas vendas</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
+                        <div>
+                            <div className="p-2.5 bg-emerald-100 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-emerald-700">
+                                <MessageSquareMore className="h-6 w-6" />
+                            </div>
+                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Resgates Feitos</p>
+                        </div>
+                        <div>
+                            <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.redemptions}</h2>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* 3 & 4. Botões de Ação Reordenados com Cores Sólidas Inline */}
+            <div className="space-y-4">
+                {/* Linha 1 de Ações: Registrar Venda / Registrar Cliente */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Link
+                        href="/qrido/transactions/new"
+                        style={{ backgroundColor: '#E9592C', color: '#FFFFFF' }}
+                        className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
+                    >
+                        <div className="h-12 w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+                            <Plus className="h-7 w-7 text-white" />
+                        </div>
+                        <span className="text-sm font-black text-white uppercase tracking-wider italic text-center">+ REGISTRAR VENDA</span>
+                    </Link>
+
+                    <Link
+                        href="/qrido/customers/new"
+                        style={{ backgroundColor: '#F7AA1C', color: '#1E242B' }}
+                        className="flex flex-col items-center justify-center gap-3 p-6 border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] hover:opacity-95 transition-all group"
+                    >
+                        <div className="h-12 w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                            <Users className="h-7 w-7 text-[#1E242B]" />
+                        </div>
+                        <span className="text-sm font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ REGISTRAR CLIENTE</span>
+                    </Link>
+                </div>
+
+                {/* Linha 2 de Ações: Produtos / Aprovações */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <Link
+                        href="/qrido/products"
+                        style={{ backgroundColor: '#FFFFFF', color: '#1E242B' }}
+                        className="flex flex-col items-center justify-center gap-3 p-5 border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
+                    >
+                        <div className="h-12 w-12 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                            <Package className="h-6 w-6 text-[#1E242B]" />
+                        </div>
+                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Produtos</span>
+                    </Link>
+
+                    <button
+                        onClick={() => document.getElementById('solicitacoes-pendentes')?.scrollIntoView({ behavior: 'smooth' })}
+                        style={{ backgroundColor: '#FFFFFF', color: '#1E242B' }}
+                        className="flex flex-col items-center justify-center gap-3 p-5 border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
+                    >
+                        <div className="h-12 w-12 bg-slate-100 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                            <MessageSquareMore className="h-6 w-6 text-[#1E242B]" />
+                        </div>
+                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Aprovações</span>
+                    </button>
+
+                    {isGroup && (
+                        <Link
+                            href="/qrido/company/groups"
+                            style={{ backgroundColor: '#FFFFFF', color: '#1E242B' }}
+                            className="flex flex-col items-center justify-center gap-3 p-5 border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
+                        >
+                            <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                                <CheckCircle2 className="h-6 w-6 text-[#1E242B]" />
+                            </div>
+                            <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Lojas do Grupo</span>
+                        </Link>
+                    )}
+
+                    {isHolding && (
+                        <Link
+                            href="/qrido/holding?tab=groups"
+                            style={{ backgroundColor: '#FFFFFF', color: '#1E242B' }}
+                            className="flex flex-col items-center justify-center gap-3 p-5 border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
+                        >
+                            <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
+                                <Building2 className="h-6 w-6 text-[#1E242B]" />
+                            </div>
+                            <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Grupos da Holding</span>
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            {/* 5. Seção Aguardando Confirmação */}
+            <div id="solicitacoes-pendentes" className="space-y-4 pt-4 border-t-2 border-[#1E242B]/10">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-[#E9592C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
+                        <Plus className="h-6 w-6 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Aguardando Confirmação</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {(() => {
+                        const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
+                        Object.keys(transitioningItems).forEach(id => {
+                            allRequestsMap[id] = { ...(allRequestsMap[id] || {}), ...transitioningItems[id] }
+                        })
+                        const displayRequests = [
+                            ...Object.values(allRequestsMap),
+                            ...pendingInvites
+                        ].sort((a: any, b: any) =>
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                        )
+
+                        if (displayRequests.length === 0) {
+                            return (
+                                <div className="col-span-full py-12 text-center bg-white rounded-3xl border-2 border-dashed border-[#1E242B]/30 italic font-black text-slate-400">
+                                    Nenhuma solicitação nova por enquanto.
+                                </div>
+                            )
+                        }
+
+                        return displayRequests.map((req: any) => {
+                            if (req.isInvite) {
+                                const isReceived = req.direction === 'received'
+                                const isHoldingInvite = req.inviteType === 'holding_to_group'
+
+                                return (
+                                    <Card key={req.id} className="border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden bg-[#1E242B] text-white p-6 flex flex-col justify-between min-h-[260px]">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-2 bg-[#F7AA1C] border border-white/20 rounded-2xl w-fit text-[#1E242B]">
+                                                        <Zap className="h-5 w-5 fill-current" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">
+                                                        {isReceived
+                                                            ? (isHoldingInvite ? 'Novo Convite de Holding' : 'Novo Convite de Grupo')
+                                                            : (isHoldingInvite ? 'Convite Enviado para Grupo' : 'Convite Enviado para Loja')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h3 className="text-xl font-black italic uppercase leading-tight">{req.partnerName}</h3>
+                                                <p className="text-xs text-slate-300 font-bold mt-1">Contato: {req.phone || 'Sem telefone'}</p>
+                                                <p className="text-xs font-bold text-slate-200 leading-relaxed mt-3">
+                                                    {isReceived
+                                                        ? (isHoldingInvite
+                                                            ? 'Esta Holding deseja associar seu Grupo/Mercado para consolidação de rede.'
+                                                            : 'Este Grupo deseja associar sua Loja para que compras gerem pontos aos clientes.')
+                                                        : 'Aguardando a confirmação do convite pelo parceiro.'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {isReceived ? (
+                                            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/20 mt-4">
+                                                <Button
+                                                    onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'accepted') : handleRespondGroupInvite(req.id, 'accepted')}
+                                                    className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-white h-11 rounded-xl font-black italic uppercase text-[10px]"
+                                                >
+                                                    Aceitar
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'rejected') : handleRespondGroupInvite(req.id, 'rejected')}
+                                                    className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white border-2 border-white/40 hover:bg-white/10"
+                                                >
+                                                    Recusar
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <div className="pt-4 border-t border-white/20 mt-4 flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase text-[#1E242B] bg-[#F7AA1C] px-3 py-1 rounded-full border border-white">
+                                                    Aguardando Confirmação
+                                                </span>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => handleCancelInvite(req.id, req.inviteType)}
+                                                    className="h-9 px-3 text-[10px] font-black uppercase text-white/80 hover:text-red-300 hover:bg-white/10 rounded-xl"
+                                                >
+                                                    Cancelar Convite
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </Card>
+                                )
+                            }
+
+                            const isRedeem = req.type === 'redeem'
+                            return (
+                                <Card key={req.id} className={cn(
+                                    "border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
+                                    isRedeem ? "bg-[#FAF8F5]" : "bg-white"
+                                )}>
+                                    <CardHeader className={cn("p-6 border-b-2 border-[#1E242B]/10", isRedeem ? "bg-[#F7AA1C]/10" : "bg-[#FAF8F5]")}>
+                                        <div className="flex justify-between items-start">
+                                            <div className="space-y-1">
+                                                <p className={cn("text-[11px] font-black uppercase tracking-widest italic", isRedeem ? "text-[#E9592C]" : "text-[#297CCB]")}>
+                                                    {req.customer?.full_name}
+                                                </p>
+                                                <p className="text-xs text-slate-600 font-bold">{req.customer?.phone}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black uppercase text-slate-500">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
+                                                <p className={cn("text-lg font-black italic leading-none mt-1", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
+                                                    {isRedeem ? 'PONTOS' : `R$ ${req.total_amount}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="space-y-2">
+                                            {req.items?.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex justify-between text-xs font-black text-[#1E242B] italic">
+                                                    <span>{item.qty}x {item.name}</span>
+                                                    <span className="text-slate-500">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="pt-4 border-t-2 border-[#1E242B]/10 flex flex-col gap-4">
+                                            <div className={cn("flex justify-between items-center", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
+                                                <span className="text-[10px] font-black uppercase italic">{isRedeem ? 'Pontos a descontar' : 'Pontos a receber'}</span>
+                                                <span className="text-xl font-black">{isRedeem ? '-' : '+'}{req.total_points} PTS</span>
+                                            </div>
+
+                                            {req.transitionStatus === 'rejected' ? (
+                                                <div className="h-12 flex items-center justify-center bg-red-100 border-2 border-[#1E242B] text-red-700 rounded-2xl font-black italic uppercase text-xs">
+                                                    Pedido Recusado
+                                                </div>
+                                            ) : req.transitionStatus === 'confirmed' ? (
+                                                <div className={cn(
+                                                    "h-12 flex items-center justify-center border-2 border-[#1E242B] rounded-2xl font-black italic uppercase text-xs",
+                                                    isRedeem ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-[#167657] text-white"
+                                                )}>
+                                                    {isRedeem ? 'Resgate Confirmado!' : 'Pontos Enviados!'}
+                                                </div>
+                                            ) : (
+                                                req.type === 'redeem' ? (
+                                                    <div className="space-y-3">
+                                                        <Button
+                                                            onClick={() => handleConfirmRedemption(req.id)}
+                                                            className="w-full bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-xs"
+                                                        >
+                                                            Confirmar Resgate
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            onClick={() => handleRejectRequest(req.id)}
+                                                            className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-500 hover:text-red-600"
+                                                        >
+                                                            Recusar Resgate
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <Button
+                                                            onClick={() => handleConfirmRequest(req.id)}
+                                                            className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-[10px]"
+                                                        >
+                                                            Confirmar
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            onClick={() => handleRejectRequest(req.id)}
+                                                            className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-[#1E242B] border-2 border-[#1E242B]"
+                                                        >
+                                                            Recusar
+                                                        </Button>
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )
+                        })
+                    })()}
+                </div>
+            </div>
+
+            {/* 6. Grid Top Clientes e Top Recompensas (Lado a Lado no Desktop) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4 border-t-2 border-[#1E242B]/10">
+                {/* Top Clientes */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                            <Trophy className="h-5 w-5" />
+                        </div>
+                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Top Clientes</h2>
+                    </div>
+
+                    <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
+                        <CardHeader className="p-6 border-b-2 border-[#1E242B]/10">
+                            <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Clientes</CardTitle>
+                            <p className="text-xs text-slate-500 font-bold">Clientes que mais consomem no período.</p>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <div className="space-y-4">
+                                {topCustomers.length === 0 ? (
+                                    <div className="text-center py-6 text-slate-400 text-xs font-bold italic">
+                                        Nenhum cliente registrado com compras no período.
+                                    </div>
+                                ) : (
+                                    topCustomers.map((cust, index) => {
+                                        const rank = index + 1
+                                        return (
+                                            <div key={cust.id + index} className="flex items-center gap-3 p-3.5 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] group">
+                                                <div className={cn(
+                                                    "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0 transition-all",
+                                                    rank === 1
+                                                        ? "bg-[#F7AA1C] text-[#1E242B]"
+                                                        : "bg-white text-[#1E242B]"
+                                                )}>
+                                                    {rank === 1 ? '👑' : rank}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
+                                                        {cust.name}
+                                                    </p>
+                                                    <div className="flex items-center justify-between mt-1.5">
+                                                        <span className="text-xs font-black text-[#167657] italic">
+                                                            R$ {cust.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                        <span className="text-[10px] font-black text-[#1E242B] bg-[#F7AA1C] px-2 py-0.5 rounded-lg border border-[#1E242B]">
+                                                            {cust.totalPoints} pts
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Top Recompensas */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
+                            <Trophy className="h-6 w-6" />
+                        </div>
+                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Top Recompensas</h2>
+                    </div>
+
+                    <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
+                        <CardHeader className="p-6 border-b-2 border-[#1E242B]/10">
+                            <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Recompensas</CardTitle>
+                            <p className="text-xs text-slate-500 font-bold">Os prêmios mais Qridos no período.</p>
+                        </CardHeader>
+                        <CardContent className="p-6">
+                            <div className="space-y-4">
+                                {topRewards.length === 0 ? (
+                                    <div className="text-center py-6 text-slate-400 text-xs font-bold italic">
+                                        Nenhum prêmio disponível no momento.
+                                    </div>
+                                ) : (
+                                    topRewards.map((reward, index) => {
+                                        const rank = index + 1
+                                        return (
+                                            <div key={reward.id} className="flex items-center gap-4 p-3 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                                                <div className={cn(
+                                                    "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0",
+                                                    rank === 1
+                                                        ? "bg-[#F7AA1C] text-[#1E242B]"
+                                                        : "bg-white text-[#1E242B]"
+                                                )}>
+                                                    {rank === 1 ? '🥇' : rank}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
+                                                        {reward.title}
+                                                    </p>
+                                                    {(isGroup || isHolding || isAdmin) && (
+                                                        <p className="text-[9px] text-slate-500 font-bold mt-1 uppercase tracking-wider truncate">
+                                                            {reward.company_name}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center justify-between mt-1.5">
+                                                        <span className="text-xs font-bold text-slate-600 italic">
+                                                            {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                                        </span>
+                                                        <span className="text-[10px] font-black text-[#1E242B] bg-[#297CCB]/20 border border-[#1E242B] px-2 py-0.5 rounded-lg">
+                                                            {reward.points_required} pts
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
+                                <div className="pt-4 border-t-2 border-[#1E242B]/10">
+                                    <Link
+                                        href="/qrido/rewards"
+                                        className="w-full text-xs font-black text-[#1E242B] uppercase italic bg-[#F7AA1C] border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] h-11 flex items-center justify-center rounded-2xl transition-all"
+                                    >
+                                        VER TODOS OS PRÊMIOS
+                                    </Link>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            {/* 7. Filtro de Período e Seletores de Hierarquia */}
+            <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5 pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <span className="text-xs font-black uppercase tracking-wider text-[#1E242B] flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-[#F7AA1C]" /> FILTRAR PERÍODO:
+                        <Calendar className="w-4 h-4 text-[#F7AA1C]" /> FILTRAR PERÍODO E REDE:
                     </span>
                     <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F5] p-1.5 rounded-2xl border-2 border-[#1E242B]">
                         <button onClick={() => setPreset("yesterday")} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === "yesterday" ? "bg-[#1E242B] text-white shadow-sm" : "text-slate-700 hover:text-[#1E242B]"}`}>Dia -1</button>
@@ -705,129 +1161,7 @@ export default function CompanyDashboard() {
                 </div>
             </div>
 
-            {/* Grid 2x2 de Métricas Consolidadas por Período */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                    <div>
-                        <div className="p-2.5 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
-                            <Users className="h-6 w-6" />
-                        </div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Clientes Fidelizados</p>
-                    </div>
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.totalLeads}</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Base no período</p>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                    <div>
-                        <div className="p-2.5 bg-[#E9592C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#E9592C]">
-                            <TrendingUp className="h-6 w-6" />
-                        </div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Vendas em R$</p>
-                    </div>
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-[#E9592C] italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Feitas no período</p>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                    <div>
-                        <div className="p-2.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
-                            <Zap className="h-6 w-6 fill-current" />
-                        </div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Pontos Enviados</p>
-                    </div>
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.topSource}</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Acumulados nas vendas</p>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
-                    <div>
-                        <div className="p-2.5 bg-emerald-100 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-emerald-700">
-                            <MessageSquareMore className="h-6 w-6" />
-                        </div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Resgates Feitos</p>
-                    </div>
-                    <div>
-                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.redemptions}</h2>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Botões de Ação Inferiores - ESTÁVEIS E FIXOS */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                <Link
-                    href="/qrido/products"
-                    className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
-                >
-                    <div className="h-12 w-12 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                        <Package className="h-6 w-6" />
-                    </div>
-                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Produtos</span>
-                </Link>
-
-                <Link
-                    href="/qrido/transactions/new"
-                    className="flex flex-col items-center justify-center gap-3 p-5 bg-[#E9592C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#d4481d] text-white transition-all group"
-                >
-                    <div className="h-12 w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
-                        <Plus className="h-6 w-6 text-white" />
-                    </div>
-                    <span className="text-xs font-black text-white uppercase tracking-wider italic text-center">+ Nova Venda</span>
-                </Link>
-
-                <Link
-                    href="/qrido/customers/new"
-                    className="flex flex-col items-center justify-center gap-3 p-5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#e09917] text-[#1E242B] transition-all group"
-                >
-                    <div className="h-12 w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                        <Users className="h-6 w-6 text-[#1E242B]" />
-                    </div>
-                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ Novo Cliente</span>
-                </Link>
-
-                <button
-                    onClick={() => document.getElementById('solicitacoes-pendentes')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
-                >
-                    <div className="h-12 w-12 bg-slate-100 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                        <MessageSquareMore className="h-6 w-6 text-[#1E242B]" />
-                    </div>
-                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Aprovações</span>
-                </button>
-
-                {isGroup && (
-                    <Link
-                        href="/qrido/company/groups"
-                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 sm:col-span-1"
-                    >
-                        <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                            <CheckCircle2 className="h-6 w-6" />
-                        </div>
-                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Lojas do Grupo</span>
-                    </Link>
-                )}
-
-                {isHolding && (
-                    <Link
-                        href="/qrido/holding?tab=groups"
-                        className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group col-span-2 sm:col-span-1"
-                    >
-                        <div className="h-12 w-12 bg-purple-500/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
-                            <Building2 className="h-6 w-6" />
-                        </div>
-                        <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Grupos da Holding</span>
-                    </Link>
-                )}
-            </div>
-
-            {/* Heatmap (Mapa de Venda) */}
+            {/* 8. Mapa de Vendas (Heatmap) */}
             <HeatmapPixelChart
                 data={heatmapData}
                 startDate={startDate}
@@ -835,318 +1169,6 @@ export default function CompanyDashboard() {
                 title="Mapa de Venda"
                 subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial QRido"
             />
-
-            {/* Top Clientes (Quem mais gasta) - NOVO ESTILO QRIDO */}
-            <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
-                <CardHeader className="p-6 border-b-2 border-[#1E242B]/10 flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Clientes</CardTitle>
-                        <p className="text-xs text-slate-500 font-bold">Clientes que mais consomem na loja no período.</p>
-                    </div>
-                    <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
-                        <Trophy className="h-5 w-5" />
-                    </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                        {topCustomers.length === 0 ? (
-                            <div className="col-span-full text-center py-6 text-slate-400 text-xs font-bold italic">
-                                Nenhum cliente registrado com compras no período.
-                            </div>
-                        ) : (
-                            topCustomers.map((cust, index) => {
-                                const rank = index + 1
-                                return (
-                                    <div key={cust.id + index} className="flex items-center gap-3 p-3.5 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] group">
-                                        <div className={cn(
-                                            "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0 transition-all",
-                                            rank === 1
-                                                ? "bg-[#F7AA1C] text-[#1E242B]"
-                                                : "bg-white text-[#1E242B]"
-                                        )}>
-                                            {rank === 1 ? '👑' : rank}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
-                                                {cust.name}
-                                            </p>
-                                            <div className="flex items-center justify-between mt-1.5">
-                                                <span className="text-xs font-black text-[#167657] italic">
-                                                    R$ {cust.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                                </span>
-                                                <span className="text-[10px] font-black text-[#1E242B] bg-[#F7AA1C] px-2 py-0.5 rounded-lg border border-[#1E242B]">
-                                                    {cust.totalPoints} pts
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )
-                            })
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Grid de Conteúdo: Aguardando Confirmação e Top Recompensas */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-6">
-                {/* Solicitações Pendentes Section */}
-                <div id="solicitacoes-pendentes" className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-[#E9592C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
-                            <Plus className="h-6 w-6" />
-                        </div>
-                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Aguardando Confirmação</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {(() => {
-                            const allRequestsMap = { ...Object.fromEntries(pendingRequests.map(r => [r.id, r])) }
-                            Object.keys(transitioningItems).forEach(id => {
-                                allRequestsMap[id] = { ...(allRequestsMap[id] || {}), ...transitioningItems[id] }
-                            })
-                            const displayRequests = [
-                                ...Object.values(allRequestsMap),
-                                ...pendingInvites
-                            ].sort((a: any, b: any) =>
-                                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                            )
-
-                            if (displayRequests.length === 0) {
-                                return (
-                                    <div className="col-span-full py-12 text-center bg-white rounded-3xl border-2 border-dashed border-[#1E242B]/30 italic font-black text-slate-400">
-                                        Nenhuma solicitação nova por enquanto.
-                                    </div>
-                                )
-                            }
-
-                            return displayRequests.map((req: any) => {
-                                if (req.isInvite) {
-                                    const isReceived = req.direction === 'received'
-                                    const isHoldingInvite = req.inviteType === 'holding_to_group'
-
-                                    return (
-                                        <Card key={req.id} className="border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden bg-[#1E242B] text-white p-6 flex flex-col justify-between min-h-[260px]">
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="p-2 bg-[#F7AA1C] border border-white/20 rounded-2xl w-fit text-[#1E242B]">
-                                                            <Zap className="h-5 w-5 fill-current" />
-                                                        </div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-300">
-                                                            {isReceived
-                                                                ? (isHoldingInvite ? 'Novo Convite de Holding' : 'Novo Convite de Grupo')
-                                                                : (isHoldingInvite ? 'Convite Enviado para Grupo' : 'Convite Enviado para Loja')}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <h3 className="text-xl font-black italic uppercase leading-tight">{req.partnerName}</h3>
-                                                    <p className="text-xs text-slate-300 font-bold mt-1">Contato: {req.phone || 'Sem telefone'}</p>
-                                                    <p className="text-xs font-bold text-slate-200 leading-relaxed mt-3">
-                                                        {isReceived
-                                                            ? (isHoldingInvite
-                                                                ? 'Esta Holding deseja associar seu Grupo/Mercado para consolidação de rede.'
-                                                                : 'Este Grupo deseja associar sua Loja para que compras gerem pontos aos clientes.')
-                                                            : 'Aguardando a confirmação do convite pelo parceiro.'}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            {isReceived ? (
-                                                <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/20 mt-4">
-                                                    <Button
-                                                        onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'accepted') : handleRespondGroupInvite(req.id, 'accepted')}
-                                                        className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-white h-11 rounded-xl font-black italic uppercase text-[10px]"
-                                                    >
-                                                        Aceitar
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        onClick={() => isHoldingInvite ? handleRespondHoldingInvite(req.id, 'rejected') : handleRespondGroupInvite(req.id, 'rejected')}
-                                                        className="h-11 rounded-xl font-black italic uppercase text-[10px] text-white border-2 border-white/40 hover:bg-white/10"
-                                                    >
-                                                        Recusar
-                                                    </Button>
-                                                </div>
-                                            ) : (
-                                                <div className="pt-4 border-t border-white/20 mt-4 flex items-center justify-between">
-                                                    <span className="text-[10px] font-black uppercase text-[#1E242B] bg-[#F7AA1C] px-3 py-1 rounded-full border border-white">
-                                                        Aguardando Confirmação
-                                                    </span>
-                                                    <Button
-                                                        variant="ghost"
-                                                        onClick={() => handleCancelInvite(req.id, req.inviteType)}
-                                                        className="h-9 px-3 text-[10px] font-black uppercase text-white/80 hover:text-red-300 hover:bg-white/10 rounded-xl"
-                                                    >
-                                                        Cancelar Convite
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </Card>
-                                    )
-                                }
-
-                                const isRedeem = req.type === 'redeem'
-                                return (
-                                    <Card key={req.id} className={cn(
-                                        "border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden animate-in zoom-in-95 duration-200",
-                                        isRedeem ? "bg-[#FAF8F5]" : "bg-white"
-                                    )}>
-                                        <CardHeader className={cn("p-6 border-b-2 border-[#1E242B]/10", isRedeem ? "bg-[#F7AA1C]/10" : "bg-[#FAF8F5]")}>
-                                            <div className="flex justify-between items-start">
-                                                <div className="space-y-1">
-                                                    <p className={cn("text-[11px] font-black uppercase tracking-widest italic", isRedeem ? "text-[#E9592C]" : "text-[#297CCB]")}>
-                                                        {req.customer?.full_name}
-                                                    </p>
-                                                    <p className="text-xs text-slate-600 font-bold">{req.customer?.phone}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black uppercase text-slate-500">{isRedeem ? 'Resgate de Prêmio' : 'Total Compra'}</p>
-                                                    <p className={cn("text-lg font-black italic leading-none mt-1", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
-                                                        {isRedeem ? 'PONTOS' : `R$ ${req.total_amount}`}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="p-6 space-y-4">
-                                            <div className="space-y-2">
-                                                {req.items?.map((item: any, idx: number) => (
-                                                    <div key={idx} className="flex justify-between text-xs font-black text-[#1E242B] italic">
-                                                        <span>{item.qty}x {item.name}</span>
-                                                        <span className="text-slate-500">R$ {item.price * item.qty} ({item.points * item.qty} pts)</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            <div className="pt-4 border-t-2 border-[#1E242B]/10 flex flex-col gap-4">
-                                                <div className={cn("flex justify-between items-center", isRedeem ? "text-[#E9592C]" : "text-[#167657]")}>
-                                                    <span className="text-[10px] font-black uppercase italic">{isRedeem ? 'Pontos a descontar' : 'Pontos a receber'}</span>
-                                                    <span className="text-xl font-black">{isRedeem ? '-' : '+'}{req.total_points} PTS</span>
-                                                </div>
-
-                                                {req.transitionStatus === 'rejected' ? (
-                                                    <div className="h-12 flex items-center justify-center bg-red-100 border-2 border-[#1E242B] text-red-700 rounded-2xl font-black italic uppercase text-xs">
-                                                        Pedido Recusado
-                                                    </div>
-                                                ) : req.transitionStatus === 'confirmed' ? (
-                                                    <div className={cn(
-                                                        "h-12 flex items-center justify-center border-2 border-[#1E242B] rounded-2xl font-black italic uppercase text-xs",
-                                                        isRedeem ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-[#167657] text-white"
-                                                    )}>
-                                                        {isRedeem ? 'Resgate Confirmado!' : 'Pontos Enviados!'}
-                                                    </div>
-                                                ) : (
-                                                    req.type === 'redeem' ? (
-                                                        <div className="space-y-3">
-                                                            <Button
-                                                                onClick={() => handleConfirmRedemption(req.id)}
-                                                                className="w-full bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-xs"
-                                                            >
-                                                                Confirmar Resgate
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                onClick={() => handleRejectRequest(req.id)}
-                                                                className="w-full h-10 rounded-xl font-black italic uppercase text-[10px] text-slate-500 hover:text-red-600"
-                                                            >
-                                                                Recusar Resgate
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <Button
-                                                                onClick={() => handleConfirmRequest(req.id)}
-                                                                className="bg-[#167657] hover:bg-[#125c44] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] h-12 rounded-2xl font-black italic uppercase text-[10px]"
-                                                            >
-                                                                Confirmar
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                onClick={() => handleRejectRequest(req.id)}
-                                                                className="h-12 rounded-2xl font-black italic uppercase text-[10px] text-[#1E242B] border-2 border-[#1E242B]"
-                                                            >
-                                                                Recusar
-                                                            </Button>
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                )
-                            })
-                        })()}
-                    </div>
-                </div>
-
-                {/* Top Recompensas Section */}
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-white shadow-[2px_2px_0px_#1E242B]">
-                            <Trophy className="h-6 w-6" />
-                        </div>
-                        <h2 className="text-2xl font-black text-[#1E242B] uppercase italic">Top Recompensas</h2>
-                    </div>
-
-                    <Card className="bg-white border-2 border-[#1E242B] rounded-3xl shadow-[4px_4px_0px_#1E242B] overflow-hidden">
-                        <CardHeader className="p-6 border-b-2 border-[#1E242B]/10">
-                            <CardTitle className="text-xl font-black italic uppercase text-[#1E242B]">Top Recompensas</CardTitle>
-                            <p className="text-xs text-slate-500 font-bold">Os prêmios mais Qridos no período.</p>
-                        </CardHeader>
-                        <CardContent className="p-6">
-                            <div className="space-y-6">
-                                {topRewards.length === 0 ? (
-                                    <div className="text-center py-6 text-slate-400 text-xs font-bold italic">
-                                        Nenhum prêmio disponível no momento.
-                                    </div>
-                                ) : (
-                                    topRewards.map((reward, index) => {
-                                        const rank = index + 1
-                                        return (
-                                            <div key={reward.id} className="flex items-center gap-4 p-3 bg-[#FAF8F5] rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
-                                                <div className={cn(
-                                                    "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm border-2 border-[#1E242B] shrink-0",
-                                                    rank === 1 
-                                                        ? "bg-[#F7AA1C] text-[#1E242B]" 
-                                                        : "bg-white text-[#1E242B]"
-                                                )}>
-                                                    {rank === 1 ? '🥇' : rank}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-black text-[#1E242B] italic uppercase leading-none text-xs truncate">
-                                                        {reward.title}
-                                                    </p>
-                                                    {(isGroup || isHolding || isAdmin) && (
-                                                        <p className="text-[9px] text-slate-500 font-bold mt-1 uppercase tracking-wider truncate">
-                                                            {reward.company_name}
-                                                        </p>
-                                                    )}
-                                                    <div className="flex items-center justify-between mt-1.5">
-                                                        <span className="text-xs font-bold text-slate-600 italic">
-                                                            {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
-                                                        </span>
-                                                        <span className="text-[10px] font-black text-[#1E242B] bg-[#297CCB]/20 border border-[#1E242B] px-2 py-0.5 rounded-lg">
-                                                            {reward.points_required} pts
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })
-                                )}
-                                <div className="pt-4 border-t-2 border-[#1E242B]/10">
-                                    <Link 
-                                        href="/qrido/rewards"
-                                        className="w-full text-xs font-black text-[#1E242B] uppercase italic bg-[#F7AA1C] border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] h-11 flex items-center justify-center rounded-2xl transition-all"
-                                    >
-                                        VER TODOS OS PRÊMIOS
-                                    </Link>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
 
             {tier === 'basic' && (
                 <Card className="border-none bg-gradient-to-br from-[#F7AA1C] to-amber-600 p-1 shadow-2xl">
