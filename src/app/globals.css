@@ -117,30 +117,124 @@
   --radius-lg: var(--radius);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /* QRIDO Custom Design Tokens & Neo-Brutalist Utilities */
+  --qrido-yellow: #F7AA1C;
+  --qrido-orange: #E9592C;
+  --qrido-graphite: #1E242B;
+  --qrido-offwhite: #FAF8F5;
+  --qrido-card-bg: #FFFFFF;
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background-color: var(--qrido-offwhite);
+  color: var(--qrido-graphite);
 }
 
 @layer components {
+  .qrido-card {
+    @apply bg-white rounded-3xl border-2 border-slate-900/10 p-6 shadow-[3px_3px_0px_rgba(30,36,43,0.06)] transition-all hover:shadow-[5px_5px_0px_rgba(30,36,43,0.12)] hover:-translate-y-0.5;
+  }
+
+  .qrido-btn-primary {
+    background-color: #E9592C !important;
+    color: #FFFFFF !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
+    padding: 0.85rem 1.75rem !important;
+    font-weight: 900 !important;
+    font-style: italic;
+    text-transform: uppercase;
+    box-shadow: 4px 4px 0px #1E242B !important;
+    transition: all 0.15s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .qrido-btn-primary:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #1E242B !important;
+  }
+
+  .qrido-btn-primary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #1E242B !important;
+  }
+
+  .qrido-btn-secondary {
+    background-color: #FAF8F5 !important;
+    color: #1E242B !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
+    padding: 0.85rem 1.75rem !important;
+    font-weight: 900 !important;
+    font-style: italic;
+    text-transform: uppercase;
+    box-shadow: 3px 3px 0px #1E242B !important;
+    transition: all 0.15s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .qrido-btn-secondary:hover {
+    background-color: #FFFFFF !important;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px #1E242B !important;
+  }
+
+  .qrido-btn-secondary:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px #1E242B !important;
+  }
+
+  .qrido-btn-accent {
+    background-color: #F7AA1C !important;
+    color: #1E242B !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
+    padding: 0.85rem 1.75rem !important;
+    font-weight: 900 !important;
+    font-style: italic;
+    text-transform: uppercase;
+    box-shadow: 4px 4px 0px #1E242B !important;
+    transition: all 0.15s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .qrido-btn-accent:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #1E242B !important;
+  }
+
+  .qrido-btn-accent:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #1E242B !important;
+  }
+
   .brand-card {
-    @apply bg-white rounded-2xl shadow-sm border border-slate-100 p-6 transition-all hover:shadow-md;
+    @apply bg-white rounded-3xl shadow-sm border border-slate-100 p-6 transition-all hover:shadow-md;
   }
 
   .btn-orange {
     background-color: #E9592C !important;
-    color: #F7AA1C !important;
-    border-radius: 1.5rem !important;
+    color: #FFFFFF !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
     padding: 0.75rem 1.5rem !important;
     font-weight: 900 !important;
     transition: all 0.2s;
-    box-shadow: 0 10px 15px -3px rgba(233, 89, 44, 0.4);
+    box-shadow: 4px 4px 0px #1E242B !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: none;
     cursor: pointer;
     text-decoration: none;
     text-transform: uppercase;
@@ -148,63 +242,67 @@ body {
   }
 
   .btn-orange:hover {
-    transform: scale(1.02);
-    opacity: 0.9;
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #1E242B !important;
   }
 
   .btn-orange:active {
-    transform: scale(0.98);
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #1E242B !important;
   }
 
   .btn-blue {
     background-color: #297CCB !important;
-    color: #F7AA1C !important;
-    border-radius: 1.5rem !important;
+    color: #FFFFFF !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
     padding: 0.75rem 1.5rem !important;
     font-weight: 900 !important;
     transition: all 0.2s;
-    box-shadow: 0 10px 15px -3px rgba(41, 124, 203, 0.4);
+    box-shadow: 4px 4px 0px #1E242B !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: none;
     cursor: pointer;
     text-decoration: none;
     text-transform: uppercase;
   }
 
   .btn-blue:hover {
-    transform: scale(1.02);
-    opacity: 0.9;
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #1E242B !important;
   }
 
   .btn-blue:active {
-    transform: scale(0.98);
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #1E242B !important;
   }
 
   .btn-white {
     background-color: #FFFFFF !important;
-    color: #297CCB !important;
-    border-radius: 1.5rem !important;
+    color: #1E242B !important;
+    border: 2px solid #1E242B !important;
+    border-radius: 1.25rem !important;
     padding: 0.75rem 1.5rem !important;
     font-weight: 900 !important;
     transition: all 0.2s;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    box-shadow: 4px 4px 0px #1E242B !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: none;
     cursor: pointer;
     text-decoration: none;
     text-transform: uppercase;
   }
 
   .btn-white:hover {
-    transform: scale(1.05);
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #1E242B !important;
   }
 
   .btn-white:active {
-    transform: scale(0.95);
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #1E242B !important;
   }
 
   /* Utilitários Responsivos Customizados */
@@ -213,7 +311,7 @@ body {
   }
 
   .subheading-mobile {
-    @apply text-sm sm:text-base font-medium text-slate-400 italic;
+    @apply text-sm sm:text-base font-medium text-slate-500 italic;
   }
 
   .card-grid-mobile {

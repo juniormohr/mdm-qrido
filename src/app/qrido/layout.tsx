@@ -231,14 +231,14 @@ export default function DashboardLayout({
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Cabeçalho Persistente da Empresa */}
                 {companyInfo.show && (
-                    <div className="bg-[#297CCB] text-white px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-blue-400/20 shadow-md shrink-0">
+                    <div className="bg-[#1E242B] text-white px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 border-b-2 border-[#1E242B] shadow-md shrink-0">
                         <div className="flex flex-wrap items-center gap-3">
-                            <Building2 className="h-5 w-5 text-white/80 shrink-0" />
-                            <div className="font-black uppercase italic tracking-wider text-sm">
+                            <Building2 className="h-5 w-5 text-[#F7AA1C] shrink-0" />
+                            <div className="font-black uppercase italic tracking-wider text-sm text-white">
                                 {companyInfo.name}
                             </div>
                             {companyInfo.cpfCnpj && (
-                                <div className="text-[11px] bg-white/10 px-2 py-0.5 rounded text-white/90 font-mono">
+                                <div className="text-[11px] bg-white/10 px-2 py-0.5 rounded-lg text-white/90 font-mono border border-white/10">
                                     <span className="font-bold opacity-60 uppercase mr-1">Doc:</span>
                                     {formatCpfCnpj(companyInfo.cpfCnpj)}
                                 </div>
@@ -246,27 +246,27 @@ export default function DashboardLayout({
                         </div>
                         <div className="flex items-center gap-6">
                             <div className="text-xs">
-                                <span className="font-bold opacity-70 uppercase mr-1">Vendas:</span>
-                                <span className="font-black text-emerald-300">R$ {companyInfo.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <span className="font-bold opacity-70 uppercase mr-1 text-slate-300">Vendas:</span>
+                                <span className="font-black text-[#F7AA1C]">R$ {companyInfo.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                             <div className="text-xs">
-                                <span className="font-bold opacity-70 uppercase mr-1">Clientes:</span>
-                                <span className="font-black text-amber-300">{companyInfo.totalCustomers}</span>
+                                <span className="font-bold opacity-70 uppercase mr-1 text-slate-300">Clientes:</span>
+                                <span className="font-black text-[#E9592C]">{companyInfo.totalCustomers}</span>
                             </div>
                         </div>
                     </div>
                 )}
 
                 {/* Header Mobile */}
-                <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-100 shrink-0">
+                <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-[#FAF8F5] border-b-2 border-[#1E242B]/10 shrink-0">
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors"
+                        className="p-2 text-[#1E242B] hover:bg-white rounded-xl border border-[#1E242B]/10 transition-colors"
                     >
                         <Menu className="h-6 w-6" />
                     </button>
                     <div className="h-8">
-                        <img src="/logo-orange.png" alt="QRido" className="h-full object-contain" />
+                        <img src="/logo-main.png" alt="QRIDO" className="h-full object-contain" />
                     </div>
                 </header>
 

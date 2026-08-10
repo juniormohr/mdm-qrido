@@ -30,143 +30,120 @@ export default function LandingPage() {
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 selection:bg-brand-blue/10">
             {/* Header / Nav */}
-            <nav className="sticky top-0 z-50 bg-[#FAF9F6]/80 backdrop-blur-md border-b border-slate-100 px-6 py-4">
+            <nav className="sticky top-0 z-50 bg-[#FAF8F5]/90 backdrop-blur-md border-b-2 border-[#1E242B]/10 px-4 md:px-6 py-4">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="h-10 w-10 bg-brand-blue rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-blue/20">
-                            <Zap className="h-6 w-6 fill-current" />
-                        </div>
-                        <span className="text-2xl font-black italic uppercase tracking-tighter text-slate-900">QRIDO</span>
+                    <div className="flex items-center gap-3">
+                        <img src="/logo-main.png" alt="QRIDO" className="h-9 md:h-11 object-contain" />
                     </div>
-                    <Link href="/login">
-                        <Button variant="ghost" className="font-bold italic uppercase text-xs tracking-widest text-slate-500 hover:text-brand-blue">
-                            Login
-                        </Button>
-                    </Link>
+                    
+                    <div className="hidden md:flex items-center gap-8 text-sm font-black italic uppercase tracking-wide text-[#1E242B]">
+                        <Link href="#como-funciona" className="hover:text-[#E9592C] transition-colors">Como funciona</Link>
+                        <Link href="#beneficios" className="hover:text-[#E9592C] transition-colors">Benefícios</Link>
+                        <Link href="#planos" className="hover:text-[#E9592C] transition-colors">Planos</Link>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Link href="/login">
+                            <Button variant="ghost" className="font-black italic uppercase text-xs md:text-sm tracking-wider text-[#1E242B] hover:bg-[#1E242B]/5 border border-transparent">
+                                Login
+                            </Button>
+                        </Link>
+                        <Link href="/login?mode=register&role=company">
+                            <Button className="qrido-btn-primary text-xs md:text-sm py-2 px-4 md:px-6">
+                                Começar agora
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
             </nav>
 
             {/* Hero Section */}
-            <section className="relative pt-20 pb-32 px-6 overflow-hidden">
-                {/* Background Shapes */}
-                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-brand-orange/5 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[600px] h-[600px] bg-brand-blue/5 rounded-full blur-[120px]" />
-
+            <section className="relative pt-12 md:pt-20 pb-20 md:pb-32 px-4 md:px-6 overflow-hidden">
                 <div className="max-w-7xl mx-auto relative z-10">
-                    <div className="text-center space-y-8 max-w-4xl mx-auto">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-blue/10 rounded-full text-brand-blue mb-4">
-                            <Zap className="h-4 w-4 fill-current" />
-                            <span className="text-[10px] font-black uppercase tracking-[2px] italic">A Revolução da Fidelização</span>
-                        </div>
-                        
-                        <h1 className="text-5xl md:text-7xl lg:text-8xl font-black italic uppercase tracking-tight text-slate-900 leading-[0.9]">
-                            Transforme <span className="text-brand-orange">Clientes</span> em <span className="text-brand-blue underline decoration-brand-blue/20">Fãs</span>.
-                        </h1>
-                        
-                        <p className="text-lg md:text-xl text-slate-500 font-medium max-w-2xl mx-auto leading-relaxed">
-                            O Qrido é o cartão de fidelidade digital, que coloca seu negócio no bolso do cliente. 
-                            Aumente a recorrência e a venda, sem precisar investir uma fortuna em anúncios.
-                        </p>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                        <div className="lg:col-span-7 space-y-6 md:space-y-8 text-center lg:text-left">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-full text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                                <Zap className="h-4 w-4 fill-current text-[#E9592C]" />
+                                <span className="text-xs font-black uppercase tracking-wider italic">A revolução da fidelização</span>
+                            </div>
+                            
+                            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black italic uppercase tracking-tight text-[#1E242B] leading-[0.95]">
+                                Transforme <span className="text-[#E9592C]">clientes</span> em <span className="bg-[#F7AA1C] px-3 py-1 rounded-2xl border-2 border-[#1E242B] inline-block shadow-[4px_4px_0px_#1E242B] transform -rotate-1">fãs</span>.
+                            </h1>
+                            
+                            <p className="text-base md:text-xl text-slate-600 font-medium leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                                O QRIDO é o cartão de fidelidade digital que coloca seu negócio no bolso do cliente. 
+                                Aumente a recorrência e a venda sem depender de anúncios caros.
+                            </p>
 
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-                            <Link href="/login?mode=register&role=company" className="w-full sm:w-auto">
-                                <Button className="w-full sm:w-auto h-16 px-10 bg-brand-orange hover:bg-brand-orange/90 text-white rounded-[24px] shadow-2xl shadow-brand-orange/30 text-lg font-black italic uppercase group">
-                                    Começar Agora
-                                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                                </Button>
-                            </Link>
-                            <Link href="#como-funciona" className="w-full sm:w-auto">
-                                <Button variant="ghost" className="w-full sm:w-auto h-16 px-10 rounded-[24px] text-lg font-black italic uppercase text-slate-500 hover:bg-slate-100">
-                                    Ver Como Funciona
-                                </Button>
-                            </Link>
-                        </div>
-                    </div>
+                            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
+                                <Link href="/login?mode=register&role=company" className="w-full sm:w-auto">
+                                    <Button className="qrido-btn-primary w-full sm:w-auto h-14 px-8 text-base md:text-lg group">
+                                        Começar agora
+                                        <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                                    </Button>
+                                </Link>
+                                <Link href="#como-funciona" className="w-full sm:w-auto">
+                                    <Button className="qrido-btn-secondary w-full sm:w-auto h-14 px-8 text-base md:text-lg">
+                                        Ver como funciona
+                                    </Button>
+                                </Link>
+                            </div>
 
-                    {/* Dashboard Preview Mockup */}
-                    <div className="mt-20 relative px-4 md:px-0">
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#FAF9F6] via-transparent to-transparent z-10 h-32 bottom-0 pointer-events-none" />
-                        <div className="bg-slate-900 rounded-[40px] p-2 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] border-[4px] md:border-[8px] border-slate-800 scale-[1.02] md:scale-100 transition-transform duration-700 hover:scale-[1.01]">
-                            <div className="bg-white rounded-[32px] overflow-hidden aspect-[4/3] md:aspect-[21/9] flex relative">
-                                {/* Sidebar Fake */}
-                                <div className="hidden md:flex flex-col w-48 lg:w-64 bg-slate-50 border-r border-slate-100 p-6 pointer-events-none">
-                                    <div className="flex items-center gap-2 mb-10">
-                                        <div className="h-8 w-8 bg-brand-blue rounded-xl flex items-center justify-center">
-                                            <Zap className="h-4 w-4 text-white fill-current" />
-                                        </div>
-                                        <span className="font-black italic text-lg text-slate-900">QRIDO</span>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="h-10 rounded-xl bg-brand-blue/10 flex items-center px-4 gap-3">
-                                            <TrendingUp className="h-5 w-5 text-brand-blue" />
-                                            <div className="h-2 w-20 bg-brand-blue/50 rounded-full" />
-                                        </div>
-                                        <div className="h-10 rounded-xl flex items-center px-4 gap-3">
-                                            <Users className="h-5 w-5 text-slate-400" />
-                                            <div className="h-2 w-24 bg-slate-200 rounded-full" />
-                                        </div>
-                                        <div className="h-10 rounded-xl flex items-center px-4 gap-3">
-                                            <Gift className="h-5 w-5 text-slate-400" />
-                                            <div className="h-2 w-16 bg-slate-200 rounded-full" />
-                                        </div>
-                                    </div>
+                            {/* Provas de Baixa Fricção */}
+                            <div className="pt-6 border-t-2 border-[#1E242B]/10 grid grid-cols-3 gap-2 md:gap-4 text-center">
+                                <div className="p-3 bg-white rounded-2xl border-2 border-[#1E242B]/10 shadow-[2px_2px_0px_rgba(30,36,43,0.05)]">
+                                    <p className="text-xs md:text-sm font-black italic uppercase text-[#1E242B]">Sem app para baixar</p>
+                                    <p className="text-[10px] md:text-xs text-slate-500 font-bold">100% web via QR Code</p>
                                 </div>
-                                {/* Main Content Fake */}
-                                <div className="flex-1 p-4 md:p-8 flex flex-col gap-4 md:gap-8 bg-[#FAF9F6] pointer-events-none">
-                                    <div className="flex justify-between items-center">
-                                        <div className="space-y-2 md:space-y-3">
-                                            <div className="h-2 md:h-3 w-16 md:w-32 bg-slate-200 rounded-full" />
-                                            <div className="h-6 md:h-8 w-32 md:w-56 bg-slate-800 rounded-full" />
-                                        </div>
-                                        <div className="flex gap-2.5 md:gap-3">
-                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-white shadow-sm border border-slate-100 hidden sm:block" />
-                                            <div className="h-8 md:h-10 w-8 md:w-10 rounded-full bg-brand-orange border-2 border-white shadow-sm" />
+                                <div className="p-3 bg-white rounded-2xl border-2 border-[#1E242B]/10 shadow-[2px_2px_0px_rgba(30,36,43,0.05)]">
+                                    <p className="text-xs md:text-sm font-black italic uppercase text-[#1E242B]">Cadastro em segundos</p>
+                                    <p className="text-[10px] md:text-xs text-slate-500 font-bold">Direto pelo WhatsApp</p>
+                                </div>
+                                <div className="p-3 bg-white rounded-2xl border-2 border-[#1E242B]/10 shadow-[2px_2px_0px_rgba(30,36,43,0.05)]">
+                                    <p className="text-xs md:text-sm font-black italic uppercase text-[#1E242B]">Métricas reais</p>
+                                    <p className="text-[10px] md:text-xs text-slate-500 font-bold">Sem dados inventados</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mockup Realista da Experiência do Produto */}
+                        <div className="lg:col-span-5 relative flex justify-center">
+                            <div className="relative w-full max-w-[340px] md:max-w-[380px] bg-[#1E242B] rounded-[48px] p-3 shadow-[12px_12px_0px_#F7AA1C] border-4 border-[#1E242B]">
+                                <div className="bg-[#FAF8F5] rounded-[38px] overflow-hidden border-2 border-[#1E242B] p-5 space-y-5">
+                                    {/* Mockup Header */}
+                                    <div className="flex items-center justify-between border-b-2 border-[#1E242B]/10 pb-3">
+                                        <img src="/logo-main.png" alt="QRIDO" className="h-7 object-contain" />
+                                        <div className="bg-[#F7AA1C] px-2.5 py-1 rounded-full text-[10px] font-black uppercase text-[#1E242B] border border-[#1E242B]">
+                                            Cartão Digital
                                         </div>
                                     </div>
-                                    {/* Stats */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
-                                        {[
-                                            { color: 'bg-brand-blue', val: 'w-10 md:w-16' },
-                                            { color: 'bg-brand-green', val: 'w-12 md:w-20' },
-                                            { color: 'bg-[url(/brand-orange)] bg-brand-orange', val: 'w-8 md:w-12' },
-                                            { color: 'bg-[#F7AA1C]', val: 'w-14 md:w-24' },
-                                        ].map((card, i) => (
-                                            <div key={i} className="bg-white p-3 md:p-5 rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 flex flex-col h-20 md:h-28 lg:h-32 justify-between">
-                                                <div className={`h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-[14px] ${card.color} bg-opacity-10 flex items-center justify-center`}>
-                                                    <div className={`h-3 w-3 md:h-4 md:w-4 rounded-full ${card.color.split(' ')[card.color.split(' ').length - 1]}`} />
-                                                </div>
-                                                <div className="space-y-1.5 md:space-y-2.5 mt-auto">
-                                                    <div className="h-1.5 md:h-2 w-6 md:w-10 bg-slate-100 rounded-full" />
-                                                    <div className={`h-2.5 md:h-4 ${card.val} ${card.color.split(' ')[card.color.split(' ').length - 1]} rounded-full`} />
-                                                </div>
+
+                                    {/* Mockup Loyalty Card */}
+                                    <div className="bg-gradient-to-br from-[#E9592C] to-[#d4481d] rounded-3xl p-5 text-white border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase opacity-80">Seu Saldo de Pontos</p>
+                                                <p className="text-3xl font-black italic">450 PTS</p>
                                             </div>
-                                        ))}
-                                    </div>
-                                    {/* Chart & Table Area */}
-                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
-                                        <div className="col-span-1 md:col-span-2 bg-white rounded-[16px] md:rounded-[24px] shadow-sm border border-slate-100 p-4 md:p-6 flex flex-col items-center justify-end">
-                                            <div className="flex-1 flex items-end gap-2 md:gap-3 lg:gap-6 justify-between mt-auto w-full max-h-[80px] md:max-h-full">
-                                                {[40, 70, 45, 90, 65, 80, 55, 75, 45].map((h, i) => (
-                                                    <div key={i} className="w-full bg-brand-blue/10 rounded-t-sm md:rounded-t-md relative flex items-end" style={{ height: `${h}%` }}>
-                                                        <div className="w-full bg-brand-blue rounded-t-sm md:rounded-t-md transition-all absolute bottom-0 left-0" style={{ height: `${h - 15}%` }} />
-                                                    </div>
-                                                ))}
+                                            <div className="h-10 w-10 bg-[#F7AA1C] rounded-2xl border-2 border-[#1E242B] flex items-center justify-center text-[#1E242B] font-black text-xl">
+                                                Q
                                             </div>
                                         </div>
-                                        <div className="bg-slate-900 rounded-[24px] p-6 flex flex-col gap-5 hidden sm:flex border border-slate-800">
-                                            <div className="h-3 w-32 bg-slate-700 rounded-full mb-2" />
-                                            {[1, 2, 3].map(i => (
-                                                <div key={i} className="bg-slate-800 rounded-2xl p-4 flex justify-between items-center border border-slate-700/50">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="h-10 w-10 rounded-full bg-brand-orange/20 border border-brand-orange/30" />
-                                                        <div className="space-y-2">
-                                                            <div className="h-2.5 w-20 bg-white/90 rounded-full" />
-                                                            <div className="h-2 w-14 bg-white/40 rounded-full" />
-                                                        </div>
-                                                    </div>
-                                                    <div className="h-3.5 w-12 bg-brand-green rounded-full" />
-                                                </div>
-                                            ))}
+                                        <div className="bg-white/20 p-2.5 rounded-xl border border-white/30 text-[11px] font-bold">
+                                            Faltam 50 pts para: <span className="underline italic text-[#F7AA1C]">Café Especial Grátis</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Mockup Quick Actions */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-white p-3 rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] text-center">
+                                            <p className="text-[10px] font-black uppercase text-slate-400">Total Vendas</p>
+                                            <p className="text-base font-black italic text-[#1E242B]">R$ 1.250</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] text-center">
+                                            <p className="text-[10px] font-black uppercase text-slate-400">Clientes Fãs</p>
+                                            <p className="text-base font-black italic text-[#E9592C]">89 Ativos</p>
                                         </div>
                                     </div>
                                 </div>
@@ -176,110 +153,119 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* Pain / Identification Section */}
-            <section className="py-24 px-6 bg-slate-950 text-white relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-brand-blue/5 to-transparent opacity-50" />
-                <div className="max-w-7xl mx-auto relative z-10 text-center space-y-12">
-                    <div className="p-4 bg-white/5 border border-white/10 rounded-full w-fit mx-auto">
-                        <HeartPulse className="h-8 w-8 text-brand-orange animate-pulse" />
+            {/* Seção do Problema */}
+            <section className="py-16 md:py-24 px-4 md:px-6 bg-[#1E242B] text-white relative overflow-hidden">
+                <div className="max-w-5xl mx-auto text-center space-y-6 md:space-y-8 relative z-10">
+                    <div className="p-3 bg-[#F7AA1C] text-[#1E242B] border-2 border-white rounded-2xl w-fit mx-auto shadow-[4px_4px_0px_#E9592C]">
+                        <HeartPulse className="h-7 w-7" />
                     </div>
-                    <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none max-w-4xl mx-auto">
-                        Sabe quanto custa trazer um cliente novo? <span className="text-brand-orange italic">7X MAIS</span> do que manter um cliente que já é seu.
+                    <h2 className="text-3xl sm:text-5xl md:text-6xl font-black italic uppercase leading-tight">
+                        Trazer um cliente novo custa <span className="bg-[#E9592C] px-4 py-1 rounded-2xl border-2 border-white inline-block transform rotate-1 text-white shadow-[4px_4px_0px_#F7AA1C]">7X MAIS</span> do que manter o seu.
                     </h2>
-                    <p className="text-xl text-slate-400 font-medium max-w-2xl mx-auto leading-relaxed">
-                        Ou seja, pra você fazer a mesma venda pra um cliente novo, que ainda não te conhece, é 7x mais caro do que vender pra um cliente que já te conhece e já comprou de você. O Qrido te ajuda nisso: fidelizar.
+                    <p className="text-base md:text-xl text-slate-300 font-medium max-w-3xl mx-auto leading-relaxed">
+                        Fazer a mesma venda para quem ainda não te conhece exige orçamento em anúncios. O QRIDO foi feito exatamente para transformar clientes ocasionais em clientes fiéis que voltam sempre.
                     </p>
                 </div>
             </section>
 
-            {/* Features Grid Section */}
-            <section className="py-32 px-6">
-                <div className="max-w-7xl mx-auto space-y-20">
-                    <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Por que o Qrido?</h2>
-                        <p className="text-slate-500 font-medium max-w-xl mx-auto">Ele é simples. E o simples funciona.</p>
+            {/* Benefícios (4 Blocos) */}
+            <section id="beneficios" className="py-20 md:py-32 px-4 md:px-6">
+                <div className="max-w-7xl mx-auto space-y-12 md:space-y-16">
+                    <div className="text-center space-y-3">
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-[#1E242B]">Por que o QRIDO?</h2>
+                        <p className="text-slate-600 font-bold text-base md:text-lg">Tudo o que seu negócio precisa para gerar mais recorrência.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
-                        {/* Feature 1 */}
-                        <Card className="border-none shadow-xl bg-brand-blue rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <Zap className="h-8 w-8 text-white fill-current" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        {/* Bloco 1 */}
+                        <div className="bg-[#FAF8F5] border-2 border-[#1E242B] rounded-3xl p-8 md:p-10 shadow-[6px_6px_0px_#1E242B] space-y-4 hover:-translate-y-1 transition-all">
+                            <div className="p-3.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit text-[#1E242B]">
+                                <Zap className="h-7 w-7 fill-current" />
                             </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Sistema de Pontos<br />Personalizado</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Defina suas próprias regras. Escolha quanto cada real vale em pontos e crie um ecossistema único para o seu negócio.</p>
-                        </Card>
+                            <h3 className="text-2xl md:text-3xl font-black italic uppercase text-[#1E242B]">1. Sistema de pontos personalizado</h3>
+                            <p className="text-slate-600 font-medium leading-relaxed">
+                                Defina suas próprias regras. Escolha quanto cada real gasto vale em pontos e ajuste as metas de acúmulo da sua loja.
+                            </p>
+                        </div>
 
-                        {/* Feature 2 */}
-                        <Card className="border-none shadow-xl bg-brand-green rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <TrendingUp className="h-8 w-8 text-white" />
+                        {/* Bloco 2 */}
+                        <div className="bg-[#FAF8F5] border-2 border-[#1E242B] rounded-3xl p-8 md:p-10 shadow-[6px_6px_0px_#1E242B] space-y-4 hover:-translate-y-1 transition-all">
+                            <div className="p-3.5 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl w-fit text-white">
+                                <TrendingUp className="h-7 w-7" />
                             </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Dashboard de<br />Métricas Reais</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Saiba exatamente quem são seus clientes fiéis, quanto eles gastam e qual a frequência de retorno em tempo real.</p>
-                        </Card>
+                            <h3 className="text-2xl md:text-3xl font-black italic uppercase text-[#1E242B]">2. Dashboard de métricas reais</h3>
+                            <p className="text-slate-600 font-medium leading-relaxed">
+                                Saiba exatamente quem são seus clientes mais recorrentes, quanto eles consomem e qual o volume de vendas gerado.
+                            </p>
+                        </div>
 
-                        {/* Feature 3 */}
-                        <Card className="border-none shadow-xl bg-brand-orange rounded-[40px] p-10 text-white overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-white/10 rounded-2xl w-fit mb-8 group-hover:bg-white/20 transition-colors">
-                                <Gift className="h-8 w-8 text-white" />
+                        {/* Bloco 3 */}
+                        <div className="bg-[#FAF8F5] border-2 border-[#1E242B] rounded-3xl p-8 md:p-10 shadow-[6px_6px_0px_#1E242B] space-y-4 hover:-translate-y-1 transition-all">
+                            <div className="p-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-2xl w-fit text-white">
+                                <Gift className="h-7 w-7" />
                             </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Gestão de Prêmios<br />Irresistíveis</h3>
-                            <p className="text-white/70 font-medium leading-relaxed">Crie recompensas que geram desejo. Desde descontos exclusivos até produtos gratuitos que fazem o cliente voltar sorrindo.</p>
-                        </Card>
+                            <h3 className="text-2xl md:text-3xl font-black italic uppercase text-[#1E242B]">3. Gestão de prêmios irresistíveis</h3>
+                            <p className="text-slate-600 font-medium leading-relaxed">
+                                Cadastre recompensas desejadas que incentivam o retorno. Desde mimos rápidos a prêmios especiais de fidelidade.
+                            </p>
+                        </div>
 
-                        {/* Feature 4 */}
-                        <Card className="border-none shadow-xl bg-brand-yellow rounded-[40px] p-10 text-brand-dark overflow-hidden group hover:translate-y-[-8px] transition-all duration-300">
-                            <div className="p-4 bg-black/5 rounded-2xl w-fit mb-8 group-hover:bg-black/10 transition-colors">
-                                <Smartphone className="h-8 w-8 text-brand-dark" />
+                        {/* Bloco 4 */}
+                        <div className="bg-[#FAF8F5] border-2 border-[#1E242B] rounded-3xl p-8 md:p-10 shadow-[6px_6px_0px_#1E242B] space-y-4 hover:-translate-y-1 transition-all">
+                            <div className="p-3.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit text-[#1E242B]">
+                                <Smartphone className="h-7 w-7" />
                             </div>
-                            <h3 className="text-3xl font-black italic uppercase mb-4 leading-tight">Cadastro instantâneo<br />sem Apps</h3>
-                            <p className="text-brand-dark/60 font-medium leading-relaxed">O seu cliente entra no programa em segundos via QR Code. Nada de baixar aplicativos pesados ou formulários chatos.</p>
-                        </Card>
+                            <h3 className="text-2xl md:text-3xl font-black italic uppercase text-[#1E242B]">4. Cadastro instantâneo sem app</h3>
+                            <p className="text-slate-600 font-medium leading-relaxed">
+                                Seu cliente não precisa baixar nada da loja de aplicativos. Ele se conecta em segundos via QR Code ou WhatsApp.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* How it Works Section */}
-            <section id="como-funciona" className="py-24 px-6 bg-slate-100 rounded-t-[80px]">
-                <div className="max-w-7xl mx-auto space-y-20">
-                    <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">4 Passos para o Sucesso</h2>
-                        <p className="text-slate-500 font-medium">Do cadastro à primeira venda recorrente em minutos.</p>
+            {/* Como Funciona */}
+            <section id="como-funciona" className="py-20 md:py-28 px-4 md:px-6 bg-white border-y-2 border-[#1E242B]">
+                <div className="max-w-7xl mx-auto space-y-16">
+                    <div className="text-center space-y-3">
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-[#1E242B]">Como Funciona</h2>
+                        <p className="text-slate-600 font-bold text-base md:text-lg">Simples para a sua equipe e prático para o cliente.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {[
-                            { step: '01', title: 'Cadastre sua Empresa', desc: 'Crie sua conta em segundos e defina quais produtos valem pontos e quais prêmios seus clientes podem resgatar.' },
-                            { step: '02', title: 'Registre a Venda', desc: 'No momento do pagamento, basta informar o WhatsApp do cliente no seu painel para enviar os pontos instantaneamente.' },
-                            { step: '03', title: 'Sem Aplicativos', desc: 'Seu cliente recebe um link para acompanhar o saldo e ver os prêmios disponíveis, sem precisar baixar nada.' },
-                            { step: '04', title: 'Recorrência Infinita', desc: 'Com pontos acumulados, seus clientes voltam muito mais vezes para resgatar prêmios e comprar novamente.' }
+                            { step: '01', title: 'Cadastre sua empresa', desc: 'Crie sua conta em segundos e configure seus produtos e regras de pontos.' },
+                            { step: '02', title: 'Registre a venda', desc: 'Informe o número do cliente ou leia o QR Code no caixa ao finalizar o atendimento.' },
+                            { step: '03', title: 'Cliente entra sem app', desc: 'O cliente recebe os pontos e consulta o saldo web sem baixar aplicativos.' },
+                            { step: '04', title: 'Aumente a recorrência', desc: 'Com saldo de pontos acumulado, o cliente retorna mais vezes para resgatar.' }
                         ].map((item, i) => (
-                            <div key={i} className="bg-white p-8 rounded-[32px] border border-slate-200/60 shadow-sm relative group hover:border-brand-blue/30 transition-colors">
-                                <span className="absolute -top-6 left-6 text-5xl font-black italic text-brand-blue/10 group-hover:text-brand-blue/20 transition-colors">{item.step}</span>
-                                <h4 className="text-xl font-black italic uppercase text-slate-900 mb-3 pt-2">{item.title}</h4>
-                                <p className="text-slate-500 text-sm font-medium leading-relaxed">{item.desc}</p>
+                            <div key={i} className="bg-[#FAF8F5] p-6 md:p-8 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] relative">
+                                <span className="text-4xl font-black italic text-[#E9592C] bg-[#F7AA1C]/20 border border-[#1E242B] px-3 py-1 rounded-2xl inline-block mb-4">
+                                    {item.step}
+                                </span>
+                                <h4 className="text-xl font-black italic uppercase text-[#1E242B] mb-2">{item.title}</h4>
+                                <p className="text-slate-600 text-sm font-medium leading-relaxed">{item.desc}</p>
                             </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Pricing Section */}
-            <section id="planos" className="py-32 px-6">
-                <div className="max-w-7xl mx-auto space-y-20">
+            {/* Planos */}
+            <section id="planos" className="py-20 md:py-32 px-4 md:px-6">
+                <div className="max-w-7xl mx-auto space-y-16">
                     <div className="text-center space-y-4">
-                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-slate-900">Planos Sob Medida</h2>
-                        <p className="text-slate-500 font-medium">Cresça sem limites. Escolha a melhor opção para seu momento.</p>
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase text-[#1E242B]">Planos Sob Medida</h2>
+                        <p className="text-slate-600 font-bold text-base md:text-lg">Escolha o melhor momento para o crescimento do seu negócio.</p>
                         
                         {/* Alternador de ciclo de faturamento */}
                         <div className="flex items-center justify-center pt-4">
-                            <div className="bg-slate-250 bg-slate-200/60 p-1 rounded-2xl inline-flex gap-1">
+                            <div className="bg-white border-2 border-[#1E242B] p-1.5 rounded-2xl inline-flex gap-2 shadow-[4px_4px_0px_#1E242B]">
                                 <button
                                     onClick={() => setBillingCycle('monthly')}
                                     className={cn(
-                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all cursor-pointer",
-                                        billingCycle === 'monthly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase transition-all cursor-pointer",
+                                        billingCycle === 'monthly' ? "bg-[#E9592C] text-white border-2 border-[#1E242B]" : "text-slate-600 hover:text-[#1E242B]"
                                     )}
                                 >
                                     Mensal
@@ -287,18 +273,18 @@ export default function LandingPage() {
                                 <button
                                     onClick={() => setBillingCycle('yearly')}
                                     className={cn(
-                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer",
-                                        billingCycle === 'yearly' ? "bg-brand-blue text-white shadow-md" : "text-slate-500 hover:text-slate-900"
+                                        "px-6 py-2.5 rounded-xl text-xs font-black italic uppercase transition-all flex items-center gap-2 cursor-pointer",
+                                        billingCycle === 'yearly' ? "bg-[#E9592C] text-white border-2 border-[#1E242B]" : "text-slate-600 hover:text-[#1E242B]"
                                     )}
                                 >
                                     Anual (12m)
-                                    <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.5 rounded font-black">Economia de 20%</span>
+                                    <span className="bg-[#F7AA1C] text-[#1E242B] text-[9px] px-2 py-0.5 rounded-md font-black border border-[#1E242B]">20% OFF</span>
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
                         {[
                             {
                                 id: billingCycle === 'monthly' ? 'qridinho_mensal' : 'qridinho_anual',
@@ -306,10 +292,8 @@ export default function LandingPage() {
                                 price: billingCycle === 'monthly' ? 'R$ 49,90' : 'R$ 39,90',
                                 period: '/mês',
                                 popular: false,
-                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
+                                description: billingCycle === 'monthly' ? 'Ideal para começar' : 'Fidelidade de 12 meses',
                                 icon: Zap,
-                                iconColor: 'text-[#297CCB]',
-                                borderFocus: 'hover:ring-[#297CCB]',
                                 features: ['Até 10 produtos cadastrados', 'Até 100 clientes na base', 'Até 2 usuários', 'Suporte via email', 'Métricas básicas']
                             },
                             {
@@ -318,10 +302,8 @@ export default function LandingPage() {
                                 price: billingCycle === 'monthly' ? 'R$ 89,90' : 'R$ 71,90',
                                 period: '/mês',
                                 popular: true,
-                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
+                                description: billingCycle === 'monthly' ? 'Mais recomendado' : 'Fidelidade de 12 meses',
                                 icon: Rocket,
-                                iconColor: 'text-[#E9592C]',
-                                borderFocus: 'ring-[#E9592C]/30 hover:ring-[#E9592C]',
                                 features: ['Até 30 produtos cadastrados', 'Até 300 clientes na base', 'Até 5 usuários', 'Botão de pontos em dobro', 'Suporte preferencial pelo WhatsApp', 'Métricas detalhadas']
                             },
                             {
@@ -330,99 +312,87 @@ export default function LandingPage() {
                                 price: billingCycle === 'monthly' ? 'R$ 199,90' : 'R$ 159,90',
                                 period: '/mês',
                                 popular: false,
-                                description: billingCycle === 'monthly' ? '' : 'Fidelidade de 12 meses',
+                                description: billingCycle === 'monthly' ? 'Para grande fluxo' : 'Fidelidade de 12 meses',
                                 icon: Crown,
-                                iconColor: 'text-[#E9592C]',
-                                borderFocus: 'hover:ring-[#E9592C]',
                                 features: ['Até 100 produtos', 'Até 1000 clientes na base', 'Até 10 usuários', 'Botão de pontos em dobro para ação relâmpago', 'Gerente de contas personalizado', 'Material gráfico para a empresa', 'Dashboard completo']
                             }
                         ].map((plan) => (
-                            <Card key={plan.id} className={cn(
-                                "relative flex flex-col rounded-[48px] border-none shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden group",
-                                plan.popular ? "ring-4 scale-105 z-10" : "bg-white hover:-translate-y-2 hover:ring-2",
-                                plan.borderFocus
+                            <div key={plan.id} className={cn(
+                                "relative flex flex-col rounded-3xl border-2 border-[#1E242B] p-8 md:p-10 transition-all bg-white",
+                                plan.popular ? "shadow-[8px_8px_0px_#F7AA1C] ring-4 ring-[#F7AA1C]/30 z-10" : "shadow-[5px_5px_0px_#1E242B]"
                              )}>
                                 {plan.popular && (
-                                    <div className="absolute top-0 right-0 bg-[#F7AA1C] text-white px-6 py-2 rounded-bl-[24px] font-black italic text-[10px] uppercase tracking-widest">
-                                        MAIS ASSINADO
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#F7AA1C] text-[#1E242B] border-2 border-[#1E242B] px-4 py-1 rounded-full font-black italic text-xs uppercase tracking-wider shadow-[2px_2px_0px_#1E242B]">
+                                        Recomendado
                                     </div>
                                 )}
-                                <div className="p-10 pb-6 text-center space-y-4">
-                                    <div className="mx-auto h-16 w-16 rounded-3xl flex items-center justify-center bg-slate-50 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                                        <plan.icon className={cn("h-8 w-8", plan.iconColor)} />
+                                <div className="text-center space-y-3 pb-6 border-b-2 border-[#1E242B]/10">
+                                    <div className="mx-auto h-14 w-14 rounded-2xl flex items-center justify-center bg-[#FAF8F5] border-2 border-[#1E242B]">
+                                        <plan.icon className="h-7 w-7 text-[#E9592C]" />
                                     </div>
-                                    <div className="space-y-2">
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tight text-slate-900">{plan.name}</h3>
-                                        <p className="text-xs text-slate-400 font-bold uppercase italic max-w-[200px] mx-auto">{plan.description}</p>
-                                    </div>
+                                    <h3 className="text-2xl font-black italic uppercase text-[#1E242B]">{plan.name}</h3>
+                                    <p className="text-xs font-bold text-slate-500 uppercase italic">{plan.description}</p>
                                 </div>
-                                <div className="p-10 pt-0 flex-grow space-y-8">
-                                    <div className="text-center">
-                                        <span className="text-5xl font-black italic text-slate-900">{plan.price}</span>
-                                        <span className="text-slate-400 font-black italic tracking-tighter">{plan.period}</span>
-                                    </div>
-                                    <div className="space-y-4 font-medium">
-                                        {plan.features.map((feature, i) => (
-                                            <div key={i} className="flex items-center gap-3">
-                                                <div className="bg-emerald-50 rounded-full p-1 text-emerald-500 shrink-0">
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                </div>
-                                                <span className="text-sm text-slate-600 font-bold italic">{feature}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+
+                                <div className="py-6 text-center">
+                                    <span className="text-4xl md:text-5xl font-black italic text-[#1E242B]">{plan.price}</span>
+                                    <span className="text-slate-500 font-bold italic">{plan.period}</span>
                                 </div>
-                                <div className="p-10 pt-4 mt-auto">
-                                    <Link href={`/login?mode=register&role=company&plan=${plan.id}`} className="group block">
+
+                                <div className="space-y-3 flex-grow pb-8">
+                                    {plan.features.map((feature, i) => (
+                                        <div key={i} className="flex items-center gap-3">
+                                            <CheckCircle2 className="h-5 w-5 text-[#E9592C] shrink-0" />
+                                            <span className="text-xs md:text-sm text-slate-700 font-bold italic">{feature}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="pt-4 mt-auto">
+                                    <Link href={`/login?mode=register&role=company&plan=${plan.id}`} className="block">
                                         <Button className={cn(
-                                            "w-full h-16 rounded-3xl font-black italic uppercase tracking-widest text-[10px] md:text-sm shadow-xl transition-all whitespace-normal px-2 cursor-pointer",
-                                            plan.popular ? "bg-[#F7AA1C] hover:bg-[#e09917] text-white shadow-[#F7AA1C]/30" : "bg-slate-900 hover:bg-slate-800 text-white"
+                                            "w-full h-14 rounded-2xl font-black italic uppercase text-xs md:text-sm border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] transition-all",
+                                            plan.popular ? "bg-[#E9592C] hover:bg-[#d84a1d] text-white" : "bg-[#FAF8F5] hover:bg-white text-[#1E242B]"
                                         )}>
                                             Assinar {plan.name.split(' ')[1]}
-                                            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform inline" />
                                         </Button>
                                     </Link>
                                 </div>
-                            </Card>
+                            </div>
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Final CTA Section */}
-            <section className="py-32 px-6">
-                <div className="max-w-5xl mx-auto bg-brand-blue rounded-[56px] p-12 md:p-20 text-center text-white relative overflow-hidden shadow-2xl shadow-brand-blue/40 group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl group-hover:bg-white/10 transition-all duration-700" />
-                    
-                    <div className="relative z-10 space-y-8">
-                        <h2 className="text-4xl md:text-6xl font-black italic uppercase leading-none">
-                            Bora fazer a sua loja ser a mais <span className="text-brand-yellow">QRIDA</span> do seu bairro?
+            {/* CTA Final */}
+            <section className="py-20 md:py-28 px-4 md:px-6">
+                <div className="max-w-5xl mx-auto bg-[#F7AA1C] border-4 border-[#1E242B] rounded-[40px] p-8 md:p-16 text-center text-[#1E242B] relative overflow-hidden shadow-[10px_10px_0px_#1E242B]">
+                    <div className="relative z-10 space-y-6 md:space-y-8">
+                        <h2 className="text-3xl md:text-5xl font-black italic uppercase leading-tight">
+                            Bora fazer a sua loja ser a mais <span className="bg-[#E9592C] text-white px-3 py-1 rounded-2xl border-2 border-[#1E242B] inline-block transform -rotate-1">QRIDA</span> do bairro?
                         </h2>
-                        <p className="text-xl text-white/70 font-medium max-w-2xl mx-auto italic">
-                            Otimize seu investimento naquilo que dá certo: fazer seus clientes virarem fãs.
+                        <p className="text-base md:text-xl font-bold max-w-2xl mx-auto italic text-slate-900">
+                            Invista em fidelizar os clientes que você já conquistou.
                         </p>
-                        <Link href="/login?mode=register&role=company" className="inline-block w-full max-w-[280px] md:max-w-sm">
-                            <Button className="h-auto py-4 md:h-16 px-6 md:px-12 w-full bg-white text-brand-blue hover:bg-slate-100 rounded-[24px] text-sm md:text-lg font-black italic uppercase transition-all hover:scale-105 whitespace-normal">
-                                Criar Conta Agora
+                        <Link href="/login?mode=register&role=company" className="inline-block w-full max-w-sm">
+                            <Button className="qrido-btn-primary w-full h-16 text-lg md:text-xl">
+                                Criar conta agora
                             </Button>
                         </Link>
                     </div>
                 </div>
             </section>
 
-            {/* Footer */}
-            <footer className="py-12 border-t border-slate-100 px-6">
-                <div className="max-w-7xl mx-auto flex flex-col md:row items-center justify-between gap-8">
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 bg-brand-blue rounded-lg flex items-center justify-center text-white">
-                            <Zap className="h-4 w-4 fill-current" />
-                        </div>
-                        <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900">QRIDO</span>
+            {/* Rodapé */}
+            <footer className="py-10 border-t-2 border-[#1E242B]/10 px-4 md:px-6 bg-[#FAF8F5]">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-3">
+                        <img src="/logo-main.png" alt="QRIDO" className="h-8 object-contain" />
                     </div>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic">© 2026 QRIDO • Todos os direitos reservados</p>
-                    <div className="flex items-center gap-6">
-                        <Link href="#" className="text-xs font-black uppercase italic text-slate-400 hover:text-brand-blue transition-colors">Termos</Link>
-                        <Link href="#" className="text-xs font-black uppercase italic text-slate-400 hover:text-brand-blue transition-colors">Privacidade</Link>
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider italic">© 2026 QRIDO • Todos os direitos reservados</p>
+                    <div className="flex items-center gap-6 text-xs font-black uppercase italic text-slate-600">
+                        <Link href="#" className="hover:text-[#E9592C] transition-colors">Termos</Link>
+                        <Link href="#" className="hover:text-[#E9592C] transition-colors">Privacidade</Link>
                     </div>
                 </div>
             </footer>

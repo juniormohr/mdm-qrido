@@ -145,26 +145,24 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
                     onClick={onClose}
                 />
-            )}
-
-            <div className={cn(
-                "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-100 shadow-xl lg:shadow-[2px_0_8px_rgba(0,0,0,0.02)] flex flex-col transition-transform duration-300 transform lg:translate-x-0 lg:static lg:inset-0",
+               <div className={cn(
+                "fixed inset-y-0 left-0 z-50 w-64 bg-[#FAF8F5] border-r-2 border-[#1E242B]/10 shadow-xl lg:shadow-[3px_0_0px_rgba(30,36,43,0.05)] flex flex-col transition-transform duration-300 transform lg:translate-x-0 lg:static lg:inset-0",
                 isOpen ? "translate-x-0" : "-translate-x-full"
             )}>
-                <div className="flex h-16 items-center justify-between px-6 border-b border-slate-50">
-                    <div className="h-10">
-                        <img src="/logo-main.png" alt="QRido" className="h-full object-contain" />
+                <div className="flex h-16 items-center justify-between px-6 border-b-2 border-[#1E242B]/10">
+                    <div className="h-9">
+                        <img src="/logo-main.png" alt="QRIDO" className="h-full object-contain" />
                     </div>
-                    <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-slate-600">
+                    <button onClick={onClose} className="lg:hidden text-slate-500 hover:text-slate-900">
                         <X className="h-6 w-6" />
                     </button>
                 </div>
 
-                <div className="flex-1 flex flex-col gap-1.5 p-4 overflow-y-auto">
+                <div className="flex-1 flex flex-col gap-2 p-4 overflow-y-auto">
                     {loading ? (
                         <div className="flex flex-col gap-4 p-4">
                             {[1, 2, 3, 4, 5].map((i) => (
-                                <div key={i} className="h-10 w-full bg-slate-50 animate-pulse rounded-xl" />
+                                <div key={i} className="h-10 w-full bg-slate-200/50 animate-pulse rounded-xl" />
                             ))}
                         </div>
                     ) : (
@@ -181,13 +179,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     key={item.name}
                                     href={item.href}
                                     className={cn(
-                                        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                                        "flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-black italic uppercase transition-all duration-150 border-2",
                                         isActive
-                                            ? "bg-brand-blue/10 text-brand-blue shadow-sm"
-                                            : "text-slate-500 hover:bg-slate-50 hover:text-brand-blue"
+                                            ? "bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]"
+                                            : "border-transparent text-slate-600 hover:bg-white hover:border-[#1E242B]/20 hover:text-[#1E242B]"
                                     )}
                                 >
-                                    <item.icon className={cn("h-5 w-5", isActive ? "text-brand-blue" : "text-slate-400")} />
+                                    <item.icon className={cn("h-5 w-5", isActive ? "text-[#1E242B]" : "text-slate-500")} />
                                     {item.name}
                                 </Link>
                             )
@@ -195,18 +193,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     )}
                 </div>
 
-                <div className="mt-auto border-t border-slate-50 p-4">
+                <div className="mt-auto border-t-2 border-[#1E242B]/10 p-4">
                     <form action="/auth/signout" method="post">
                         <button
                             type="submit"
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group"
+                            className="flex w-full items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-black italic uppercase text-slate-600 border-2 border-transparent hover:border-red-500/20 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group"
                         >
-                            <LogOut className="h-5 w-5 text-slate-400 group-hover:text-red-500" />
+                            <LogOut className="h-5 w-5 text-slate-500 group-hover:text-red-500" />
                             Sair
                         </button>
                     </form>
                 </div>
-            </div>
+            </div>       </div>
         </>
     )
 }

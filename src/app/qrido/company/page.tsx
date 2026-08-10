@@ -693,56 +693,56 @@ export default function CompanyDashboard() {
             </div>
 
             {/* Grid 2x2 de Métricas Consolidadas por Período */}
-            <div className="grid grid-cols-2 gap-4">
-                <div className="bg-brand-blue rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
                     <div>
-                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
-                            <Users className="h-6 w-6 text-white" />
+                        <div className="p-2.5 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
+                            <Users className="h-6 w-6" />
                         </div>
-                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Clientes<br />Fidelizados</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Clientes Fidelizados</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-white italic">{stats.totalLeads}</h2>
-                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Base no período</p>
+                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.totalLeads}</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Base no período</p>
                     </div>
                 </div>
 
-                <div className="bg-brand-green rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
+                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
                     <div>
-                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
-                            <TrendingUp className="h-6 w-6 text-white" />
+                        <div className="p-2.5 bg-[#E9592C]/20 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#E9592C]">
+                            <TrendingUp className="h-6 w-6" />
                         </div>
-                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Vendas em R$<br />(Período)</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Vendas em R$</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-white italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Feitas pelo QRido</p>
+                        <h2 className="text-3xl md:text-4xl font-black text-[#E9592C] italic">R$ {stats.leadsThisMonth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Feitas no período</p>
                     </div>
                 </div>
 
-                <div className="bg-brand-orange rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
+                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
                     <div>
-                        <div className="p-2 bg-white/20 rounded-2xl w-fit mb-4">
-                            <Zap className="h-6 w-6 text-white" />
+                        <div className="p-2.5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-[#1E242B]">
+                            <Zap className="h-6 w-6 fill-current" />
                         </div>
-                        <p className="text-[10px] font-black text-white/70 uppercase tracking-widest italic leading-tight">Pontos<br />Distribuidos</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Pontos Enviados</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-white italic">{stats.topSource}</h2>
-                        <p className="text-[9px] font-bold text-white/50 uppercase mt-1">Através das vendas</p>
+                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.topSource}</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Acumulados nas vendas</p>
                     </div>
                 </div>
 
-                <div className="bg-brand-yellow rounded-[32px] p-6 shadow-xl flex flex-col justify-between min-h-[160px] hover:scale-[1.02] transition-all duration-300">
+                <div className="bg-white rounded-3xl p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] flex flex-col justify-between min-h-[160px] hover:translate-x-0.5 hover:translate-y-0.5 transition-all">
                     <div>
-                        <div className="p-2 bg-black/10 rounded-2xl w-fit mb-4">
-                            <MessageSquareMore className="h-6 w-6 text-brand-dark" />
+                        <div className="p-2.5 bg-emerald-100 border-2 border-[#1E242B] rounded-2xl w-fit mb-4 text-emerald-700">
+                            <MessageSquareMore className="h-6 w-6" />
                         </div>
-                        <p className="text-[10px] font-black text-brand-dark/60 uppercase tracking-widest italic leading-tight">Resgates<br />Realizados</p>
+                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider italic leading-tight">Resgates Feitos</p>
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-brand-dark italic">{stats.redemptions}</h2>
-                        <p className="text-[9px] font-bold text-brand-dark/40 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
+                        <h2 className="text-3xl md:text-4xl font-black text-[#1E242B] italic">{stats.redemptions}</h2>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{stats.totalPoints} pts resgatados</p>
                     </div>
                 </div>
             </div>
@@ -751,42 +751,42 @@ export default function CompanyDashboard() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <Link
                     href="/qrido/products"
-                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                    className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
                 >
-                    <div className="h-12 w-12 bg-brand-orange/10 rounded-2xl flex items-center justify-center text-brand-orange group-hover:scale-110 transition-transform">
+                    <div className="h-12 w-12 bg-[#F7AA1C]/20 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                         <Package className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Produtos</span>
+                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Produtos</span>
                 </Link>
 
                 <Link
                     href="/qrido/transactions/new"
-                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                    className="flex flex-col items-center justify-center gap-3 p-5 bg-[#E9592C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#d4481d] text-white transition-all group"
                 >
-                    <div className="h-12 w-12 bg-brand-blue/10 rounded-2xl flex items-center justify-center text-brand-blue group-hover:scale-110 transition-transform">
+                    <div className="h-12 w-12 bg-white/20 border-2 border-white/40 rounded-2xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
                         <Plus className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">+ Venda</span>
+                    <span className="text-xs font-black text-white uppercase tracking-wider italic text-center">+ Nova Venda</span>
                 </Link>
 
                 <Link
                     href="/qrido/customers/new"
-                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                    className="flex flex-col items-center justify-center gap-3 p-5 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#e09917] text-[#1E242B] transition-all group"
                 >
-                    <div className="h-12 w-12 bg-brand-green/10 rounded-2xl flex items-center justify-center text-brand-green group-hover:scale-110 transition-transform">
+                    <div className="h-12 w-12 bg-[#1E242B]/10 border-2 border-[#1E242B]/30 rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                         <Users className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Cliente</span>
+                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">+ Novo Cliente</span>
                 </Link>
 
                 <button
                     onClick={() => document.getElementById('solicitacoes-pendentes')?.scrollIntoView({ behavior: 'smooth' })}
-                    className="flex flex-col items-center justify-center gap-3 p-6 bg-white border border-slate-100 rounded-[32px] shadow-sm hover:bg-slate-50 transition-colors group"
+                    className="flex flex-col items-center justify-center gap-3 p-5 bg-white border-2 border-[#1E242B] rounded-3xl shadow-[3px_3px_0px_#1E242B] hover:bg-[#FAF8F5] transition-all group"
                 >
-                    <div className="h-12 w-12 bg-brand-yellow/10 rounded-2xl flex items-center justify-center text-brand-yellow group-hover:scale-110 transition-transform">
+                    <div className="h-12 w-12 bg-slate-100 border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] group-hover:scale-105 transition-transform">
                         <MessageSquareMore className="h-6 w-6" />
                     </div>
-                    <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider italic text-center">Aprovações</span>
+                    <span className="text-xs font-black text-[#1E242B] uppercase tracking-wider italic text-center">Aprovações</span>
                 </button>
 
                 {isGroup && (
