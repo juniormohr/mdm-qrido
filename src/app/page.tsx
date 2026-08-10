@@ -1179,7 +1179,6 @@ export default function CustomerDashboard() {
                                     <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
                                 )}
                             </button>
-                            </button>
                         </>
                     ) : (
                         <Button
