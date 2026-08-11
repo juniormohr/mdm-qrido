@@ -1073,7 +1073,7 @@ export default function CompanyDashboard() {
                                 )}
                                 <div className="pt-4 border-t-2 border-[#1E242B]/10">
                                     <Link
-                                        href="/qrido/rewards"
+                                        href={`/qrido/rewards?preset=${preset}&startDate=${startDate}&endDate=${endDate}&holdingId=${selectedHoldingId}&groupId=${selectedGroupId}&storeId=${selectedStoreId}`}
                                         className="w-full text-xs font-black text-[#1E242B] uppercase italic bg-[#F7AA1C] border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] h-11 flex items-center justify-center rounded-2xl transition-all"
                                     >
                                         VER TODOS OS PRÊMIOS

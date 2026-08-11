@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { Gift, Plus, Trash2, Award, Pencil, Calendar, Clock, AlertTriangle, RefreshCcw } from 'lucide-react'
+import { Gift, Plus, Trash2, Award, Pencil, Calendar, Clock, AlertTriangle, RefreshCcw, Filter, Building, Building2, Store, Flame } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
@@ -19,9 +20,15 @@ interface Reward {
     is_active: boolean
     expires_at: string
     user_id?: string
+    company_name?: string
+    resgates?: number
 }
 
-export default function RewardsPage() {
+type DateFilterPreset = 'yesterday' | 'last_7_days' | 'last_30_days' | 'custom'
+
+function RewardsContent() {
+    const searchParams = useSearchParams()
+
     const [loading, setLoading] = useState(true)
     const [rewards, setRewards] = useState<Reward[]>([])
     const [showNewForm, setShowNewForm] = useState(false)
@@ -29,47 +36,234 @@ export default function RewardsPage() {
         title: '',
         description: '',
         points_required: 100,
-        expires_at: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 6 months default
+        expires_at: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 6 meses padrão
     })
     const [editingReward, setEditingReward] = useState<Reward | null>(null)
     const [userRole, setUserRole] = useState<string | null>(null)
+    const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding'>('store')
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+    // Filtros de Período
+    const [preset, setPreset] = useState<DateFilterPreset>(
+        (searchParams.get('preset') as DateFilterPreset) || 'last_30_days'
+    )
+    const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '')
+    const [endDate, setEndDate] = useState<string>(searchParams.get('endDate') || '')
+
+    // Listas para Seletores
+    const [holdingsList, setHoldingsList] = useState<Array<{ id: string, name: string }>>([])
+    const [groupsList, setGroupsList] = useState<Array<{ id: string, name: string }>>([])
+    const [storesList, setStoresList] = useState<Array<{ id: string, name: string }>>([])
+
+    // Filtros de Seleção
+    const [selectedHoldingId, setSelectedHoldingId] = useState<string>(searchParams.get('holdingId') || 'all')
+    const [selectedGroupId, setSelectedGroupId] = useState<string>(searchParams.get('groupId') || 'all')
+    const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all')
+
+    // Ajustar datas por preset se o preset mudar
+    useEffect(() => {
+        const today = new Date()
+        if (preset === 'yesterday') {
+            const yesterday = new Date(today)
+            yesterday.setDate(today.getDate() - 1)
+            const iso = yesterday.toISOString().split('T')[0]
+            setStartDate(iso)
+            setEndDate(iso)
+        } else if (preset === 'last_7_days') {
+            const d7 = new Date(today)
+            d7.setDate(today.getDate() - 7)
+            const iso7 = d7.toISOString().split('T')[0]
+            const isoToday = today.toISOString().split('T')[0]
+            setStartDate(iso7)
+            setEndDate(isoToday)
+        } else if (preset === 'last_30_days') {
+            const d30 = new Date(today)
+            d30.setDate(today.getDate() - 30)
+            const iso30 = d30.toISOString().split('T')[0]
+            const isoToday = today.toISOString().split('T')[0]
+            setStartDate(iso30)
+            setEndDate(isoToday)
+        }
+    }, [preset])
 
     useEffect(() => {
-        fetchRewards()
+        fetchInitialUserAndOptions()
     }, [])
 
-    async function fetchRewards() {
-        setLoading(true)
+    useEffect(() => {
+        if (currentUserId && startDate && endDate) {
+            fetchRewards()
+        }
+    }, [currentUserId, startDate, endDate, selectedHoldingId, selectedGroupId, selectedStoreId])
+
+    async function fetchInitialUserAndOptions() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        
-        if (!user) {
+        if (!user) return
+
+        setCurrentUserId(user.id)
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('role, company_type, company_id')
+            .eq('id', user.id)
+            .single()
+
+        const role = profile?.role || 'company'
+        const compType = profile?.company_type || 'store'
+        setUserRole(role)
+        setCompanyType(compType as 'store' | 'mall' | 'holding')
+
+        const isAdmin = role === 'admin'
+        const isHolding = role === 'holding' || compType === 'holding'
+        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+
+        if (isAdmin) {
+            const { data: holdings } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.holding,role.eq.holding')
+            const { data: groups } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.mall,role.eq.mall,role.eq.group')
+            const { data: stores } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.store,role.eq.company,role.eq.store')
+
+            setHoldingsList((holdings || []).map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
+            setGroupsList((groups || []).map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
+            setStoresList((stores || []).map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
+        } else if (isHolding) {
+            const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
+            const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
+            setGroupsList(grps)
+
+            if (grps.length > 0) {
+                const gIds = grps.map(g => g.id)
+                const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').in('mall_id', gIds).eq('status', 'accepted')
+                const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+                setStoresList(strs)
+            }
+        } else if (isGroup) {
+            const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').eq('mall_id', user.id).eq('status', 'accepted')
+            const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+            setStoresList(strs)
+        }
+    }
+
+    async function getEligibleEntityIds(userId: string, role: string, compType: string): Promise<string[]> {
+        const supabase = createClient()
+        const isAdmin = role === 'admin'
+        const isHolding = role === 'holding' || compType === 'holding'
+        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+
+        if (isAdmin) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            if (selectedGroupId !== 'all') {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
+                const storeIds = (cgData || []).map(c => c.store_id)
+                return [selectedGroupId, ...storeIds]
+            }
+
+            if (selectedHoldingId !== 'all') {
+                const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', selectedHoldingId).eq('status', 'accepted')
+                const gIds = (hgData || []).map(h => h.group_id)
+                let sIds: string[] = []
+                if (gIds.length > 0) {
+                    const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
+                    sIds = (cgData || []).map(c => c.store_id)
+                }
+                return [selectedHoldingId, ...gIds, ...sIds]
+            }
+
+            // Se for Admin sem filtros selecionados, inclui TODAS as empresas, grupos, holdings e o próprio admin
+            const { data: allProfiles } = await supabase.from('profiles').select('id')
+            return (allProfiles || []).map(p => p.id)
+        }
+
+        if (isHolding) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            if (selectedGroupId !== 'all') {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
+                const sIds = (cgData || []).map(c => c.store_id)
+                return [userId, selectedGroupId, ...sIds]
+            }
+
+            const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', userId).eq('status', 'accepted')
+            const gIds = (hgData || []).map(h => h.group_id)
+            let sIds: string[] = []
+            if (gIds.length > 0) {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
+                sIds = (cgData || []).map(c => c.store_id)
+            }
+            return [userId, ...gIds, ...sIds]
+        }
+
+        if (isGroup) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', userId).eq('status', 'accepted')
+            const sIds = (cgData || []).map(c => c.store_id)
+            return [userId, ...sIds]
+        }
+
+        return [userId]
+    }
+
+    async function fetchRewards() {
+        if (!currentUserId) return
+        setLoading(true)
+        const supabase = createClient()
+
+        const eligibleIds = await getEligibleEntityIds(currentUserId, userRole || 'company', companyType)
+
+        if (eligibleIds.length === 0) {
+            setRewards([])
             setLoading(false)
             return
         }
 
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role, company_id')
-            .eq('id', user.id)
-            .single()
+        const startIso = startDate ? `${startDate}T00:00:00.000Z` : '1970-01-01T00:00:00.000Z'
+        const endIso = endDate ? `${endDate}T23:59:59.999Z` : '2099-12-31T23:59:59.999Z'
 
-        if (profile) {
-            setUserRole(profile.role)
-        }
-
-        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
-
-        // Cada entidade (Loja, Grupo ou Holding) gerencia exclusivamente os seus próprios prêmios no catálogo
-        const targetUserIds = [resolvedCompanyId]
-
-        const { data } = await supabase
+        // 1. Buscar prêmios das entidades elegíveis
+        const { data: rawRewards } = await supabase
             .from('rewards')
             .select('*')
-            .in('user_id', targetUserIds)
-            .order('points_required', { ascending: true })
+            .in('user_id', eligibleIds)
 
-        if (data) setRewards(data)
+        // 2. Buscar nomes das empresas criadoras dos prêmios
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', eligibleIds)
+
+        // 3. Buscar transações de resgate no período para calcular a relevância (resgates)
+        const { data: redeemTxs } = await supabase
+            .from('loyalty_transactions')
+            .select('reward_id')
+            .in('user_id', eligibleIds)
+            .eq('type', 'redeem')
+            .gte('created_at', startIso)
+            .lte('created_at', endIso)
+
+        const redeemCounts: Record<string, number> = {}
+        if (redeemTxs) {
+            redeemTxs.forEach(tx => {
+                if (tx.reward_id) {
+                    redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
+                }
+            })
+        }
+
+        const formattedRewards: Reward[] = (rawRewards || []).map(r => {
+            const company = profiles?.find(p => p.id === r.user_id)
+            return {
+                ...r,
+                company_name: company?.full_name || (r.user_id === currentUserId ? 'Minha Loja' : 'Empresa Partner'),
+                resgates: redeemCounts[r.id] || 0
+            }
+        })
+
+        // Ordenação por RELEVÂNCIA: maior número de resgates no período e depois por pontos necessários
+        formattedRewards.sort((a, b) => (b.resgates || 0) - (a.resgates || 0) || a.points_required - b.points_required)
+
+        setRewards(formattedRewards)
         setLoading(false)
     }
 
@@ -78,7 +272,6 @@ export default function RewardsPage() {
         try {
             const supabase = createClient()
             const { data: { user } } = await supabase.auth.getUser()
-
             if (!user) return
 
             const { data: profile } = await supabase
@@ -89,9 +282,9 @@ export default function RewardsPage() {
 
             const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
 
-            let newId = typeof crypto !== 'undefined' && crypto.randomUUID 
-                ? crypto.randomUUID() 
-                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            let newId = typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
                     var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
                     return v.toString(16);
                 });
@@ -167,19 +360,22 @@ export default function RewardsPage() {
         }
     }
 
+    const isAdminOrHoldingOrGroup = userRole === 'admin' || userRole === 'holding' || userRole === 'mall' || userRole === 'group' || companyType === 'holding' || companyType === 'mall'
+
     return (
-        <div className="max-w-5xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-6xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-6">
             {userRole === 'company_staff' && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm font-bold">
                     Aviso: Acesso de Equipe (Somente Leitura). Você não tem permissão para adicionar, editar ou excluir prêmios.
                 </div>
             )}
+
             <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-4">
                     <BackButton />
                     <div>
                         <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Catálogo de Prêmios</h1>
-                        <p className="text-slate-500 font-medium">Gerencie as recompensas que seus clientes podem resgatar.</p>
+                        <p className="text-slate-500 font-medium">Consulte e gerencie todas as recompensas ativas no ecossistema.</p>
                     </div>
                 </div>
                 {userRole !== 'company_staff' && (
@@ -187,6 +383,108 @@ export default function RewardsPage() {
                         <Plus className="h-4 w-4 text-[#F7AA1C]" />
                         Novo Prêmio
                     </Button>
+                )}
+            </div>
+
+            {/* Painel de Filtros por Período e Hierarquia */}
+            <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <span className="text-xs font-black uppercase tracking-wider text-[#1E242B] flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-[#F7AA1C]" /> FILTRAR PERÍODO:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F5] p-1.5 rounded-2xl border-2 border-[#1E242B]">
+                        <button onClick={() => setPreset('yesterday')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'yesterday' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Dia -1</button>
+                        <button onClick={() => setPreset('last_7_days')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'last_7_days' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Últimos 7 dias</button>
+                        <button onClick={() => setPreset('last_30_days')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'last_30_days' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Últimos 30 dias</button>
+                        <button onClick={() => setPreset('custom')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'custom' ? 'bg-[#E9592C] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Personalizado</button>
+                    </div>
+                </div>
+
+                {preset === 'custom' && (
+                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500">De:</span>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-[#1E242B] bg-white"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500">Até:</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-[#1E242B] bg-white"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Seletores de Hierarquia para Admin / Holding / Grupo */}
+                {isAdminOrHoldingOrGroup && (
+                    <div className="pt-4 border-t-2 border-[#1E242B]/10 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {userRole === 'admin' && (
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                    <Building className="w-3 h-3 text-[#297CCB]" /> Holding:
+                                </label>
+                                <select
+                                    value={selectedHoldingId}
+                                    onChange={(e) => {
+                                        setSelectedHoldingId(e.target.value)
+                                        setSelectedGroupId('all')
+                                        setSelectedStoreId('all')
+                                    }}
+                                    className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                                >
+                                    <option value="all">Todas as Holdings</option>
+                                    {holdingsList.map((h) => (
+                                        <option key={h.id} value={h.id}>{h.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {(userRole === 'admin' || userRole === 'holding' || companyType === 'holding') && (
+                            <div>
+                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                    <Building2 className="w-3 h-3 text-[#E9592C]" /> Grupo:
+                                </label>
+                                <select
+                                    value={selectedGroupId}
+                                    onChange={(e) => {
+                                        setSelectedGroupId(e.target.value)
+                                        setSelectedStoreId('all')
+                                    }}
+                                    className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                                >
+                                    <option value="all">Todos os Grupos</option>
+                                    {groupsList.map((g) => (
+                                        <option key={g.id} value={g.id}>{g.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                <Store className="w-3 h-3 text-[#167657]" /> Empresa / Loja:
+                            </label>
+                            <select
+                                value={selectedStoreId}
+                                onChange={(e) => setSelectedStoreId(e.target.value)}
+                                className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                            >
+                                <option value="all">Todas as Lojas</option>
+                                {storesList.map((s) => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -246,76 +544,95 @@ export default function RewardsPage() {
                 {loading ? (
                     <p className="text-slate-400 font-medium">Carregando catálogo...</p>
                 ) : rewards.length === 0 ? (
-                    <p className="text-slate-400 font-medium col-span-full py-10 text-center">Nenhum prêmio cadastrado ainda.</p>
+                    <p className="text-slate-400 font-medium col-span-full py-10 text-center">Nenhum prêmio encontrado para os filtros selecionados.</p>
                 ) : (
-                    rewards.map(reward => (
-                        <Card key={reward.id} className="p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl hover:translate-x-0.5 hover:translate-y-0.5 transition-all group">
-                            <div className="flex flex-col h-full space-y-4">
-                                <div className="flex items-start justify-between">
-                                    <div className="p-3 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
-                                        <Award className="h-6 w-6" />
-                                    </div>
-                                    {userRole !== 'company_staff' && (
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => setEditingReward({
-                                                    ...reward,
-                                                    expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
-                                                })}
-                                                className="text-[#1E242B] hover:bg-[#FAF8F5] transition-all"
-                                                title="Editar prêmio"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDeleteReward(reward.id)}
-                                                className="text-red-500 hover:bg-red-50 transition-all"
-                                                title="Excluir prêmio"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                    rewards.map(reward => {
+                        const isMine = reward.user_id === currentUserId
+                        const canManage = isMine && userRole !== 'company_staff'
+
+                        return (
+                            <Card key={reward.id} className="p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl hover:translate-x-0.5 hover:translate-y-0.5 transition-all group">
+                                <div className="flex flex-col h-full space-y-4">
+                                    <div className="flex items-start justify-between">
+                                        <div className="p-3 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl text-[#1E242B] shadow-[2px_2px_0px_#1E242B]">
+                                            <Award className="h-6 w-6" />
                                         </div>
-                                    )}
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                    <h3 className="text-xl font-black text-[#1E242B] uppercase italic leading-tight">{reward.title}</h3>
-                                    <p className="text-slate-500 text-xs mt-1 font-bold">{reward.description || 'Sem descrição'}</p>
-                                    <div className="mt-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-xl border border-[#1E242B]/20 w-fit">
-                                        <Clock className="h-3.5 w-3.5 text-[#E9592C]" />
-                                        <span className={cn(
-                                            "text-[10px] font-black uppercase italic",
-                                            reward.expires_at && new Date(reward.expires_at) < new Date()
-                                                ? "text-red-600"
-                                                : "text-slate-700"
-                                        )}>
-                                            {reward.expires_at
-                                                ? `Válido até ${new Date(reward.expires_at).toLocaleDateString('pt-BR')}`
-                                                : 'Sem data de expiração'}
-                                        </span>
+                                        {canManage && (
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => setEditingReward({
+                                                        ...reward,
+                                                        expires_at: reward.expires_at ? reward.expires_at.split('T')[0] : ''
+                                                    })}
+                                                    className="text-[#1E242B] hover:bg-[#FAF8F5] transition-all"
+                                                    title="Editar prêmio"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDeleteReward(reward.id)}
+                                                    className="text-red-500 hover:bg-red-50 transition-all"
+                                                    title="Excluir prêmio"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 space-y-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-[10px] font-black uppercase text-[#297CCB] tracking-wider">
+                                                {reward.company_name}
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-600 italic flex items-center gap-1">
+                                                <Flame className="w-3 h-3 text-[#E9592C]" />
+                                                {reward.resgates} {reward.resgates === 1 ? 'Resgate' : 'Resgates'}
+                                            </span>
+                                        </div>
+
+                                        <h3 className="text-xl font-black text-[#1E242B] uppercase italic leading-tight">{reward.title}</h3>
+                                        <p className="text-slate-500 text-xs mt-1 font-bold">{reward.description || 'Sem descrição'}</p>
+                                        <div className="mt-3 flex items-center gap-2 bg-[#FAF8F5] p-2 rounded-xl border border-[#1E242B]/20 w-fit">
+                                            <Clock className="h-3.5 w-3.5 text-[#E9592C]" />
+                                            <span className={cn(
+                                                "text-[10px] font-black uppercase italic",
+                                                reward.expires_at && new Date(reward.expires_at) < new Date()
+                                                    ? "text-red-600"
+                                                    : "text-slate-700"
+                                            )}>
+                                                {reward.expires_at
+                                                    ? `Válido até ${new Date(reward.expires_at).toLocaleDateString('pt-BR')}`
+                                                    : 'Sem data de expiração'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-auto pt-4 flex items-center justify-between border-t-2 border-[#1E242B]/10">
+                                        <span className="text-2xl font-black text-[#297CCB] italic">{reward.points_required} <span className="text-xs uppercase tracking-tighter font-black">pts</span></span>
+                                        {new Date(reward.expires_at) < new Date() ? (
+                                            canManage ? (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleRenewReward(reward)}
+                                                    className="h-9 bg-[#E9592C] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] text-[10px] font-black uppercase px-3 gap-1.5"
+                                                >
+                                                    <RefreshCcw className="h-3 w-3" />
+                                                    Renovar
+                                                </Button>
+                                            ) : (
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-100 border border-red-300 px-2.5 py-1 rounded-lg">Expirado</span>
+                                            )
+                                        ) : (
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#167657] bg-[#167657]/15 border border-[#167657] px-2.5 py-1 rounded-lg">Ativo</span>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="mt-auto pt-4 flex items-center justify-between border-t-2 border-[#1E242B]/10">
-                                    <span className="text-2xl font-black text-[#297CCB] italic">{reward.points_required} <span className="text-xs uppercase tracking-tighter font-black">pts</span></span>
-                                    {new Date(reward.expires_at) < new Date() ? (
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleRenewReward(reward)}
-                                            className="h-9 bg-[#E9592C] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] text-[10px] font-black uppercase px-3 gap-1.5"
-                                        >
-                                            <RefreshCcw className="h-3 w-3" />
-                                            Renovar
-                                        </Button>
-                                    ) : (
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#167657] bg-[#167657]/15 border border-[#167657] px-2.5 py-1 rounded-lg">Ativo</span>
-                                    )}
-                                </div>
-                            </div>
-                        </Card>
-                    ))
+                            </Card>
+                        )
+                    })
                 )}
             </div>
 
@@ -393,3 +710,10 @@ export default function RewardsPage() {
     )
 }
 
+export default function RewardsPage() {
+    return (
+        <Suspense fallback={<div className="p-8 text-center text-slate-500 font-bold">Carregando catálogo de prêmios...</div>}>
+            <RewardsContent />
+        </Suspense>
+    )
+}
