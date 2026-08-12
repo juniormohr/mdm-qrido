@@ -2096,6 +2096,7 @@ function CustomerDashboardContent() {
                     </div>
                 </div>
             )}
+        </div>
     )
 }
 
