@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil, Zap, Lock, Sparkles } from 'lucide-react'
+import { Plus, Trash2, ShoppingBag, Package, DollarSign, Award, Pencil, Zap, Lock, Sparkles, Building, Building2, Store } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 import { UpsellModal } from '@/components/qrido/upsell-modal'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -23,6 +23,9 @@ interface Product {
     highlight_active?: boolean
     highlight_expires_at?: string | null
     double_points_active?: boolean
+    company_id?: string
+    company_name?: string
+    created_at?: string
 }
 
 function ProductManagementContent() {
@@ -43,15 +46,33 @@ function ProductManagementContent() {
     const [upsellLimit, setUpsellLimit] = useState(0)
     const [pointsPerReal, setPointsPerReal] = useState<number>(1.0)
     const [userRole, setUserRole] = useState<string | null>(null)
+    const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding'>('store')
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     
     // Estados do Destaque
     const [tier, setTier] = useState<string>('basic')
     const [showHighlightModal, setShowHighlightModal] = useState(false)
     const [selectedProductForHighlight, setSelectedProductForHighlight] = useState<Product | null>(null)
 
+    // Listas para Seletores de Hierarquia
+    const [holdingsList, setHoldingsList] = useState<Array<{ id: string, name: string }>>([])
+    const [groupsList, setGroupsList] = useState<Array<{ id: string, name: string }>>([])
+    const [storesList, setStoresList] = useState<Array<{ id: string, name: string }>>([])
+
+    // Filtros de Seleção
+    const [selectedHoldingId, setSelectedHoldingId] = useState<string>(searchParams.get('holdingId') || 'all')
+    const [selectedGroupId, setSelectedGroupId] = useState<string>(searchParams.get('groupId') || 'all')
+    const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all')
+
     useEffect(() => {
-        fetchProducts()
+        fetchInitialUserAndOptions()
     }, [])
+
+    useEffect(() => {
+        if (currentUserId) {
+            fetchProducts()
+        }
+    }, [currentUserId, selectedHoldingId, selectedGroupId, selectedStoreId])
 
     useEffect(() => {
         const highlightSuccess = searchParams.get('highlight_success') || searchParams.get('payment_success') || searchParams.get('highlight_activated')
@@ -65,41 +86,170 @@ function ProductManagementContent() {
         }
     }, [searchParams])
 
-    async function fetchProducts() {
-        setLoading(true)
+    async function fetchInitialUserAndOptions() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
+        setCurrentUserId(user.id)
+
         const { data: profile } = await supabase
             .from('profiles')
-            .select('subscription_tier, role, company_id')
+            .select('subscription_tier, role, company_type, company_id')
             .eq('id', user.id)
             .single()
 
-        if (profile) {
-            setTier(profile.subscription_tier || 'basic')
-            setUserRole(profile.role)
+        const role = profile?.role || 'company'
+        const compType = profile?.company_type || 'store'
+        setTier(profile?.subscription_tier || 'basic')
+        setUserRole(role)
+        setCompanyType(compType as 'store' | 'mall' | 'holding')
+
+        const isAdmin = role === 'admin'
+        const isHolding = role === 'holding' || compType === 'holding'
+        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+
+        if (isAdmin) {
+            const { data: holdings } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.holding,role.eq.holding')
+            const { data: groups } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.mall,role.eq.mall,role.eq.group')
+            const { data: stores } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.store,role.eq.company,role.eq.store')
+
+            setHoldingsList((holdings || []).map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
+            setGroupsList((groups || []).map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
+            setStoresList((stores || []).map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
+        } else if (isHolding) {
+            const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
+            const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
+            setGroupsList(grps)
+
+            if (grps.length > 0) {
+                const gIds = grps.map(g => g.id)
+                const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').in('mall_id', gIds).eq('status', 'accepted')
+                const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+                setStoresList(strs)
+            }
+        } else if (isGroup) {
+            const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').eq('mall_id', user.id).eq('status', 'accepted')
+            const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
+            setStoresList(strs)
+        }
+    }
+
+    async function getEligibleEntityIds(userId: string, role: string, compType: string): Promise<string[]> {
+        const supabase = createClient()
+        const isAdmin = role === 'admin'
+        const isHolding = role === 'holding' || compType === 'holding'
+        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
+
+        if (isAdmin) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            if (selectedGroupId !== 'all') {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
+                const storeIds = (cgData || []).map(c => c.store_id)
+                return [selectedGroupId, ...storeIds]
+            }
+
+            if (selectedHoldingId !== 'all') {
+                const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', selectedHoldingId).eq('status', 'accepted')
+                const gIds = (hgData || []).map(h => h.group_id)
+                let sIds: string[] = []
+                if (gIds.length > 0) {
+                    const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
+                    sIds = (cgData || []).map(c => c.store_id)
+                }
+                return [selectedHoldingId, ...gIds, ...sIds]
+            }
+
+            const { data: allProfiles } = await supabase.from('profiles').select('id')
+            return (allProfiles || []).map(p => p.id)
         }
 
-        const resolvedCompanyId = (profile?.role === 'company_staff' && profile.company_id) ? profile.company_id : user.id
+        if (isHolding) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            if (selectedGroupId !== 'all') {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
+                const sIds = (cgData || []).map(c => c.store_id)
+                return [userId, selectedGroupId, ...sIds]
+            }
+
+            const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', userId).eq('status', 'accepted')
+            const gIds = (hgData || []).map(h => h.group_id)
+            let sIds: string[] = []
+            if (gIds.length > 0) {
+                const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
+                sIds = (cgData || []).map(c => c.store_id)
+            }
+            return [userId, ...gIds, ...sIds]
+        }
+
+        if (isGroup) {
+            if (selectedStoreId !== 'all') return [selectedStoreId]
+
+            const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', userId).eq('status', 'accepted')
+            const sIds = (cgData || []).map(c => c.store_id)
+            return [userId, ...sIds]
+        }
+
+        return [userId]
+    }
+
+    async function fetchProducts() {
+        if (!currentUserId) return
+        setLoading(true)
+        const supabase = createClient()
+
+        const eligibleIds = await getEligibleEntityIds(currentUserId, userRole || 'company', companyType)
+
+        if (eligibleIds.length === 0) {
+            setProducts([])
+            setLoading(false)
+            return
+        }
 
         const { data: loyaltyData } = await supabase
             .from('loyalty_configs')
             .select('points_per_real')
-            .eq('user_id', resolvedCompanyId)
+            .eq('user_id', currentUserId)
             .maybeSingle()
 
         const ratio = loyaltyData && loyaltyData.points_per_real !== null ? Number(loyaltyData.points_per_real) : 1.0
         setPointsPerReal(ratio)
 
-        const { data } = await supabase
+        const { data: rawProducts } = await supabase
             .from('products')
             .select('*')
-            .eq('company_id', resolvedCompanyId)
-            .order('created_at', { ascending: false })
+            .eq('is_active', true)
+            .in('company_id', eligibleIds)
 
-        if (data) setProducts(data)
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', eligibleIds)
+
+        const formattedProducts: Product[] = (rawProducts || []).map(p => {
+            const company = profiles?.find(prof => prof.id === p.company_id)
+            return {
+                ...p,
+                company_name: company?.full_name || (p.company_id === currentUserId ? 'Minha Empresa' : 'Empresa Partner')
+            }
+        })
+
+        // Ordenação: 
+        // 1. Produtos cadastrados pelo próprio usuário/admin logado primeiro
+        // 2. Ordem de cadastro decrescente (últimos cadastrados primeiro)
+        formattedProducts.sort((a, b) => {
+            const aIsMine = a.company_id === currentUserId ? 1 : 0
+            const bIsMine = b.company_id === currentUserId ? 1 : 0
+            if (aIsMine !== bIsMine) return bIsMine - aIsMine
+
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+            return timeB - timeA
+        })
+
+        setProducts(formattedProducts)
         setLoading(false)
     }
 
@@ -291,6 +441,70 @@ function ProductManagementContent() {
                 )}
             </div>
 
+            {/* Painel de Seletores de Hierarquia para Admin / Holding / Grupo */}
+            {(userRole === 'admin' || userRole === 'holding' || userRole === 'mall' || userRole === 'group' || companyType === 'holding' || companyType === 'mall') && (
+                <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {userRole === 'admin' && (
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                <Building className="w-3 h-3 text-[#297CCB]" /> Holding:
+                            </label>
+                            <select
+                                value={selectedHoldingId}
+                                onChange={(e) => {
+                                    setSelectedHoldingId(e.target.value)
+                                    setSelectedGroupId('all')
+                                    setSelectedStoreId('all')
+                                }}
+                                className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                            >
+                                <option value="all">Todas as Holdings</option>
+                                {holdingsList.map((h) => (
+                                    <option key={h.id} value={h.id}>{h.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    {(userRole === 'admin' || userRole === 'holding' || companyType === 'holding') && (
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                <Building2 className="w-3 h-3 text-[#E9592C]" /> Grupo:
+                            </label>
+                            <select
+                                value={selectedGroupId}
+                                onChange={(e) => {
+                                    setSelectedGroupId(e.target.value)
+                                    setSelectedStoreId('all')
+                                }}
+                                className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                            >
+                                <option value="all">Todos os Grupos</option>
+                                {groupsList.map((g) => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                            <Store className="w-3 h-3 text-[#167657]" /> Empresa / Loja:
+                        </label>
+                        <select
+                            value={selectedStoreId}
+                            onChange={(e) => setSelectedStoreId(e.target.value)}
+                            className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                        >
+                            <option value="all">Todas as Lojas</option>
+                            {storesList.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            )}
+
             {showNewForm && (
                 <Card className="p-8 border-none shadow-xl bg-white animate-in slide-in-from-top duration-300">
                     <form onSubmit={handleAddProduct} className="space-y-6">
@@ -439,7 +653,7 @@ function ProductManagementContent() {
                                     <div className="p-3 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl text-white shadow-[2px_2px_0px_#1E242B]">
                                         <ShoppingBag className="h-6 w-6" />
                                     </div>
-                                    {userRole !== 'company_staff' && (
+                                    {product.company_id === currentUserId && userRole !== 'company_staff' && (
                                         <div className="flex items-center gap-1">
                                             <Button
                                                 variant="ghost"
@@ -461,6 +675,9 @@ function ProductManagementContent() {
                                     )}
                                 </div>
                                 <div>
+                                    <span className="text-[10px] font-black uppercase text-[#297CCB] tracking-wider block mb-1">
+                                        {product.company_name}
+                                    </span>
                                     <h3 className="text-xl font-black text-[#1E242B] uppercase italic leading-tight">{product.name}</h3>
                                     <p className="text-slate-500 text-xs mt-1 font-bold line-clamp-2">{product.description || 'Sem descrição'}</p>
                                     <div className="py-2.5 flex items-center justify-between bg-[#FAF8F5] px-3.5 rounded-2xl border-2 border-[#1E242B] mt-3">

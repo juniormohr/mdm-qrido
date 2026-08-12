@@ -22,6 +22,7 @@ interface Reward {
     user_id?: string
     company_name?: string
     resgates?: number
+    created_at?: string
 }
 
 type DateFilterPreset = 'yesterday' | 'last_7_days' | 'last_30_days' | 'custom'
@@ -221,11 +222,13 @@ function RewardsContent() {
         const startIso = startDate ? `${startDate}T00:00:00.000Z` : '1970-01-01T00:00:00.000Z'
         const endIso = endDate ? `${endDate}T23:59:59.999Z` : '2099-12-31T23:59:59.999Z'
 
-        // 1. Buscar prêmios das entidades elegíveis
+        // 1. Buscar prêmios ativos das entidades elegíveis
         const { data: rawRewards } = await supabase
             .from('rewards')
             .select('*')
+            .eq('is_active', true)
             .in('user_id', eligibleIds)
+            .order('created_at', { ascending: false })
 
         // 2. Buscar nomes das empresas criadoras dos prêmios
         const { data: profiles } = await supabase
@@ -233,7 +236,7 @@ function RewardsContent() {
             .select('id, full_name')
             .in('id', eligibleIds)
 
-        // 3. Buscar transações de resgate no período para calcular a relevância (resgates)
+        // 3. Buscar transações de resgate no período para estatísticas
         const { data: redeemTxs } = await supabase
             .from('loyalty_transactions')
             .select('reward_id')
@@ -255,13 +258,23 @@ function RewardsContent() {
             const company = profiles?.find(p => p.id === r.user_id)
             return {
                 ...r,
-                company_name: company?.full_name || (r.user_id === currentUserId ? 'Minha Loja' : 'Empresa Partner'),
+                company_name: company?.full_name || (r.user_id === currentUserId ? 'Minha Empresa' : 'Empresa Partner'),
                 resgates: redeemCounts[r.id] || 0
             }
         })
 
-        // Ordenação por RELEVÂNCIA: maior número de resgates no período e depois por pontos necessários
-        formattedRewards.sort((a, b) => (b.resgates || 0) - (a.resgates || 0) || a.points_required - b.points_required)
+        // Ordenação: 
+        // 1. Prêmios cadastrados pelo próprio usuário (ex: admin ou loja logada) primeiro
+        // 2. Prêmios por ordem de cadastro (últimos cadastrados primeiro)
+        formattedRewards.sort((a, b) => {
+            const aIsMine = a.user_id === currentUserId ? 1 : 0
+            const bIsMine = b.user_id === currentUserId ? 1 : 0
+            if (aIsMine !== bIsMine) return bIsMine - aIsMine
+
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
+            return timeB - timeA
+        })
 
         setRewards(formattedRewards)
         setLoading(false)
