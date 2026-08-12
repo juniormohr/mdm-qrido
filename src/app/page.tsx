@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { filterActiveCompanyIds } from '@/lib/subscription-utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Sidebar } from '@/components/sidebar'
 import {
     LayoutDashboard,
     ShoppingBag,
@@ -39,7 +40,8 @@ import {
     Gift,
     Heart,
     MapPin,
-    Flame
+    Flame,
+    Menu
 } from 'lucide-react'
 
 interface CartItem {
@@ -91,8 +93,10 @@ const GoldCoinsIcon = () => (
     </span>
 )
 
-export default function CustomerDashboard() {
+function CustomerDashboardContent() {
     const router = useRouter()
+    const searchParams = useSearchParams()
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [companies, setCompanies] = useState<Company[]>([])
     const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
     const selectedCompanyRef = useRef<Company | null>(null)
@@ -128,6 +132,13 @@ export default function CustomerDashboard() {
     const [lastAddedItem, setLastAddedItem] = useState<string | null>(null)
     const [purchaseRequests, setPurchaseRequests] = useState<any[]>([])
     const [activeTab, setActiveTab] = useState<'offers' | 'my_stores' | 'requests' | 'history' | 'rewards'>('offers')
+
+    useEffect(() => {
+        const tab = searchParams.get('tab')
+        if (tab && ['offers', 'my_stores', 'requests', 'history', 'rewards'].includes(tab)) {
+            setActiveTab(tab as any)
+        }
+    }, [searchParams])
     const [isHistoryOpen, setIsHistoryOpen] = useState(false)
     const [historyData, setHistoryData] = useState<any[]>([])
     const [historyLoading, setHistoryLoading] = useState(false)
@@ -1150,15 +1161,28 @@ export default function CustomerDashboard() {
 
     return (
         <div className="min-h-screen bg-[#FAF9F6] text-slate-800 py-8 space-y-8 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+            {/* Sidebar para navegação lateral do cliente */}
+            <Sidebar
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+            />
+
             {/* Header / Perfil do Cliente */}
             <div className="flex items-center justify-between py-2 border-b-2 border-[#1E242B]/10">
                 <div className="flex items-center gap-3">
-                    <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B]">
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B] shrink-0"
+                        title="Abrir Menu / Abas Laterais"
+                    >
+                        <Menu className="h-5 w-5" />
+                    </button>
+                    <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B] shrink-0">
                         {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider italic">
-                            {userProfile ? 'Seja bem-vindo' : 'Seja bem-vindo'}
+                            Seja bem-vindo
                         </p>
                         <h1 className="text-base sm:text-lg font-black text-[#1E242B] uppercase italic tracking-tight">
                             {userProfile ? userProfile.full_name : 'VISITANTE'}
@@ -1167,20 +1191,24 @@ export default function CustomerDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {userProfile ? (
-                        <>
-                            <button
-                                onClick={() => setActiveTab('requests')}
-                                className="relative p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
-                                title="Notificações / Pedidos"
-                            >
-                                <Bell className="h-5 w-5" />
-                                {hasNewNotifications && (
-                                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
-                                )}
-                            </button>
-                        </>
-                    ) : (
+                    <button
+                        onClick={() => setActiveTab('requests')}
+                        className="relative p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
+                        title="Notificações / Pedidos"
+                    >
+                        <Bell className="h-5 w-5" />
+                        {hasNewNotifications && (
+                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => router.push('/qrido/settings')}
+                        className="p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
+                        title="Configurações"
+                    >
+                        <Settings className="h-5 w-5" />
+                    </button>
+                    {!userProfile && (
                         <Button
                             onClick={() => router.push('/login?role=customer')}
                             className="bg-brand-blue hover:bg-brand-blue/90 text-white font-black italic uppercase tracking-wider text-[10px] px-4 h-10 rounded-xl shadow-sm"
@@ -2068,7 +2096,14 @@ export default function CustomerDashboard() {
                     </div>
                 </div>
             )}
-        </div>
+    )
+}
+
+export default function CustomerDashboard() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#1E242B]" /></div>}>
+            <CustomerDashboardContent />
+        </Suspense>
     )
 }
 

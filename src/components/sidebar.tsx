@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X, Megaphone, Building2 } from 'lucide-react'
+import { LayoutDashboard, QrCode, TrendingUp, Settings, LogOut, Users, BarChart3, Gift, Settings2, ShoppingBag, Package, Store, Menu, X, Megaphone, Building2, History as HistoryIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 
@@ -77,7 +77,12 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const customerNav = [
-        { name: 'Dashboard Cliente', href: '/qrido/customer', icon: LayoutDashboard },
+        { name: 'Início', href: '/', icon: LayoutDashboard },
+        { name: 'Ofertas', href: '/?tab=offers', icon: ShoppingBag },
+        { name: 'Lojas', href: '/?tab=my_stores', icon: Store },
+        { name: 'Brindes', href: '/?tab=rewards', icon: Gift },
+        { name: 'Pedidos', href: '/?tab=requests', icon: ShoppingBag },
+        { name: 'Extrato', href: '/?tab=history', icon: HistoryIcon },
         { name: 'Configurações', href: '/qrido/settings', icon: Settings },
     ]
 
