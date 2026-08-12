@@ -326,7 +326,7 @@ function ProductManagementContent() {
 
     async function handleToggleProductDoublePoints(product: Product) {
         const supabase = createClient()
-        const newValue = product.double_points_active === false ? true : false
+        const newValue = !Boolean(product.double_points_active)
         const { error } = await supabase
             .from('products')
             .update({ double_points_active: newValue })
@@ -372,7 +372,8 @@ function ProductManagementContent() {
             name: newProduct.name,
             description: newProduct.description,
             price: numericPrice,
-            points_reward: calcPoints
+            points_reward: calcPoints,
+            double_points_active: false
         })
 
         if (!error) {
@@ -692,7 +693,7 @@ function ProductManagementContent() {
                                             <input
                                                 type="checkbox"
                                                 className="sr-only peer"
-                                                checked={product.double_points_active !== false}
+                                                checked={Boolean(product.double_points_active)}
                                                 disabled={userRole === 'company_staff'}
                                                 onChange={() => handleToggleProductDoublePoints(product)}
                                             />
