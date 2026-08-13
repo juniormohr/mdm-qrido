@@ -113,6 +113,7 @@ function CustomerDashboardContent() {
     const [verificationCode, setVerificationCode] = useState('')
     const [customerBalance, setCustomerBalance] = useState(0)
     const [globalScore, setGlobalScore] = useState(0)
+    const [allTimeScore, setAllTimeScore] = useState(0)
     const [userProfile, setUserProfile] = useState<{ full_name: string, phone: string } | null>(null)
     const userPhoneRef = useRef<string | null>(null)
 
@@ -653,14 +654,17 @@ function CustomerDashboardContent() {
 
             const finalStoresList = Object.values(storesMap)
             const totalScore = finalStoresList.reduce((acc, s) => acc + (s.points_balance || 0), 0)
-            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore)
+            const totalAllTime = allTxs?.filter(t => t.type === 'earn').reduce((acc, t) => acc + (Number(t.points) || 0), 0) || 0
+            console.log('fetchMyStores: Lista Final:', finalStoresList, 'Score Total:', totalScore, 'Total Acumulado:', totalAllTime)
 
             setMyStores(finalStoresList)
-            setGlobalScore(totalScore) // Set global score here
+            setGlobalScore(totalScore)
+            setAllTimeScore(totalAllTime)
         } else {
             console.warn('fetchMyStores: Nenhum registro encontrado para searchTerms:', searchTerms)
             setMyStores([])
-            setGlobalScore(0) // Reset global score if no records
+            setGlobalScore(0)
+            setAllTimeScore(0)
         }
     }
 
@@ -1160,23 +1164,25 @@ function CustomerDashboardContent() {
     const cartPointsMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active) ? 2 : 1
 
     return (
-        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 py-8 space-y-8 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <div className="min-h-screen bg-[#FAF9F6] text-slate-800 flex flex-col lg:flex-row w-full">
             {/* Sidebar para navegação lateral do cliente */}
             <Sidebar
                 isOpen={isSidebarOpen}
                 onClose={() => setIsSidebarOpen(false)}
             />
 
-            {/* Header / Perfil do Cliente */}
-            <div className="flex items-center justify-between py-2 border-b-2 border-[#1E242B]/10">
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setIsSidebarOpen(true)}
-                        className="p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B] shrink-0"
-                        title="Abrir Menu / Abas Laterais"
-                    >
-                        <Menu className="h-5 w-5" />
-                    </button>
+            {/* Conteúdo Principal */}
+            <main className="flex-1 min-w-0 py-8 space-y-8 pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+                {/* Header / Perfil do Cliente */}
+                <div className="flex items-center justify-between py-2 border-b-2 border-[#1E242B]/10">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => setIsSidebarOpen(true)}
+                            className="lg:hidden p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B] shrink-0"
+                            title="Abrir Menu / Abas Laterais"
+                        >
+                            <Menu className="h-5 w-5" />
+                        </button>
                     <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B] shrink-0">
                         {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
                     </div>
@@ -1225,27 +1231,42 @@ function CustomerDashboardContent() {
                     {userProfile ? (
                         <>
                             <div className="flex justify-between items-start mb-4">
-                                <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-[#F7AA1C] uppercase tracking-[2px] italic">Total de Pontos Ativos</p>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-5xl md:text-6xl font-black text-white italic tracking-tighter">
-                                            {showScore ? globalScore : '••••'}
-                                            <span className="text-xl ml-2 text-white/50 uppercase tracking-normal font-bold">pts</span>
-                                        </h2>
-                                        <button
-                                            onClick={() => setShowScore(!showScore)}
-                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50"
-                                        >
-                                            {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                                        </button>
-                                    </div>
+                                <span className="text-[11px] font-black text-[#F7AA1C] uppercase tracking-[2px] italic">Resumo de Pontuação</span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowScore(!showScore)}
+                                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50"
+                                        title={showScore ? "Ocultar pontos" : "Mostrar pontos"}
+                                    >
+                                        {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('rewards')}
+                                        className="h-12 w-12 bg-[#F7AA1C] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] transition-all border-2 border-[#1E242B]"
+                                    >
+                                        <Gift className="h-6 w-6" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setActiveTab('rewards')}
-                                    className="h-14 w-14 bg-[#F7AA1C] rounded-2xl flex items-center justify-center text-[#1E242B] shadow-[2px_2px_0px_#1E242B] hover:bg-[#e09917] transition-all border-2 border-[#1E242B]"
-                                >
-                                    <Gift className="h-7 w-7" />
-                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pb-4">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] sm:text-[11px] font-black text-[#F7AA1C] uppercase tracking-[1.5px] italic">Pontos Ativos</p>
+                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white italic tracking-tighter">
+                                        {showScore ? globalScore : '••••'}
+                                        <span className="text-xs sm:text-sm ml-1 text-white/50 uppercase tracking-normal font-bold">pts</span>
+                                    </h2>
+                                    <p className="text-[10px] text-white/40 font-bold italic">Saldo para resgate</p>
+                                </div>
+
+                                <div className="space-y-1 pl-4 border-l border-white/10">
+                                    <p className="text-[10px] sm:text-[11px] font-black text-white/70 uppercase tracking-[1.5px] italic">Pontos Totais</p>
+                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#F7AA1C] italic tracking-tighter">
+                                        {showScore ? allTimeScore : '••••'}
+                                        <span className="text-xs sm:text-sm ml-1 text-white/50 uppercase tracking-normal font-bold">pts</span>
+                                    </h2>
+                                    <p className="text-[10px] text-white/40 font-bold italic">Acumulado histórico</p>
+                                </div>
                             </div>
 
                             <div
@@ -2096,6 +2117,7 @@ function CustomerDashboardContent() {
                     </div>
                 </div>
             )}
+            </main>
         </div>
     )
 }

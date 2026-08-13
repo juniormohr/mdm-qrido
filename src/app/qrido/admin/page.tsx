@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,10 +45,14 @@ interface Company {
 
 interface Customer {
     id: string
-    user_id: string // reference to company
+    user_id: string
     name: string
     phone: string
+    email?: string
+    cpf_cnpj?: string
     points_balance: number
+    total_points: number
+    preferred_store?: string
     created_at: string
     company_name?: string
 }
@@ -138,6 +142,7 @@ function AdminContent() {
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
+    const [customerSort, setCustomerSort] = useState('name_asc')
 
     const handleWhatsAppSend = (name: string, phone?: string) => {
         if (!phone) {
@@ -342,9 +347,14 @@ function AdminContent() {
 
         if (companyMetrics) setCompanies(companyMetrics)
 
+        const companyNameMap: Record<string, string> = {}
+        profiles?.forEach((p: any) => {
+            companyNameMap[p.id] = p.company_name || p.full_name || 'Loja'
+        })
+
         const { data: endUserProfiles } = await supabase
             .from('profiles')
-            .select('id, full_name, phone, created_at, email')
+            .select('id, full_name, phone, created_at, email, cpf_cnpj')
             .eq('role', 'customer')
             .order('created_at', { ascending: false })
 
@@ -352,6 +362,10 @@ function AdminContent() {
             .from('customers')
             .select('*, profiles:user_id(full_name)')
             .order('created_at', { ascending: false })
+
+        const { data: allLoyaltyTxs } = await supabase
+            .from('loyalty_transactions')
+            .select('customer_id, user_id, points, type, created_at')
 
         let combinedCustomers: Customer[] = []
         if (endUserProfiles && endUserProfiles.length > 0) {
@@ -361,31 +375,76 @@ function AdminContent() {
                     const scPhoneClean = sc.phone ? sc.phone.replace(/\D/g, '') : ''
                     const phoneMatch = uPhoneClean && scPhoneClean && uPhoneClean === scPhoneClean
                     const emailMatch = u.email && sc.email && u.email.toLowerCase() === sc.email.toLowerCase()
-                    return phoneMatch || emailMatch
+                    const idMatch = sc.user_id === u.id || sc.id === u.id
+                    return phoneMatch || emailMatch || idMatch
                 })
 
-                const totalPoints = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
+                // 1. Saldo Ativo de Pontos
+                const totalActivePoints = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
 
-                let companyDisplay = 'Sem Loja Vinculada'
-                if (matchingStoreRecords.length === 1) {
-                    companyDisplay = matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
-                } else if (matchingStoreRecords.length > 1) {
-                    companyDisplay = `${matchingStoreRecords.length} Lojas Vinculadas`
+                // Set de IDs vinculados
+                const customerIdsSet = new Set<string>()
+                customerIdsSet.add(u.id)
+                matchingStoreRecords.forEach(sc => {
+                    if (sc.id) customerIdsSet.add(sc.id)
+                })
+
+                // Transações deste cliente
+                const customerTxs = (allLoyaltyTxs || []).filter(t => customerIdsSet.has(t.customer_id) || t.customer_id === u.id)
+
+                // 2. Saldo Total (acumulado histórico de pontos ganhos sem subtrair resgates)
+                const totalAllTimePoints = customerTxs
+                    .filter(t => t.type === 'earn')
+                    .reduce((acc, t) => acc + (Number(t.points) || 0), 0)
+
+                // 3. Loja Preferida (loja onde comprou/visitou mais vezes)
+                const storeVisitsMap: Record<string, number> = {}
+                customerTxs.forEach(t => {
+                    if (t.user_id) {
+                        storeVisitsMap[t.user_id] = (storeVisitsMap[t.user_id] || 0) + 1
+                    }
+                })
+                matchingStoreRecords.forEach(sc => {
+                    if (sc.user_id && !storeVisitsMap[sc.user_id]) {
+                        storeVisitsMap[sc.user_id] = 1
+                    }
+                })
+
+                let preferredStoreId = ''
+                let maxVisits = 0
+                Object.entries(storeVisitsMap).forEach(([stId, visits]) => {
+                    if (visits > maxVisits) {
+                        maxVisits = visits
+                        preferredStoreId = stId
+                    }
+                })
+
+                let preferredStoreName = 'Nenhuma compra'
+                if (preferredStoreId && companyNameMap[preferredStoreId]) {
+                    preferredStoreName = companyNameMap[preferredStoreId]
+                } else if (matchingStoreRecords.length > 0) {
+                    preferredStoreName = matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
                 }
 
                 return {
                     id: matchingStoreRecords[0]?.id || u.id,
-                    user_id: matchingStoreRecords[0]?.user_id || '',
+                    user_id: u.id,
                     name: u.full_name || matchingStoreRecords[0]?.name || 'Cliente Sem Nome',
                     phone: u.phone || matchingStoreRecords[0]?.phone || '-',
-                    points_balance: totalPoints,
+                    email: u.email || matchingStoreRecords[0]?.email || '',
+                    cpf_cnpj: (u as any).cpf_cnpj || matchingStoreRecords[0]?.cpf_cnpj || '',
+                    points_balance: totalActivePoints,
+                    total_points: totalAllTimePoints,
+                    preferred_store: preferredStoreName,
                     created_at: u.created_at,
-                    company_name: companyDisplay
+                    company_name: preferredStoreName
                 }
             })
         } else if (storeCustomers && storeCustomers.length > 0) {
             combinedCustomers = storeCustomers.map(c => ({
                 ...c,
+                total_points: c.points_balance || 0,
+                preferred_store: c.profiles?.full_name || 'Loja',
                 company_name: c.profiles?.full_name || 'Grupo Desconhecido'
             }))
         }
@@ -807,11 +866,34 @@ function AdminContent() {
     const filteredCustomers = allCustomers.filter(c => {
         const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             c.phone.includes(searchTerm) ||
-            c.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+            c.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.cpf_cnpj && c.cpf_cnpj.includes(searchTerm))
 
-        const matchesCompany = customerCompanyFilter === 'all' || c.user_id === customerCompanyFilter
+        const matchesCompany = customerCompanyFilter === 'all' || c.user_id === customerCompanyFilter || c.preferred_store?.toLowerCase().includes(searchTerm.toLowerCase())
 
         return matchesSearch && matchesCompany
+    })
+
+    const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+        if (customerSort === 'name_asc') {
+            return (a.name || '').localeCompare(b.name || '')
+        }
+        if (customerSort === 'name_desc') {
+            return (b.name || '').localeCompare(a.name || '')
+        }
+        if (customerSort === 'points_active_desc') {
+            return (b.points_balance || 0) - (a.points_balance || 0)
+        }
+        if (customerSort === 'points_active_asc') {
+            return (a.points_balance || 0) - (b.points_balance || 0)
+        }
+        if (customerSort === 'points_total_desc') {
+            return (b.total_points || 0) - (a.total_points || 0)
+        }
+        if (customerSort === 'points_total_asc') {
+            return (a.total_points || 0) - (b.total_points || 0)
+        }
+        return 0
     })
 
     // Filter helper options based on active selection (Holding -> Group -> Store)
@@ -1307,27 +1389,43 @@ function AdminContent() {
 
             {activeTab === 'customers' && (
                 <div className="space-y-6 animate-in fade-in duration-500">
-                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
                         <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
                             <Search className="h-5 w-5 text-slate-300 ml-2" />
                             <Input
-                                placeholder="Buscar por cliente ou telefone..."
+                                placeholder="Buscar por cliente, telefone, CPF ou loja..."
                                 className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-300"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <div className="w-full md:w-64">
-                            <select
-                                className="w-full h-[54px] bg-white border border-slate-100 rounded-3xl px-6 text-sm font-bold text-slate-600 appearance-none shadow-sm"
-                                value={customerCompanyFilter}
-                                onChange={(e) => setCustomerCompanyFilter(e.target.value)}
-                            >
-                                <option value="all">TODAS AS LOJAS</option>
-                                {companies.map(c => (
-                                    <option key={c.id} value={c.id}>{c.full_name}</option>
-                                ))}
-                            </select>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                            <div className="w-full sm:w-60">
+                                <select
+                                    className="w-full h-[54px] bg-white border border-slate-100 rounded-3xl px-6 text-xs font-bold text-slate-600 appearance-none shadow-sm"
+                                    value={customerCompanyFilter}
+                                    onChange={(e) => setCustomerCompanyFilter(e.target.value)}
+                                >
+                                    <option value="all">TODAS AS LOJAS</option>
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.full_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="w-full sm:w-64">
+                                <select
+                                    className="w-full h-[54px] bg-white border border-slate-100 rounded-3xl px-6 text-xs font-bold text-slate-600 appearance-none shadow-sm"
+                                    value={customerSort}
+                                    onChange={(e) => setCustomerSort(e.target.value)}
+                                >
+                                    <option value="name_asc">ORDEM: NOME (A-Z)</option>
+                                    <option value="name_desc">ORDEM: NOME (Z-A)</option>
+                                    <option value="points_active_desc">ORDEM: MAIOR SALDO ATIVO</option>
+                                    <option value="points_active_asc">ORDEM: MENOR SALDO ATIVO</option>
+                                    <option value="points_total_desc">ORDEM: MAIOR SALDO TOTAL</option>
+                                    <option value="points_total_asc">ORDEM: MENOR SALDO TOTAL</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -1337,40 +1435,51 @@ function AdminContent() {
                                 <thead>
                                     <tr className="bg-slate-50/50">
                                         <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Cliente</th>
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Loja Vinculada</th>
-                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Saldo</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest">Loja Preferida</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Saldo Ativo</th>
+                                        <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Saldo Total</th>
                                         <th className="py-5 px-8 text-[10px] font-black uppercase text-slate-400 tracking-widest text-right">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {filteredCustomers.map(cust => (
+                                    {sortedCustomers.map(cust => (
                                         <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="py-6 px-8">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 font-black uppercase italic text-xl">
+                                                    <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 font-black uppercase italic text-xl shrink-0">
                                                         {cust.name?.charAt(0) || 'C'}
                                                     </div>
                                                     <div>
                                                         <p className="font-black text-slate-900 uppercase italic leading-tight">{cust.name || 'Cliente Sem Nome'}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{cust.phone}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-slate-400 font-bold">{cust.phone}</span>
+                                                            {cust.cpf_cnpj && (
+                                                                <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                                                                    {formatCpfCnpj(cust.cpf_cnpj)}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="py-6 px-8">
                                                 <div className="flex items-center gap-2 text-xs text-slate-800 font-bold">
-                                                    <Store className="h-3.5 w-3.5 text-brand-blue" />
-                                                    {cust.company_name}
+                                                    <Store className="h-3.5 w-3.5 text-brand-blue shrink-0" />
+                                                    {cust.preferred_store || cust.company_name || 'Nenhuma compra'}
                                                 </div>
                                             </td>
                                             <td className="py-6 px-8 text-center text-lg font-black text-brand-blue italic">
                                                 {cust.points_balance} pts
                                             </td>
+                                            <td className="py-6 px-8 text-center text-lg font-black text-amber-600 italic">
+                                                {cust.total_points || 0} pts
+                                            </td>
                                             <td className="py-6 px-8 text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" onClick={() => { setCurrentEntity(cust); setShowCustomerModal(true); }}>
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" title="Editar Cliente" onClick={() => { setCurrentEntity(cust); setShowCustomerModal(true); }}>
                                                         <Edit2 className="h-4 w-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" onClick={() => handleDeleteCustomer(cust.id)}>
+                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Deletar Cliente" onClick={() => handleDeleteCustomer(cust.id)}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </div>
@@ -1555,59 +1664,121 @@ function AdminContent() {
             {/* Customer Modal */}
             {showCustomerModal && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95">
-                        <CardHeader className="p-8 border-b border-slate-50">
-                            <CardTitle className="text-2xl font-black italic uppercase text-emerald-500">
-                                {currentEntity ? 'Ajustar Cliente' : 'Vincular Novo Cliente'}
-                            </CardTitle>
+                    <Card className="w-full max-w-lg border-none shadow-2xl overflow-hidden rounded-[32px] animate-in zoom-in-95 bg-white">
+                        <CardHeader className="p-8 border-b border-slate-100 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-2xl font-black italic uppercase text-brand-blue">
+                                    {currentEntity ? 'Ajustar Cliente' : 'Novo Cliente'}
+                                </CardTitle>
+                                <p className="text-xs text-slate-500 font-medium">Editar informações do perfil e saldo do cliente</p>
+                            </div>
+                            <Button variant="ghost" size="icon" className="rounded-full text-slate-400 hover:bg-slate-100" onClick={() => setShowCustomerModal(false)}>
+                                <X className="h-5 w-5" />
+                            </Button>
                         </CardHeader>
                         <form onSubmit={async (e) => {
                             e.preventDefault()
                             const formData = new FormData(e.currentTarget)
-                            const supabase = createClient()
 
                             const data = {
-                                name: formData.get('name'),
-                                phone: formData.get('phone'),
-                                points_balance: parseInt(formData.get('points') as string),
-                                user_id: formData.get('company_id')
+                                id: currentEntity?.id || '',
+                                userId: currentEntity?.user_id || currentEntity?.id,
+                                name: formData.get('name') as string,
+                                phone: formData.get('phone') as string,
+                                email: formData.get('email') as string,
+                                cpfCnpj: formData.get('cpf_cnpj') as string,
+                                pointsBalance: parseInt(formData.get('points') as string || '0')
                             }
 
-                            const { error } = currentEntity
-                                ? await supabase.from('customers').update(data).eq('id', currentEntity.id)
-                                : await supabase.from('customers').insert(data)
+                            const res = await updateCustomerAdminAction(data)
 
-                            if (error) alert('Erro: ' + error.message)
+                            if (res.error) alert('Erro ao atualizar: ' + res.error)
                             else {
                                 setShowCustomerModal(false)
                                 fetchAllData()
                             }
                         }}>
-                            <CardContent className="p-8 space-y-4">
+                            <CardContent className="p-8 space-y-4 max-h-[75vh] overflow-y-auto">
                                 <div className="space-y-2">
                                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nome do Cliente</Label>
-                                    <Input name="name" defaultValue={currentEntity?.name} placeholder="Nome completo" required className="rounded-xl border-slate-100 h-12" />
+                                    <Input name="name" defaultValue={currentEntity?.name} placeholder="Nome completo" required className="rounded-xl border-slate-200 h-12 font-bold" />
                                 </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone</Label>
+                                        <Input name="phone" defaultValue={currentEntity?.phone} placeholder="DDI + DDD + Número" required className="rounded-xl border-slate-200 h-12 font-bold" />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">E-mail</Label>
+                                        <Input name="email" type="email" defaultValue={currentEntity?.email} placeholder="email@exemplo.com" className="rounded-xl border-slate-200 h-12 font-bold" />
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Telefone</Label>
-                                    <Input name="phone" defaultValue={currentEntity?.phone} placeholder="DDI + DDD + Número" required className="rounded-xl border-slate-100 h-12" />
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">CPF</Label>
+                                    {currentEntity?.cpf_cnpj ? (
+                                        <>
+                                            <Input
+                                                value={formatCpfCnpj(currentEntity.cpf_cnpj)}
+                                                disabled
+                                                className="rounded-xl border-slate-200 bg-slate-100 h-12 font-mono font-bold text-slate-500 cursor-not-allowed"
+                                            />
+                                            <p className="text-[10px] text-slate-400 italic">CPF já cadastrado. Não pode ser alterado por segurança.</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Input
+                                                name="cpf_cnpj"
+                                                placeholder="000.000.000-00"
+                                                className="rounded-xl border-slate-200 h-12 font-mono font-bold text-slate-800"
+                                            />
+                                            <p className="text-[10px] text-amber-600 font-bold italic">Preencha o CPF caso não esteja cadastrado. Uma vez salvo, o documento não poderá ser alterado.</p>
+                                        </>
+                                    )}
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Saldo de Pontos</Label>
-                                    <Input name="points" type="number" defaultValue={currentEntity?.points_balance || 0} required className="rounded-xl border-slate-100 h-12 font-black text-brand-blue" />
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Saldo Ativo de Pontos</Label>
+                                        <Input name="points" type="number" defaultValue={currentEntity?.points_balance || 0} required className="rounded-xl border-slate-200 h-12 font-black text-brand-blue text-lg" />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loja Preferida</Label>
+                                        <div className="h-12 rounded-xl border border-slate-200 px-4 flex items-center font-bold text-slate-700 bg-slate-50 text-xs">
+                                            <Store className="h-4 w-4 text-brand-blue mr-2 shrink-0" />
+                                            <span className="truncate">{currentEntity?.preferred_store || currentEntity?.company_name || 'Nenhuma compra'}</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vincular à Loja</Label>
-                                    <select name="company_id" defaultValue={currentEntity?.user_id} required className="w-full h-12 rounded-xl border border-slate-100 px-4 font-bold text-slate-600 bg-slate-50 outline-none focus:border-brand-blue">
-                                        <option value="">Selecione uma empresa...</option>
-                                        {companies.map(c => (
-                                            <option key={c.id} value={c.id}>{c.full_name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex justify-end gap-3 pt-6">
-                                    <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowCustomerModal(false)}>Cancelar</Button>
-                                    <Button type="submit" className="btn-emerald h-12 px-8 rounded-xl font-black italic uppercase">Confirmar Cadastro</Button>
+
+                                <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={async () => {
+                                            if (!confirm(`Tem certeza que deseja resetar a senha de "${currentEntity?.name}" para "123456"?`)) return
+                                            const targetId = currentEntity?.user_id || currentEntity?.id
+                                            if (!targetId) {
+                                                alert('ID do cliente não encontrado.')
+                                                return
+                                            }
+                                            const res = await resetUserPasswordAction({ userId: targetId })
+                                            if (res.error) alert(res.error)
+                                            else alert(res.message || 'Senha resetada com sucesso para "123456"')
+                                        }}
+                                        className="w-full sm:w-auto border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 font-bold text-xs rounded-xl h-11 px-4"
+                                    >
+                                        <KeyRound className="h-4 w-4 mr-2 text-amber-600" />
+                                        Resetar Senha (123456)
+                                    </Button>
+
+                                    <div className="flex gap-2 w-full sm:w-auto justify-end">
+                                        <Button type="button" variant="ghost" className="font-bold uppercase text-xs" onClick={() => setShowCustomerModal(false)}>Cancelar</Button>
+                                        <Button type="submit" className="btn-emerald h-11 px-6 rounded-xl font-black italic uppercase text-xs">Salvar Alterações</Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </form>

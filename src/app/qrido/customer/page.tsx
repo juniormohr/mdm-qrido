@@ -1403,30 +1403,42 @@ export default function CustomerDashboard() {
                     {userProfile ? (
                         <>
                             <div className="flex justify-between items-start mb-4">
-                                <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Total de Pontos Ativos</p>
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-6xl font-black text-white italic tracking-tighter">
-                                            {showScore ? globalScore : '••••'}
-                                            <span className="text-xl ml-2 text-white/40 uppercase tracking-normal font-bold">pts</span>
-                                        </h2>
-                                        <button
-                                            onClick={() => setShowScore(!showScore)}
-                                            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/40"
-                                        >
-                                            {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                                        </button>
-                                    </div>
-                                    <p className="text-xs font-bold italic text-white/70 mt-1">
-                                        ({showScore ? allTimeScore : '••••'} pts acumulados no total)
-                                    </p>
+                                <span className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Resumo de Pontuação</span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setShowScore(!showScore)}
+                                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50"
+                                        title={showScore ? "Ocultar pontos" : "Mostrar pontos"}
+                                    >
+                                        {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('rewards')}
+                                        className="h-12 w-12 bg-white/10 rounded-[18px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
+                                    >
+                                        <Gift className="h-6 w-6" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setActiveTab('rewards')}
-                                    className="h-16 w-16 bg-white/10 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
-                                >
-                                    <Gift className="h-8 w-8" />
-                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pb-6">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] sm:text-[11px] font-black text-white/90 uppercase tracking-[1.5px] italic">Pontos Ativos</p>
+                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white italic tracking-tighter">
+                                        {showScore ? globalScore : '••••'}
+                                        <span className="text-xs sm:text-sm ml-1 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                    </h2>
+                                    <p className="text-[10px] text-white/50 font-bold italic">Saldo para resgate</p>
+                                </div>
+
+                                <div className="space-y-1 pl-4 border-l border-white/10">
+                                    <p className="text-[10px] sm:text-[11px] font-black text-white/70 uppercase tracking-[1.5px] italic">Pontos Totais</p>
+                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#F7AA1C] italic tracking-tighter">
+                                        {showScore ? allTimeScore : '••••'}
+                                        <span className="text-xs sm:text-sm ml-1 text-white/40 uppercase tracking-normal font-bold">pts</span>
+                                    </h2>
+                                    <p className="text-[10px] text-white/50 font-bold italic">Acumulado histórico</p>
+                                </div>
                             </div>
 
                             <button

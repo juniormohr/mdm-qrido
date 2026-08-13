@@ -369,5 +369,71 @@ export async function updateCompanyMetadataAction(userId: string, data: {
   }
 }
 
+export async function updateCustomerAdminAction(data: {
+  id: string
+  userId?: string
+  name: string
+  phone: string
+  email?: string
+  cpfCnpj?: string
+  pointsBalance?: number
+}) {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const cleanPhone = data.phone ? data.phone.replace(/\D/g, '') : ''
+    const cleanCpf = data.cpfCnpj ? data.cpfCnpj.replace(/\D/g, '') : null
 
+    // 1. Atualizar profiles se tiver userId ou se id for do profile
+    const targetUserId = data.userId || data.id
+    if (targetUserId) {
+      const profileUpdate: any = {
+        full_name: data.name,
+        phone: data.phone
+      }
+      if (data.email) profileUpdate.email = data.email
+      if (cleanCpf) profileUpdate.cpf_cnpj = cleanCpf
 
+      await supabaseAdmin
+        .from('profiles')
+        .update(profileUpdate)
+        .eq('id', targetUserId)
+
+      // Sync user_metadata no Auth Admin
+      try {
+        const metaUpdate: any = { full_name: data.name, phone: data.phone }
+        if (cleanCpf) metaUpdate.cpf_cnpj = cleanCpf
+
+        const authPayload: any = { user_metadata: metaUpdate }
+        if (data.email) authPayload.email = data.email
+
+        await supabaseAdmin.auth.admin.updateUserById(targetUserId, authPayload)
+      } catch (e) {
+        console.warn('Erro ao sincronizar Auth Metadata:', e)
+      }
+    }
+
+    // 2. Atualizar tabela de clientes das lojas (customers)
+    const customerUpdate: any = {
+      name: data.name,
+      phone: data.phone
+    }
+    if (data.email) customerUpdate.email = data.email
+    if (data.pointsBalance !== undefined) customerUpdate.points_balance = data.pointsBalance
+
+    await supabaseAdmin
+      .from('customers')
+      .update(customerUpdate)
+      .eq('id', data.id)
+
+    if (data.userId) {
+      await supabaseAdmin
+        .from('customers')
+        .update(customerUpdate)
+        .eq('user_id', data.userId)
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message || 'Erro ao atualizar dados do cliente.' }
+  }
+}
