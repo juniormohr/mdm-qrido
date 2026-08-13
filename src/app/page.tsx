@@ -1227,7 +1227,7 @@ function CustomerDashboardContent() {
 
             {/* Cartão de Score Principal (Hero) - NOVO ESTILO QRIDO */}
             <div className="relative group overflow-hidden transition-all duration-300">
-                <div className="relative bg-[#1E242B] rounded-3xl p-6 md:p-8 shadow-[6px_6px_0px_#F7AA1C] border-2 border-[#1E242B] text-white">
+                <div className="relative bg-[#1E242B] rounded-3xl p-6 md:p-8 shadow-xl shadow-black/20 border-2 border-[#1E242B] text-white">
                     {userProfile ? (
                         <>
                             <div className="flex justify-between items-start mb-4">
@@ -1249,23 +1249,23 @@ function CustomerDashboardContent() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 pb-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 items-end">
                                 <div className="space-y-1">
-                                    <p className="text-[10px] sm:text-[11px] font-black text-[#F7AA1C] uppercase tracking-[1.5px] italic">Pontos Ativos</p>
-                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white italic tracking-tighter">
+                                    <p className="text-[11px] font-black text-[#F7AA1C] uppercase tracking-[1.5px] italic">Pontos Ativos</p>
+                                    <h2 className="text-4xl sm:text-5xl font-black text-white italic tracking-tighter">
                                         {showScore ? globalScore : '••••'}
-                                        <span className="text-xs sm:text-sm ml-1 text-white/50 uppercase tracking-normal font-bold">pts</span>
+                                        <span className="text-sm ml-1 text-white/50 uppercase tracking-normal font-bold">pts</span>
                                     </h2>
                                     <p className="text-[10px] text-white/40 font-bold italic">Saldo para resgate</p>
                                 </div>
 
-                                <div className="space-y-1 pl-4 border-l border-white/10">
-                                    <p className="text-[10px] sm:text-[11px] font-black text-white/70 uppercase tracking-[1.5px] italic">Pontos Totais</p>
-                                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-[#F7AA1C] italic tracking-tighter">
+                                <div className="space-y-0.5 sm:pl-4 sm:border-l border-white/10 pt-2 sm:pt-0">
+                                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px] italic">Pontos Totais</p>
+                                    <div className="text-xl sm:text-2xl font-bold text-slate-300 italic tracking-tight">
                                         {showScore ? allTimeScore : '••••'}
-                                        <span className="text-xs sm:text-sm ml-1 text-white/50 uppercase tracking-normal font-bold">pts</span>
-                                    </h2>
-                                    <p className="text-[10px] text-white/40 font-bold italic">Acumulado histórico</p>
+                                        <span className="text-xs ml-1 text-white/30 uppercase tracking-normal font-medium">pts</span>
+                                    </div>
+                                    <p className="text-[10px] text-white/30 font-medium italic">Acumulado histórico</p>
                                 </div>
                             </div>
 
