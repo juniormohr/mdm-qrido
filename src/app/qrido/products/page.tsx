@@ -725,9 +725,12 @@ function ProductManagementContent() {
                                     </div>
                                     <div className="flex flex-col items-end">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Pontuação</span>
-                                        <span className="inline-flex items-center gap-1 font-black text-[#1E242B] bg-[#F7AA1C] px-2.5 py-1 rounded-xl border border-[#1E242B] text-xs italic">
+                                        <span className={`inline-flex items-center gap-1 font-black text-[#1E242B] bg-[#F7AA1C] px-2.5 py-1 rounded-xl border border-[#1E242B] text-xs italic transition-all ${product.double_points_active ? 'ring-2 ring-[#E9592C]/50' : ''}`}>
                                             <Award className="h-3.5 w-3.5" />
-                                            +{product.points_reward} pts
+                                            +{product.double_points_active ? product.points_reward * 2 : product.points_reward} pts
+                                            {Boolean(product.double_points_active) && (
+                                                <span className="text-[10px] font-black text-[#E9592C] uppercase not-italic ml-0.5">🔥 (2x)</span>
+                                            )}
                                         </span>
                                     </div>
                                 </div>

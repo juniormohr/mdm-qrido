@@ -1256,12 +1256,12 @@ export default function CustomerDashboard() {
 
             const totalAmount = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0)
             const totalPoints = cart.reduce((acc, item) => {
-                const itemMultiplier = (isDoublePoints && item.product.double_points_active !== false) ? 2 : 1
+                const itemMultiplier = (item.product.double_points_active || (isDoublePoints && item.product.double_points_active !== false)) ? 2 : 1
                 return acc + (item.product.points_reward * itemMultiplier * item.quantity)
             }, 0)
 
             const items = cart.map(item => {
-                const itemMultiplier = (isDoublePoints && item.product.double_points_active !== false) ? 2 : 1
+                const itemMultiplier = (item.product.double_points_active || (isDoublePoints && item.product.double_points_active !== false)) ? 2 : 1
                 return {
                     id: item.product.id,
                     name: item.product.name,
@@ -1525,7 +1525,7 @@ export default function CustomerDashboard() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {featuredProducts.map((product) => {
                                 const company = companies.find(c => c.id === product.company_id)
-                                const pointsMultiplier = (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) ? 2 : 1
+                                const pointsMultiplier = (product.double_points_active || (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false)) ? 2 : 1
                                 
                                 return (
                                     <Card key={product.id} className="border-none shadow-md bg-white border border-slate-100 overflow-hidden rounded-[24px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
@@ -2163,10 +2163,10 @@ export default function CustomerDashboard() {
                                         <p className="text-xs font-black text-[#E9592C] uppercase tracking-widest italic">Total de Pontos</p>
                                         <div className="flex items-center gap-2">
                                             <Award className="h-5 w-5 text-[#E9592C]" />
-                                            <p className={cn("text-2xl font-black italic", (cartPointsMultiplier > 1 && cart.some(i => i.product.double_points_active !== false)) ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => {
-                                                const itemMultiplier = (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active && i.product.double_points_active !== false) ? 2 : 1
+                                            <p className={cn("text-2xl font-black italic", cart.some(i => i.product.double_points_active || (cartPointsMultiplier > 1 && i.product.double_points_active !== false)) ? "animate-pulse text-[#E9592C]" : "text-[#E9592C]")}>+{cart.reduce((acc, i) => {
+                                                const itemMultiplier = (i.product.double_points_active || (selectedCompany && loyaltyConfigs[selectedCompany.id]?.double_points_active && i.product.double_points_active !== false)) ? 2 : 1
                                                 return acc + (i.product.points_reward * itemMultiplier * i.quantity)
-                                            }, 0)} PTS {(cartPointsMultiplier > 1 && cart.some(i => i.product.double_points_active !== false)) && '🔥'}</p>
+                                            }, 0)} PTS {cart.some(i => i.product.double_points_active || (cartPointsMultiplier > 1 && i.product.double_points_active !== false)) && '🔥'}</p>
                                         </div>
                                     </div>
                                 </div>
