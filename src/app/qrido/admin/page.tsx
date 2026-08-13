@@ -356,15 +356,31 @@ function AdminContent() {
         let combinedCustomers: Customer[] = []
         if (endUserProfiles && endUserProfiles.length > 0) {
             combinedCustomers = endUserProfiles.map(u => {
-                const linked = storeCustomers?.find(sc => sc.customer_user_id === u.id || (u.phone && sc.phone && u.phone.replace(/\D/g, '') === sc.phone.replace(/\D/g, '')))
+                const uPhoneClean = u.phone ? u.phone.replace(/\D/g, '') : ''
+                const matchingStoreRecords = (storeCustomers || []).filter(sc => {
+                    const scPhoneClean = sc.phone ? sc.phone.replace(/\D/g, '') : ''
+                    const phoneMatch = uPhoneClean && scPhoneClean && uPhoneClean === scPhoneClean
+                    const emailMatch = u.email && sc.email && u.email.toLowerCase() === sc.email.toLowerCase()
+                    return phoneMatch || emailMatch
+                })
+
+                const totalPoints = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
+
+                let companyDisplay = 'Sem Loja Vinculada'
+                if (matchingStoreRecords.length === 1) {
+                    companyDisplay = matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
+                } else if (matchingStoreRecords.length > 1) {
+                    companyDisplay = `${matchingStoreRecords.length} Lojas Vinculadas`
+                }
+
                 return {
-                    id: linked?.id || u.id,
-                    user_id: linked?.user_id || '',
-                    name: u.full_name || linked?.name || 'Cliente Sem Nome',
-                    phone: u.phone || linked?.phone || '-',
-                    points_balance: linked?.points_balance || 0,
+                    id: matchingStoreRecords[0]?.id || u.id,
+                    user_id: matchingStoreRecords[0]?.user_id || '',
+                    name: u.full_name || matchingStoreRecords[0]?.name || 'Cliente Sem Nome',
+                    phone: u.phone || matchingStoreRecords[0]?.phone || '-',
+                    points_balance: totalPoints,
                     created_at: u.created_at,
-                    company_name: linked?.profiles?.full_name || 'Sem Loja Vinculada'
+                    company_name: companyDisplay
                 }
             })
         } else if (storeCustomers && storeCustomers.length > 0) {
