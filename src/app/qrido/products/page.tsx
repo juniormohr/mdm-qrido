@@ -654,7 +654,7 @@ function ProductManagementContent() {
                                     <div className="p-3 bg-[#297CCB] border-2 border-[#1E242B] rounded-2xl text-white shadow-[2px_2px_0px_#1E242B]">
                                         <ShoppingBag className="h-6 w-6" />
                                     </div>
-                                    {product.company_id === currentUserId && userRole !== 'company_staff' && (
+                                    {(product.company_id === currentUserId || userRole === 'admin') && userRole !== 'company_staff' && (
                                         <div className="flex items-center gap-1">
                                             <Button
                                                 variant="ghost"
