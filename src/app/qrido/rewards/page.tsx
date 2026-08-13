@@ -25,8 +25,6 @@ interface Reward {
     created_at?: string
 }
 
-type DateFilterPreset = 'yesterday' | 'last_7_days' | 'last_30_days' | 'custom'
-
 function RewardsContent() {
     const searchParams = useSearchParams()
 
@@ -44,13 +42,6 @@ function RewardsContent() {
     const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding'>('store')
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-    // Filtros de Período
-    const [preset, setPreset] = useState<DateFilterPreset>(
-        (searchParams.get('preset') as DateFilterPreset) || 'last_30_days'
-    )
-    const [startDate, setStartDate] = useState<string>(searchParams.get('startDate') || '')
-    const [endDate, setEndDate] = useState<string>(searchParams.get('endDate') || '')
-
     // Listas para Seletores
     const [holdingsList, setHoldingsList] = useState<Array<{ id: string, name: string }>>([])
     const [groupsList, setGroupsList] = useState<Array<{ id: string, name: string }>>([])
@@ -61,41 +52,15 @@ function RewardsContent() {
     const [selectedGroupId, setSelectedGroupId] = useState<string>(searchParams.get('groupId') || 'all')
     const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all')
 
-    // Ajustar datas por preset se o preset mudar
-    useEffect(() => {
-        const today = new Date()
-        if (preset === 'yesterday') {
-            const yesterday = new Date(today)
-            yesterday.setDate(today.getDate() - 1)
-            const iso = yesterday.toISOString().split('T')[0]
-            setStartDate(iso)
-            setEndDate(iso)
-        } else if (preset === 'last_7_days') {
-            const d7 = new Date(today)
-            d7.setDate(today.getDate() - 7)
-            const iso7 = d7.toISOString().split('T')[0]
-            const isoToday = today.toISOString().split('T')[0]
-            setStartDate(iso7)
-            setEndDate(isoToday)
-        } else if (preset === 'last_30_days') {
-            const d30 = new Date(today)
-            d30.setDate(today.getDate() - 30)
-            const iso30 = d30.toISOString().split('T')[0]
-            const isoToday = today.toISOString().split('T')[0]
-            setStartDate(iso30)
-            setEndDate(isoToday)
-        }
-    }, [preset])
-
     useEffect(() => {
         fetchInitialUserAndOptions()
     }, [])
 
     useEffect(() => {
-        if (currentUserId && startDate && endDate) {
+        if (currentUserId) {
             fetchRewards()
         }
-    }, [currentUserId, startDate, endDate, selectedHoldingId, selectedGroupId, selectedStoreId])
+    }, [currentUserId, selectedHoldingId, selectedGroupId, selectedStoreId])
 
     async function fetchInitialUserAndOptions() {
         const supabase = createClient()
@@ -120,13 +85,17 @@ function RewardsContent() {
         const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
 
         if (isAdmin) {
-            const { data: holdings } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.holding,role.eq.holding')
-            const { data: groups } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.mall,role.eq.mall,role.eq.group')
-            const { data: stores } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.store,role.eq.company,role.eq.store')
+            const { data: holdings } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.holding,role.eq.holding')
+            const { data: groups } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.mall,role.eq.mall,role.eq.group')
+            const { data: stores } = await supabase.from('profiles').select('id, full_name, role, company_type').in('role', ['company', 'store'])
 
-            setHoldingsList((holdings || []).map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
-            setGroupsList((groups || []).map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
-            setStoresList((stores || []).map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
+            const filteredHoldings = (holdings || []).filter(h => h.role !== 'customer')
+            const filteredGroups = (groups || []).filter(g => g.role !== 'customer')
+            const filteredStores = (stores || []).filter(s => s.role !== 'customer' && s.company_type !== 'mall' && s.company_type !== 'holding')
+
+            setHoldingsList(filteredHoldings.map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
+            setGroupsList(filteredGroups.map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
+            setStoresList(filteredStores.map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
         } else if (isHolding) {
             const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
             const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
@@ -219,9 +188,6 @@ function RewardsContent() {
             return
         }
 
-        const startIso = startDate ? `${startDate}T00:00:00.000Z` : '1970-01-01T00:00:00.000Z'
-        const endIso = endDate ? `${endDate}T23:59:59.999Z` : '2099-12-31T23:59:59.999Z'
-
         // 1. Buscar prêmios ativos das entidades elegíveis
         const { data: rawRewards } = await supabase
             .from('rewards')
@@ -236,14 +202,12 @@ function RewardsContent() {
             .select('id, full_name')
             .in('id', eligibleIds)
 
-        // 3. Buscar transações de resgate no período para estatísticas
+        // 3. Buscar transações de resgate para estatísticas
         const { data: redeemTxs } = await supabase
             .from('loyalty_transactions')
             .select('reward_id')
             .in('user_id', eligibleIds)
             .eq('type', 'redeem')
-            .gte('created_at', startIso)
-            .lte('created_at', endIso)
 
         const redeemCounts: Record<string, number> = {}
         if (redeemTxs) {
@@ -399,107 +363,69 @@ function RewardsContent() {
                 )}
             </div>
 
-            {/* Painel de Filtros por Período e Hierarquia */}
-            <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <span className="text-xs font-black uppercase tracking-wider text-[#1E242B] flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-[#F7AA1C]" /> FILTRAR PERÍODO:
-                    </span>
-                    <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F5] p-1.5 rounded-2xl border-2 border-[#1E242B]">
-                        <button onClick={() => setPreset('yesterday')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'yesterday' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Dia -1</button>
-                        <button onClick={() => setPreset('last_7_days')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'last_7_days' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Últimos 7 dias</button>
-                        <button onClick={() => setPreset('last_30_days')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'last_30_days' ? 'bg-[#1E242B] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Últimos 30 dias</button>
-                        <button onClick={() => setPreset('custom')} className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${preset === 'custom' ? 'bg-[#E9592C] text-white shadow-sm' : 'text-slate-700 hover:text-[#1E242B]'}`}>Personalizado</button>
-                    </div>
-                </div>
-
-                {preset === 'custom' && (
-                    <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-100">
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500">De:</span>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-[#1E242B] bg-white"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500">Até:</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="px-3 py-1.5 text-xs font-bold rounded-xl border-2 border-[#1E242B] bg-white"
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* Seletores de Hierarquia para Admin / Holding / Grupo */}
-                {isAdminOrHoldingOrGroup && (
-                    <div className="pt-4 border-t-2 border-[#1E242B]/10 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {userRole === 'admin' && (
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
-                                    <Building className="w-3 h-3 text-[#297CCB]" /> Holding:
-                                </label>
-                                <select
-                                    value={selectedHoldingId}
-                                    onChange={(e) => {
-                                        setSelectedHoldingId(e.target.value)
-                                        setSelectedGroupId('all')
-                                        setSelectedStoreId('all')
-                                    }}
-                                    className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
-                                >
-                                    <option value="all">Todas as Holdings</option>
-                                    {holdingsList.map((h) => (
-                                        <option key={h.id} value={h.id}>{h.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {(userRole === 'admin' || userRole === 'holding' || companyType === 'holding') && (
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
-                                    <Building2 className="w-3 h-3 text-[#E9592C]" /> Grupo:
-                                </label>
-                                <select
-                                    value={selectedGroupId}
-                                    onChange={(e) => {
-                                        setSelectedGroupId(e.target.value)
-                                        setSelectedStoreId('all')
-                                    }}
-                                    className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
-                                >
-                                    <option value="all">Todos os Grupos</option>
-                                    {groupsList.map((g) => (
-                                        <option key={g.id} value={g.id}>{g.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
+            {/* Seletores de Hierarquia para Admin / Holding / Grupo */}
+            {isAdminOrHoldingOrGroup && (
+                <div className="bg-white p-6 rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {userRole === 'admin' && (
                         <div>
                             <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
-                                <Store className="w-3 h-3 text-[#167657]" /> Empresa / Loja:
+                                <Building className="w-3 h-3 text-[#297CCB]" /> Holding:
                             </label>
                             <select
-                                value={selectedStoreId}
-                                onChange={(e) => setSelectedStoreId(e.target.value)}
+                                value={selectedHoldingId}
+                                onChange={(e) => {
+                                    setSelectedHoldingId(e.target.value)
+                                    setSelectedGroupId('all')
+                                    setSelectedStoreId('all')
+                                }}
                                 className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
                             >
-                                <option value="all">Todas as Lojas</option>
-                                {storesList.map((s) => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                <option value="all">Todas as Holdings</option>
+                                {holdingsList.map((h) => (
+                                    <option key={h.id} value={h.id}>{h.name}</option>
                                 ))}
                             </select>
                         </div>
+                    )}
+
+                    {(userRole === 'admin' || userRole === 'holding' || companyType === 'holding') && (
+                        <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                                <Building2 className="w-3 h-3 text-[#E9592C]" /> Grupo:
+                            </label>
+                            <select
+                                value={selectedGroupId}
+                                onChange={(e) => {
+                                    setSelectedGroupId(e.target.value)
+                                    setSelectedStoreId('all')
+                                }}
+                                className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                            >
+                                <option value="all">Todos os Grupos</option>
+                                {groupsList.map((g) => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-400 mb-1 flex items-center gap-1">
+                            <Store className="w-3 h-3 text-[#167657]" /> Empresa / Loja:
+                        </label>
+                        <select
+                            value={selectedStoreId}
+                            onChange={(e) => setSelectedStoreId(e.target.value)}
+                            className="w-full bg-[#FAF8F5] border-2 border-[#1E242B] rounded-xl px-3 py-2 text-xs font-bold text-[#1E242B]"
+                        >
+                            <option value="all">Todas as Lojas</option>
+                            {storesList.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                        </select>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {showNewForm && (
                 <Card className="p-8 border-none shadow-xl bg-white animate-in slide-in-from-top duration-300">
@@ -561,7 +487,7 @@ function RewardsContent() {
                 ) : (
                     rewards.map(reward => {
                         const isMine = reward.user_id === currentUserId
-                        const canManage = isMine && userRole !== 'company_staff'
+                        const canManage = (isMine || userRole === 'admin') && userRole !== 'company_staff'
 
                         return (
                             <Card key={reward.id} className="p-6 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl hover:translate-x-0.5 hover:translate-y-0.5 transition-all group">
