@@ -110,13 +110,17 @@ function ProductManagementContent() {
         const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
 
         if (isAdmin) {
-            const { data: holdings } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.holding,role.eq.holding')
-            const { data: groups } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.mall,role.eq.mall,role.eq.group')
-            const { data: stores } = await supabase.from('profiles').select('id, full_name').or('company_type.eq.store,role.eq.company,role.eq.store')
+            const { data: holdings } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.holding,role.eq.holding')
+            const { data: groups } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.mall,role.eq.mall,role.eq.group')
+            const { data: stores } = await supabase.from('profiles').select('id, full_name, role, company_type').in('role', ['company', 'store'])
 
-            setHoldingsList((holdings || []).map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
-            setGroupsList((groups || []).map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
-            setStoresList((stores || []).map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
+            const filteredHoldings = (holdings || []).filter(h => h.role !== 'customer')
+            const filteredGroups = (groups || []).filter(g => g.role !== 'customer')
+            const filteredStores = (stores || []).filter(s => s.role !== 'customer' && s.company_type !== 'mall' && s.company_type !== 'holding')
+
+            setHoldingsList(filteredHoldings.map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
+            setGroupsList(filteredGroups.map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
+            setStoresList(filteredStores.map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
         } else if (isHolding) {
             const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
             const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
@@ -325,17 +329,30 @@ function ProductManagementContent() {
     }
 
     async function handleToggleProductDoublePoints(product: Product) {
-        const supabase = createClient()
         const newValue = !Boolean(product.double_points_active)
-        const { error } = await supabase
-            .from('products')
-            .update({ double_points_active: newValue })
-            .eq('id', product.id)
-        
-        if (!error) {
-            fetchProducts()
-        } else {
-            alert('Erro ao atualizar pontos em dobro do produto: ' + error.message)
+
+        // Atualização otimista na interface
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, double_points_active: newValue } : p))
+
+        try {
+            const res = await fetch('/api/products/toggle-double-points', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productId: product.id,
+                    double_points_active: newValue
+                })
+            })
+
+            const data = await res.json()
+            if (!res.ok || data.error) {
+                // Reverter em caso de erro
+                setProducts(prev => prev.map(p => p.id === product.id ? { ...p, double_points_active: !newValue } : p))
+                alert('Erro ao atualizar pontos em dobro do produto: ' + (data.error || 'Erro desconhecido'))
+            }
+        } catch (err: any) {
+            setProducts(prev => prev.map(p => p.id === product.id ? { ...p, double_points_active: !newValue } : p))
+            alert('Erro de conexão ao atualizar pontos em dobro: ' + err.message)
         }
     }
 
