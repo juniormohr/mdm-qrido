@@ -155,6 +155,7 @@ function AdminContent() {
     }
     const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
     const [companySortOption, setCompanySortOption] = useState<'created_at' | 'alphabetical' | 'engagement'>('created_at')
+    const [companyGroupHoldingFilter, setCompanyGroupHoldingFilter] = useState<string>('all')
 
     const [showCompanyModal, setShowCompanyModal] = useState(false)
     const [showCustomerModal, setShowCustomerModal] = useState(false)
@@ -332,6 +333,11 @@ function AdminContent() {
 
         const metadataMap = await fetchCompaniesMetadataAction()
 
+        const profileNameMap: Record<string, string> = {}
+        profiles?.forEach((p: any) => {
+            profileNameMap[p.id] = p.full_name || p.company_name || 'Sem nome'
+        })
+
         const companyMetrics = profiles?.map(p => {
             const companyTransactions = txSummary?.filter(t => t.user_id === p.id) || []
             const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
@@ -343,7 +349,34 @@ function AdminContent() {
 
             const responsible_name = p.responsible_name || metadataMap[p.id]?.responsible_name || ''
 
-            return { ...p, responsible_name, redemptions, volume, isEngaged, hasActivePaidSub }
+            const groupIds: string[] = []
+            cgData?.forEach((item: any) => {
+                if (item.store_id === p.id) {
+                    groupIds.push(item.mall_id)
+                }
+            })
+            const groupNames = Array.from(new Set(groupIds.map(gId => profileNameMap[gId]).filter(Boolean)))
+
+            const holdingIds: string[] = []
+            hgData?.forEach((item: any) => {
+                if (groupIds.includes(item.group_id)) {
+                    holdingIds.push(item.holding_id)
+                }
+            })
+            const holdingNames = Array.from(new Set(holdingIds.map(hId => profileNameMap[hId]).filter(Boolean)))
+
+            return {
+                ...p,
+                responsible_name,
+                redemptions,
+                volume,
+                isEngaged,
+                hasActivePaidSub,
+                groupIds,
+                groupNames,
+                holdingIds,
+                holdingNames
+            }
         })
 
         if (companyMetrics) setCompanies(companyMetrics)
@@ -663,6 +696,9 @@ function AdminContent() {
     }
 
     const renderEntityCards = (entityList: any[], entityTypeName: string) => {
+        const holdingsList = companies.filter(c => c.role === 'holding' || c.company_type === 'holding')
+        const groupsList = companies.filter(c => c.role === 'group' || c.role === 'mall' || c.company_type === 'mall')
+
         const filtered = entityList.filter(c => {
             const matchesSearch = c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -674,7 +710,20 @@ function AdminContent() {
                 companyStatusFilter === 'pending' ? (c.is_active !== false && !c.hasActivePaidSub) :
                 c.is_active === false
 
-            return matchesSearch && matchesStatus
+            let matchesGroupHolding = true
+            if (entityTypeName === 'empresa' && companyGroupHoldingFilter !== 'all') {
+                if (companyGroupHoldingFilter === 'none') {
+                    matchesGroupHolding = (!c.groupIds || c.groupIds.length === 0) && (!c.holdingIds || c.holdingIds.length === 0)
+                } else if (companyGroupHoldingFilter.startsWith('holding:')) {
+                    const targetHId = companyGroupHoldingFilter.replace('holding:', '')
+                    matchesGroupHolding = c.holdingIds?.includes(targetHId)
+                } else if (companyGroupHoldingFilter.startsWith('group:')) {
+                    const targetGId = companyGroupHoldingFilter.replace('group:', '')
+                    matchesGroupHolding = c.groupIds?.includes(targetGId)
+                }
+            }
+
+            return matchesSearch && matchesStatus && matchesGroupHolding
         }).sort((a, b) => {
             if (companySortOption === 'alphabetical') {
                 const nameA = a.full_name || a.company_name || ''
@@ -707,6 +756,38 @@ function AdminContent() {
                         />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                        {entityTypeName === 'empresa' && (
+                            <div className="flex items-center gap-2 bg-white h-[54px] px-4 rounded-3xl border border-slate-100 shadow-sm shrink-0 w-full sm:w-auto">
+                                <Building className="h-4 w-4 text-slate-400 shrink-0" />
+                                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Grupo / Holding:</span>
+                                <select
+                                    className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer pr-2 outline-none w-full sm:w-auto"
+                                    value={companyGroupHoldingFilter}
+                                    onChange={(e) => setCompanyGroupHoldingFilter(e.target.value)}
+                                >
+                                    <option value="all">TODOS OS GRUPOS E HOLDINGS</option>
+                                    {holdingsList.length > 0 && (
+                                        <optgroup label="🏢 HOLDINGS">
+                                            {holdingsList.map(h => (
+                                                <option key={`h-${h.id}`} value={`holding:${h.id}`}>
+                                                    Holding: {h.full_name || 'Sem nome'}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    {groupsList.length > 0 && (
+                                        <optgroup label="🏬 GRUPOS">
+                                            {groupsList.map(g => (
+                                                <option key={`g-${g.id}`} value={`group:${g.id}`}>
+                                                    Grupo: {g.full_name || 'Sem nome'}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                    <option value="none">Sem Grupo / Holding</option>
+                                </select>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2 bg-white h-[54px] px-4 rounded-3xl border border-slate-100 shadow-sm shrink-0 w-full sm:w-auto">
                             <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                             <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Ordenar por:</span>
@@ -752,7 +833,7 @@ function AdminContent() {
                                 onClick={() => setCompanyStatusFilter('inactive')}
                                 className={cn(
                                     "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                    companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
+                                    companyStatusFilter === 'inactive' ? "bg-red-500 text-[#1E242B] shadow-sm" : "text-slate-500 hover:text-red-600"
                                 )}
                             >
                                 Inativas ({countInactive})
@@ -773,46 +854,62 @@ function AdminContent() {
 
                             return (
                                 <Card key={comp.id} className={cn("border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl overflow-hidden group transition-all", isInactive && "opacity-75 bg-slate-50")}>
-                                    <CardHeader className="p-5 pb-3 border-b-2 border-[#1E242B]/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                                            <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-xl flex items-center justify-center text-[#1E242B] font-black uppercase italic shrink-0 shadow-[2px_2px_0px_#1E242B]">
-                                                {comp.full_name?.charAt(0) || 'E'}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="font-black text-[#1E242B] uppercase italic leading-tight text-sm truncate">{comp.full_name || 'Sem nome'}</p>
-                                                <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                                    <select
-                                                        className={cn(
-                                                            "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border-2 border-[#1E242B] cursor-pointer outline-none shadow-[1px_1px_0px_#1E242B]",
-                                                            comp.subscription_tier === 'master' ? 'bg-[#F7AA1C] text-[#1E242B]' :
-                                                                comp.subscription_tier === 'pro' ? 'bg-[#297CCB] text-white' : 'bg-slate-100 text-slate-700'
-                                                        )}
-                                                        value={comp.subscription_tier || 'basic'}
-                                                        onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
-                                                    >
-                                                        <option value="basic">QRIDINHO</option>
-                                                        <option value="pro">QRIDO</option>
-                                                        <option value="master">QRIDÃO</option>
-                                                        <option value="partnership">PARCERIA</option>
-                                                    </select>
-                                                    {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
-                                                        <div className="flex items-center gap-0.5 text-[#167657] text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-lg border border-[#167657]/30">
-                                                            <Zap className="h-2 w-2 fill-current" />
-                                                            EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
-                                                        </div>
-                                                    )}
-                                                    {comp.isEngaged && (
-                                                        <div className="flex items-center gap-0.5 text-[#E9592C] text-[8px] font-black uppercase px-2 py-0.5 bg-[#E9592C]/10 rounded-lg border border-[#E9592C]/30">
-                                                            <Flame className="h-2.5 w-2.5 fill-current" />
-                                                            ENGAGED
-                                                        </div>
-                                                    )}
+                                    <CardHeader className="p-5 pb-3 border-b-2 border-[#1E242B]/10 space-y-3">
+                                        <div className="flex flex-col sm:flex-row items-start justify-between gap-3 w-full">
+                                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                <div className="h-10 w-10 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-xl flex items-center justify-center text-[#1E242B] font-black uppercase italic shrink-0 shadow-[2px_2px_0px_#1E242B]">
+                                                    {comp.full_name?.charAt(0) || 'E'}
                                                 </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="font-black text-[#1E242B] uppercase italic leading-tight text-sm truncate">{comp.full_name || 'Sem nome'}</p>
+                                                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                        <select
+                                                            className={cn(
+                                                                "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border-2 border-[#1E242B] cursor-pointer outline-none shadow-[1px_1px_0px_#1E242B]",
+                                                                comp.subscription_tier === 'master' ? 'bg-[#F7AA1C] text-[#1E242B]' :
+                                                                    comp.subscription_tier === 'pro' ? 'bg-[#297CCB] text-white' : 'bg-slate-100 text-slate-700'
+                                                            )}
+                                                            value={comp.subscription_tier || 'basic'}
+                                                            onChange={(e) => handleUpdatePlan(comp.id, e.target.value)}
+                                                        >
+                                                            <option value="basic">QRIDINHO</option>
+                                                            <option value="pro">QRIDO</option>
+                                                            <option value="master">QRIDÃO</option>
+                                                            <option value="partnership">PARCERIA</option>
+                                                        </select>
+                                                        {comp.subscription_tier === 'partnership' && comp.partnership_end_date && (
+                                                            <div className="flex items-center gap-0.5 text-[#167657] text-[8px] font-black uppercase px-2 py-0.5 bg-emerald-50 rounded-lg border border-[#167657]/30">
+                                                                <Zap className="h-2 w-2 fill-current" />
+                                                                EXPIRA: {new Date(comp.partnership_end_date).toLocaleDateString()}
+                                                            </div>
+                                                        )}
+                                                        {comp.isEngaged && (
+                                                            <div className="flex items-center gap-0.5 text-[#E9592C] text-[8px] font-black uppercase px-2 py-0.5 bg-[#E9592C]/10 rounded-lg border border-[#E9592C]/30">
+                                                                <Flame className="h-2.5 w-2.5 fill-current" />
+                                                                ENGAGED
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Espaço no canto superior direito para identificar Grupo e Holding */}
+                                            <div className="flex flex-col items-end gap-1 shrink-0">
+                                                {comp.holdingNames?.map((hName: string, idx: number) => (
+                                                    <span key={`h-${idx}`} className="text-[9px] font-black uppercase text-[#167657] bg-emerald-50 px-2 py-0.5 rounded-lg border border-[#167657]/30 shadow-xs">
+                                                        Holding: {hName}
+                                                    </span>
+                                                ))}
+                                                {comp.groupNames?.map((gName: string, idx: number) => (
+                                                    <span key={`g-${idx}`} className="text-[9px] font-black uppercase text-[#297CCB] bg-blue-50 px-2 py-0.5 rounded-lg border border-[#297CCB]/30 shadow-xs">
+                                                        Grupo: {gName}
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        {/* Barra de Ações 100% Responsiva (Nunca esconde botões) */}
-                                        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                        {/* Barra de Ações: Alinhada à esquerda (Status, Whats, Reset, Edit, Delete) */}
+                                        <div className="flex items-center gap-1.5 w-full justify-start pt-2 border-t border-slate-100 flex-wrap">
                                             <button
                                                 onClick={() => handleToggleCompanyStatus(comp.id, comp.is_active !== false)}
                                                 className={cn(
@@ -836,10 +933,10 @@ function AdminContent() {
                                             <Button variant="outline" size="icon" className="h-8 w-8 text-[#1E242B] border-2 border-[#1E242B] bg-white hover:bg-amber-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" title="Resetar Senha para 123456" onClick={() => { if (confirm(`Deseja resetar a senha da empresa "${comp.full_name}" para 123456?`)) { handleResetPasswordSubmit(comp.id); } }}>
                                                 <KeyRound className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button variant="outline" size="icon" className="h-8 w-8 text-[#297CCB] border-2 border-[#1E242B] bg-white hover:bg-blue-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
+                                            <Button variant="outline" size="icon" className="h-8 w-8 text-[#297CCB] border-2 border-[#1E242B] bg-white hover:bg-blue-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" title="Editar Perfil" onClick={() => { setCurrentEntity(comp); setShowCompanyModal(true); }}>
                                                 <Edit2 className="h-3.5 w-3.5" />
                                             </Button>
-                                            <Button variant="outline" size="icon" className="h-8 w-8 text-red-600 border-2 border-[#1E242B] bg-white hover:bg-red-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" onClick={() => handleDeleteCompany(comp.id)}>
+                                            <Button variant="outline" size="icon" className="h-8 w-8 text-red-600 border-2 border-[#1E242B] bg-white hover:bg-red-50 rounded-xl shadow-[1px_1px_0px_#1E242B] shrink-0" title="Eliminar Perfil" onClick={() => handleDeleteCompany(comp.id)}>
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
