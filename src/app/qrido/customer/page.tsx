@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { PointsHeroCard } from '@/components/PointsHeroCard'
 import {
     LayoutDashboard,
     ShoppingBag,
@@ -1397,79 +1398,35 @@ export default function CustomerDashboard() {
                 </div>
             </div>
 
-            {/* Cartão de Score Principal (Hero) - ESTILO VIBRANTE */}
-            <div className="relative group overflow-hidden hover:scale-[1.01] transition-all duration-300">
-                <div className="relative bg-brand-blue rounded-[32px] p-8 shadow-2xl shadow-brand-blue/30 overflow-hidden border-none text-white">
-                    {userProfile ? (
-                        <>
-                            <div className="flex justify-between items-start mb-4">
-                                <span className="text-[11px] font-black text-white/60 uppercase tracking-[3px] italic">Resumo de Pontuação</span>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setShowScore(!showScore)}
-                                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/50"
-                                        title={showScore ? "Ocultar pontos" : "Mostrar pontos"}
-                                    >
-                                        {showScore ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('rewards')}
-                                        className="h-12 w-12 bg-white/10 rounded-[18px] flex items-center justify-center text-white shadow-lg shadow-black/10 hover:bg-white/20 transition-all border border-white/10"
-                                    >
-                                        <Gift className="h-6 w-6" />
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 items-end">
-                                <div className="space-y-1">
-                                    <p className="text-[11px] font-black text-white/90 uppercase tracking-[1.5px] italic">Pontos Ativos</p>
-                                    <h2 className="text-4xl sm:text-5xl font-black text-white italic tracking-tighter">
-                                        {showScore ? globalScore : '••••'}
-                                        <span className="text-sm ml-1 text-white/40 uppercase tracking-normal font-bold">pts</span>
-                                    </h2>
-                                    <p className="text-[10px] text-white/50 font-bold italic">Saldo para resgate</p>
-                                </div>
-
-                                <div className="space-y-0.5 sm:pl-4 sm:border-l border-white/10 pt-2 sm:pt-0">
-                                    <p className="text-[10px] font-bold text-white/40 uppercase tracking-[1px] italic">Pontos Totais</p>
-                                    <div className="text-xl sm:text-2xl font-bold text-white/70 italic tracking-tight">
-                                        {showScore ? allTimeScore : '••••'}
-                                        <span className="text-xs ml-1 text-white/30 uppercase tracking-normal font-medium">pts</span>
-                                    </div>
-                                    <p className="text-[10px] text-white/30 font-medium italic">Acumulado histórico</p>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => setShowReferralModal(true)}
-                                className="flex items-center justify-between w-full pt-6 border-t border-white/10 hover:opacity-80 transition-opacity text-left cursor-pointer"
-                            >
-                                <div className="flex items-center gap-2 text-white/80">
-                                    <Plus className="h-4 w-4" />
-                                    <span className="text-xs font-black uppercase italic">Indicar um Amigo</span>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-white/40" />
-                            </button>
-                        </>
-                    ) : (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                            <div className="space-y-2 text-center sm:text-left">
-                                <h3 className="text-2xl font-black italic uppercase tracking-tight">Acumule pontos em compras!</h3>
-                                <p className="text-xs text-white/80 font-bold italic">
-                                    Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
-                                </p>
-                            </div>
-                            <Button
-                                onClick={() => router.push('/login?role=customer')}
-                                className="w-full sm:w-auto bg-white text-brand-blue hover:bg-white/90 font-black italic uppercase tracking-wider text-xs px-6 h-14 rounded-2xl shadow-xl shrink-0"
-                            >
-                                Seja Qrido
-                            </Button>
+            {/* Cartão de Score Principal (Hero) - ESTILO QRIDO REDESINHADO */}
+            {userProfile ? (
+                <PointsHeroCard
+                    globalScore={globalScore}
+                    allTimeScore={allTimeScore}
+                    showScore={showScore}
+                    setShowScore={setShowScore}
+                    onRedeemClick={() => setActiveTab('rewards')}
+                    onReferralClick={() => setShowReferralModal(true)}
+                    userProfile={userProfile}
+                />
+            ) : (
+                <div className="relative overflow-hidden bg-[#111827] rounded-[24px] p-6 md:p-8 shadow-2xl shadow-black/40 border border-white/5 text-white">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="space-y-2 text-center sm:text-left">
+                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-white">Acumule pontos em compras!</h3>
+                            <p className="text-xs text-slate-300 font-bold italic">
+                                Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
+                            </p>
                         </div>
-                    )}
+                        <Button
+                            onClick={() => router.push('/login?role=customer')}
+                            className="bg-[#FBBF24] hover:bg-[#f59e0b] text-[#111827] font-black italic uppercase text-xs px-6 h-12 rounded-xl shrink-0 shadow-lg"
+                        >
+                            Seja QRIDO
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Grade de Ações Rápidas (5 Botões Perfeitamente Alinhados) */}
             <div className="grid grid-cols-5 gap-1 sm:gap-2.5 w-full py-2">
