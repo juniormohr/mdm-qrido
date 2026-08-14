@@ -154,6 +154,7 @@ function AdminContent() {
         window.open(`https://wa.me/${cleanPhone}?text=${msg}`, '_blank')
     }
     const [companyStatusFilter, setCompanyStatusFilter] = useState<'all' | 'active' | 'pending' | 'inactive'>('all')
+    const [companySortOption, setCompanySortOption] = useState<'created_at' | 'alphabetical' | 'engagement'>('created_at')
 
     const [showCompanyModal, setShowCompanyModal] = useState(false)
     const [showCustomerModal, setShowCustomerModal] = useState(false)
@@ -674,6 +675,18 @@ function AdminContent() {
                 c.is_active === false
 
             return matchesSearch && matchesStatus
+        }).sort((a, b) => {
+            if (companySortOption === 'alphabetical') {
+                const nameA = a.full_name || a.company_name || ''
+                const nameB = b.full_name || b.company_name || ''
+                return nameA.localeCompare(nameB, 'pt', { sensitivity: 'base' })
+            }
+            if (companySortOption === 'engagement') {
+                const engA = (a.volume || 0) + (a.redemptions || 0)
+                const engB = (b.volume || 0) + (b.redemptions || 0)
+                return engB - engA
+            }
+            return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         })
 
         const countAll = entityList.length
@@ -683,7 +696,7 @@ function AdminContent() {
 
         return (
             <div className="space-y-6 animate-in fade-in duration-500">
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
                     <div className="flex flex-1 items-center gap-4 bg-white p-4 rounded-3xl shadow-sm border border-slate-100 w-full">
                         <Search className="h-5 w-5 text-slate-300 ml-2" />
                         <Input
@@ -693,43 +706,58 @@ function AdminContent() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0 overflow-x-auto">
-                        <button
-                            onClick={() => setCompanyStatusFilter('all')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                companyStatusFilter === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
-                            )}
-                        >
-                            Todas ({countAll})
-                        </button>
-                        <button
-                            onClick={() => setCompanyStatusFilter('active')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                companyStatusFilter === 'active' ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-emerald-600"
-                            )}
-                        >
-                            Ativas ({countActive})
-                        </button>
-                        <button
-                            onClick={() => setCompanyStatusFilter('pending')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                companyStatusFilter === 'pending' ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-amber-600"
-                            )}
-                        >
-                            Pendentes ({countPending})
-                        </button>
-                        <button
-                            onClick={() => setCompanyStatusFilter('inactive')}
-                            className={cn(
-                                "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
-                                companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
-                            )}
-                        >
-                            Inativas ({countInactive})
-                        </button>
+                    <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                        <div className="flex items-center gap-2 bg-white h-[54px] px-4 rounded-3xl border border-slate-100 shadow-sm shrink-0 w-full sm:w-auto">
+                            <Filter className="h-4 w-4 text-slate-400 shrink-0" />
+                            <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Ordenar por:</span>
+                            <select
+                                className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer pr-2 outline-none w-full sm:w-auto"
+                                value={companySortOption}
+                                onChange={(e) => setCompanySortOption(e.target.value as any)}
+                            >
+                                <option value="created_at">Ordem de Cadastro</option>
+                                <option value="alphabetical">Ordem Alfabética (A-Z)</option>
+                                <option value="engagement">Engajamento</option>
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl shrink-0 overflow-x-auto w-full sm:w-auto justify-center">
+                            <button
+                                onClick={() => setCompanyStatusFilter('all')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                                )}
+                            >
+                                Todas ({countAll})
+                            </button>
+                            <button
+                                onClick={() => setCompanyStatusFilter('active')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'active' ? "bg-emerald-500 text-white shadow-sm" : "text-slate-500 hover:text-emerald-600"
+                                )}
+                            >
+                                Ativas ({countActive})
+                            </button>
+                            <button
+                                onClick={() => setCompanyStatusFilter('pending')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'pending' ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-amber-600"
+                                )}
+                            >
+                                Pendentes ({countPending})
+                            </button>
+                            <button
+                                onClick={() => setCompanyStatusFilter('inactive')}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all",
+                                    companyStatusFilter === 'inactive' ? "bg-red-500 text-white shadow-sm" : "text-slate-500 hover:text-red-600"
+                                )}
+                            >
+                                Inativas ({countInactive})
+                            </button>
+                        </div>
                     </div>
                 </div>
 

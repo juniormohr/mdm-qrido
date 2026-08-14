@@ -68,8 +68,18 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
         const uniqueStoreIds = Array.from(new Set(activeCgData.map((item: any) => item.store_id)))
         const { data: storeProfiles } = await supabaseAdmin
           .from('profiles')
-          .select('id, full_name, email, phone')
+          .select('id, full_name, email, phone, created_at')
           .in('id', uniqueStoreIds)
+
+        const { data: storeTxs } = await supabaseAdmin
+          .from('loyalty_transactions')
+          .select('user_id')
+          .in('user_id', uniqueStoreIds)
+
+        const txCountMap: Record<string, number> = {}
+        storeTxs?.forEach((t: any) => {
+          txCountMap[t.user_id] = (txCountMap[t.user_id] || 0) + 1
+        })
 
         const storeMap = new Map((storeProfiles || []).map(p => [p.id, p]))
 
@@ -83,6 +93,8 @@ export async function fetchHoldingDashboardDataAction(holdingUserId: string) {
             group_name: parentGroup?.name || 'Grupo',
             email: prof?.email,
             phone: prof?.phone,
+            created_at: prof?.created_at,
+            total_transactions: txCountMap[item.store_id] || 0,
           })
         })
       }

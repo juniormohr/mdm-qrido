@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   Clock,
   MessageCircle,
-  Trash2
+  Trash2,
+  Filter
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,8 @@ interface StoreOption {
   group_name?: string;
   email?: string;
   phone?: string;
+  created_at?: string;
+  total_transactions?: number;
 }
 
 interface StoreRanking {
@@ -86,6 +89,8 @@ function HoldingDashboardContent() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("all");
   const [selectedStoreId, setSelectedStoreId] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [companySearchTerm, setCompanySearchTerm] = useState("");
+  const [companySortOption, setCompanySortOption] = useState<"created_at" | "alphabetical" | "engagement">("created_at");
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [availableAllGroups, setAvailableAllGroups] = useState<any[]>([]);
@@ -527,30 +532,86 @@ function HoldingDashboardContent() {
       {activeTab === "companies" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-hidden space-y-4">
-            <h3 className="text-lg font-black italic uppercase text-slate-900">Lojas Conveniadas dos Grupos Aceitos</h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="text-lg font-black italic uppercase text-slate-900">Lojas Conveniadas dos Grupos Aceitos</h3>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-1 items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100 w-full">
+                <Search className="h-4 w-4 text-slate-400 ml-1" />
+                <Input
+                  placeholder="Buscar loja por nome, e-mail ou grupo..."
+                  className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-400 text-xs bg-transparent"
+                  value={companySearchTerm}
+                  onChange={(e) => setCompanySearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-slate-50 h-[46px] px-4 rounded-2xl border border-slate-100 shrink-0 w-full md:w-auto">
+                <Filter className="h-4 w-4 text-slate-400 shrink-0" />
+                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Ordenar por:</span>
+                <select
+                  className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer pr-2 outline-none w-full md:w-auto"
+                  value={companySortOption}
+                  onChange={(e) => setCompanySortOption(e.target.value as any)}
+                >
+                  <option value="created_at">Ordem de Cadastro</option>
+                  <option value="alphabetical">Ordem Alfabética (A-Z)</option>
+                  <option value="engagement">Engajamento</option>
+                </select>
+              </div>
+            </div>
+
             {stores.length === 0 ? (
               <div className="text-center py-12 text-slate-400 font-medium">
                 Nenhuma loja vinculada aos grupos aceitos até o momento.
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stores.map(st => (
-                  <Card key={st.id} className="border border-slate-100 shadow-xs rounded-2xl p-5 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Store className="w-5 h-5 text-[#297CCB]" />
-                      <div>
-                        <span className="font-black text-slate-900 uppercase italic text-sm block">{st.name}</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupo: {st.group_name}</span>
+            ) : (() => {
+              const filteredStores = stores.filter(st => {
+                const matchesSearch = st.name?.toLowerCase().includes(companySearchTerm.toLowerCase()) ||
+                  st.email?.toLowerCase().includes(companySearchTerm.toLowerCase()) ||
+                  st.group_name?.toLowerCase().includes(companySearchTerm.toLowerCase()) ||
+                  st.phone?.includes(companySearchTerm);
+                return matchesSearch;
+              }).sort((a, b) => {
+                if (companySortOption === "alphabetical") {
+                  return (a.name || "").localeCompare(b.name || "", "pt", { sensitivity: "base" });
+                }
+                if (companySortOption === "engagement") {
+                  return (b.total_transactions || 0) - (a.total_transactions || 0);
+                }
+                return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+              });
+
+              if (filteredStores.length === 0) {
+                return (
+                  <div className="text-center py-12 text-slate-400 font-medium">
+                    Nenhuma loja encontrada com o filtro selecionado.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredStores.map(st => (
+                    <Card key={st.id} className="border border-slate-100 shadow-xs rounded-2xl p-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Store className="w-5 h-5 text-[#297CCB]" />
+                          <div>
+                            <span className="font-black text-slate-900 uppercase italic text-sm block">{st.name}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Grupo: {st.group_name}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-50">
-                      {st.email && <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {st.email}</p>}
-                      {st.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {st.phone}</p>}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
+                      <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-50">
+                        {st.email && <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400" /> {st.email}</p>}
+                        {st.phone && <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400" /> {st.phone}</p>}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
