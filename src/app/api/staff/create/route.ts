@@ -21,6 +21,9 @@ export async function POST(request: Request) {
             }
         )
 
+        const cleanEmail = email.trim().toLowerCase()
+        const cleanCpf = cpf.replace(/\D/g, '')
+
         // 1. Validar se a empresa possui slots disponíveis
         const { data: companyProfile, error: profileError } = await supabaseAdmin
             .from('profiles')
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
             .single()
 
         if (profileError || !companyProfile) {
-            return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
+            return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 })
         }
 
         const { data: currentStaff, error: staffCountError } = await supabaseAdmin
@@ -39,34 +42,67 @@ export async function POST(request: Request) {
             .eq('role', 'company_staff')
 
         if (staffCountError) {
-             return NextResponse.json({ error: 'Erro ao validar slots' }, { status: 500 })
+             return NextResponse.json({ error: 'Erro ao validar a lista de equipe.' }, { status: 500 })
         }
 
-        // Sem limite de usuários por enquanto (inclusão ilimitada de equipe)
+        // Pre-verificação de e-mail e CPF duplicados no banco
+        const { data: existingEmail } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle()
+
+        if (existingEmail) {
+            return NextResponse.json({ error: 'Este e-mail já está cadastrado no sistema.' }, { status: 400 })
+        }
+
+        if (cleanCpf) {
+            const { data: existingCpf } = await supabaseAdmin
+                .from('profiles')
+                .select('id')
+                .or(`cpf.eq.${cleanCpf},cpf_cnpj.eq.${cleanCpf},cpf_cnpj.eq.${cpf}`)
+                .maybeSingle()
+
+            if (existingCpf) {
+                return NextResponse.json({ error: 'Este CPF já está cadastrado no sistema.' }, { status: 400 })
+            }
+        }
 
         // 2. Criar usuário no Auth
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email: email,
+            email: cleanEmail,
             password: '123456', // Senha padrão solicitada pelo cliente
             email_confirm: true,
             user_metadata: {
                 full_name: name,
-                cpf: cpf,
+                cpf: cleanCpf || cpf,
+                cpf_cnpj: cleanCpf || cpf,
                 role: 'company_staff',
                 company_id: company_id
             }
         })
 
         if (authError) {
-            return NextResponse.json({ error: authError.message }, { status: 400 })
+            let userFriendlyError = authError.message
+            if (
+                authError.message.includes('Database error creating new user') ||
+                authError.message.includes('Database error') ||
+                authError.message.includes('unique constraint')
+            ) {
+                userFriendlyError = 'Já existe uma conta cadastrada com este e-mail ou CPF no sistema.'
+            } else if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
+                userFriendlyError = 'Este e-mail já está cadastrado no sistema.'
+            }
+            return NextResponse.json({ error: userFriendlyError }, { status: 400 })
         }
 
         // O profile é criado automaticamente via trigger (do 20240217 migration).
-        // Precisamos atualizar o profile com o company_id e cpf, pois a trigger pode não mapear tudo.
+        // Atualizamos o profile com company_id, cpf e cpf_cnpj.
         if (authData.user) {
              await supabaseAdmin.from('profiles').update({
                  company_id: company_id,
-                 cpf: cpf,
+                 cpf: cleanCpf || cpf,
+                 cpf_cnpj: cleanCpf || cpf,
                  role: 'company_staff',
                  full_name: name
              }).eq('id', authData.user.id)
@@ -75,6 +111,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, user: authData.user })
 
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        let msg = error.message || 'Erro interno ao criar usuário'
+        if (msg.includes('Database error creating new user')) {
+            msg = 'Já existe uma conta cadastrada com este e-mail ou CPF no sistema.'
+        }
+        return NextResponse.json({ error: msg }, { status: 500 })
     }
 }

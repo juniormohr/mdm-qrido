@@ -123,7 +123,11 @@ export default function UsersPage() {
             setNewStaff({ name: '', email: '', cpf: '' })
             fetchData()
         } catch (error: any) {
-              alert(`Erro: ${error.message}`)
+              let errMsg = error.message || 'Erro ao cadastrar usuário.'
+              if (errMsg.includes('Database error creating new user') || errMsg.includes('Database error')) {
+                  errMsg = 'Não foi possível cadastrar o usuário. O e-mail ou CPF informado já pode estar cadastrado no sistema.'
+              }
+              alert(`Erro: ${errMsg}`)
         } finally {
             setIsCreating(false)
         }
