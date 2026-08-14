@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction, fetchCompanyGroupRelationsAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -297,8 +297,7 @@ function AdminContent() {
             }
         }
 
-        const { data: hgData } = await supabase.from('holding_groups').select('holding_id, group_id')
-        const { data: cgData } = await supabase.from('company_groups').select('mall_id, store_id')
+        const { hgData, cgData } = await fetchCompanyGroupRelationsAction()
 
         const hgMap: Record<string, string[]> = {}
         hgData?.forEach((item: any) => {
@@ -696,9 +695,6 @@ function AdminContent() {
     }
 
     const renderEntityCards = (entityList: any[], entityTypeName: string) => {
-        const holdingsList = companies.filter(c => c.role === 'holding' || c.company_type === 'holding')
-        const groupsList = companies.filter(c => c.role === 'group' || c.role === 'mall' || c.company_type === 'mall')
-
         const filtered = entityList.filter(c => {
             const matchesSearch = c.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -711,15 +707,14 @@ function AdminContent() {
                 c.is_active === false
 
             let matchesGroupHolding = true
-            if (entityTypeName === 'empresa' && companyGroupHoldingFilter !== 'all') {
-                if (companyGroupHoldingFilter === 'none') {
-                    matchesGroupHolding = (!c.groupIds || c.groupIds.length === 0) && (!c.holdingIds || c.holdingIds.length === 0)
-                } else if (companyGroupHoldingFilter.startsWith('holding:')) {
-                    const targetHId = companyGroupHoldingFilter.replace('holding:', '')
-                    matchesGroupHolding = c.holdingIds?.includes(targetHId)
-                } else if (companyGroupHoldingFilter.startsWith('group:')) {
-                    const targetGId = companyGroupHoldingFilter.replace('group:', '')
-                    matchesGroupHolding = c.groupIds?.includes(targetGId)
+            if (entityTypeName === 'empresa') {
+                if (selectedHoldingId !== 'all') {
+                    const inHolding = c.holdingIds?.includes(selectedHoldingId)
+                    if (!inHolding) matchesGroupHolding = false
+                }
+                if (selectedGroupId !== 'all') {
+                    const inGroup = c.groupIds?.includes(selectedGroupId)
+                    if (!inGroup) matchesGroupHolding = false
                 }
             }
 
@@ -756,38 +751,6 @@ function AdminContent() {
                         />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-                        {entityTypeName === 'empresa' && (
-                            <div className="flex items-center gap-2 bg-white h-[54px] px-4 rounded-3xl border border-slate-100 shadow-sm shrink-0 w-full sm:w-auto">
-                                <Building className="h-4 w-4 text-slate-400 shrink-0" />
-                                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Grupo / Holding:</span>
-                                <select
-                                    className="bg-transparent border-none text-xs font-bold text-slate-700 focus:ring-0 cursor-pointer pr-2 outline-none w-full sm:w-auto"
-                                    value={companyGroupHoldingFilter}
-                                    onChange={(e) => setCompanyGroupHoldingFilter(e.target.value)}
-                                >
-                                    <option value="all">TODOS OS GRUPOS E HOLDINGS</option>
-                                    {holdingsList.length > 0 && (
-                                        <optgroup label="🏢 HOLDINGS">
-                                            {holdingsList.map(h => (
-                                                <option key={`h-${h.id}`} value={`holding:${h.id}`}>
-                                                    Holding: {h.full_name || 'Sem nome'}
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    )}
-                                    {groupsList.length > 0 && (
-                                        <optgroup label="🏬 GRUPOS">
-                                            {groupsList.map(g => (
-                                                <option key={`g-${g.id}`} value={`group:${g.id}`}>
-                                                    Grupo: {g.full_name || 'Sem nome'}
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    )}
-                                    <option value="none">Sem Grupo / Holding</option>
-                                </select>
-                            </div>
-                        )}
                         <div className="flex items-center gap-2 bg-white h-[54px] px-4 rounded-3xl border border-slate-100 shadow-sm shrink-0 w-full sm:w-auto">
                             <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                             <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Ordenar por:</span>
@@ -1508,6 +1471,54 @@ function AdminContent() {
                             <Plus className="h-4 w-4 mr-1" /> Nova Empresa
                         </Button>
                     </div>
+
+                    {/* Card de Filtros Separados para Holding e Grupo (Igual a aba de produtos) */}
+                    <div className="bg-white p-5 rounded-[32px] border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* HOLDING FILTER */}
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-[#297CCB] flex items-center gap-1.5 tracking-wider">
+                                    <Building className="w-3.5 h-3.5" /> HOLDING:
+                                </label>
+                                <select
+                                    className="w-full h-[46px] bg-slate-50 border-2 border-[#1E242B] rounded-2xl px-4 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:bg-white focus:border-[#297CCB] shadow-[2px_2px_0px_#1E242B]"
+                                    value={selectedHoldingId}
+                                    onChange={(e) => {
+                                        setSelectedHoldingId(e.target.value)
+                                        setSelectedGroupId('all')
+                                    }}
+                                >
+                                    <option value="all">Todas as Holdings</option>
+                                    {companies.filter(c => c.role === 'holding' || c.company_type === 'holding').map(h => (
+                                        <option key={h.id} value={h.id}>{h.full_name || 'Holding'}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* GRUPO FILTER */}
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-[#E9592C] flex items-center gap-1.5 tracking-wider">
+                                    <Store className="w-3.5 h-3.5" /> GRUPO:
+                                </label>
+                                <select
+                                    className="w-full h-[46px] bg-slate-50 border-2 border-[#1E242B] rounded-2xl px-4 text-xs font-bold text-slate-800 outline-none cursor-pointer focus:bg-white focus:border-[#E9592C] shadow-[2px_2px_0px_#1E242B]"
+                                    value={selectedGroupId}
+                                    onChange={(e) => setSelectedGroupId(e.target.value)}
+                                >
+                                    <option value="all">Todos os Grupos</option>
+                                    {companies.filter(c => {
+                                        const isGroup = c.role === 'group' || c.role === 'mall' || c.company_type === 'mall'
+                                        if (!isGroup) return false
+                                        if (selectedHoldingId === 'all') return true
+                                        return holdingGroupsMap[selectedHoldingId]?.includes(c.id)
+                                    }).map(g => (
+                                        <option key={g.id} value={g.id}>{g.full_name || 'Grupo'}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                     {renderEntityCards(companies.filter(c => !['holding', 'group', 'mall'].includes(c.role) && !['holding', 'mall'].includes(c.company_type)), 'empresa')}
                 </div>
             )}

@@ -437,3 +437,18 @@ export async function updateCustomerAdminAction(data: {
     return { error: err.message || 'Erro ao atualizar dados do cliente.' }
   }
 }
+
+export async function fetchCompanyGroupRelationsAction() {
+  try {
+    const supabaseAdmin = createAdminClient()
+    const { data: hgData } = await supabaseAdmin.from('holding_groups').select('holding_id, group_id, status')
+    const { data: cgData } = await supabaseAdmin.from('company_groups').select('mall_id, store_id, status')
+    return {
+      hgData: hgData || [],
+      cgData: cgData || []
+    }
+  } catch (err: any) {
+    console.error('Error fetching group relations:', err)
+    return { hgData: [], cgData: [] }
+  }
+}
