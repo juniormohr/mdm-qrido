@@ -1177,206 +1177,214 @@ function CustomerDashboardContent() {
                 {/* Header / Perfil do Cliente */}
                 <div className="flex items-center justify-between py-2 border-b-2 border-[#1E242B]/10">
                     <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setIsSidebarOpen(true)}
-                            className="lg:hidden p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B] shrink-0"
-                            title="Abrir Menu / Abas Laterais"
-                        >
-                            <Menu className="h-5 w-5" />
-                        </button>
-                    <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B] shrink-0">
-                        {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider italic">
-                            Seja bem-vindo
-                        </p>
-                        <h1 className="text-base sm:text-lg font-black text-[#1E242B] uppercase italic tracking-tight">
-                            {userProfile ? userProfile.full_name : 'VISITANTE'}
-                        </h1>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setActiveTab('requests')}
-                        className="relative p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
-                        title="Notificações / Pedidos"
-                    >
-                        <Bell className="h-5 w-5" />
-                        {hasNewNotifications && (
-                            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
+                        {userProfile && (
+                            <button
+                                onClick={() => setIsSidebarOpen(true)}
+                                className="lg:hidden p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B] shrink-0"
+                                title="Abrir Menu / Abas Laterais"
+                            >
+                                <Menu className="h-5 w-5" />
+                            </button>
                         )}
-                    </button>
-                    <button
-                        onClick={() => router.push('/qrido/settings')}
-                        className="p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
-                        title="Configurações"
-                    >
-                        <Settings className="h-5 w-5" />
-                    </button>
-                    {!userProfile && (
-                        <Button
-                            onClick={() => router.push('/login?role=customer')}
-                            className="bg-brand-blue hover:bg-brand-blue/90 text-white font-black italic uppercase tracking-wider text-[10px] px-4 h-10 rounded-xl shadow-sm"
-                        >
-                            Entrar / Criar Conta
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {/* Cartão de Score Principal (Hero) - ESTILO QRIDO REDESINHADO */}
-            {userProfile ? (
-                <PointsHeroCard
-                    globalScore={globalScore}
-                    allTimeScore={allTimeScore}
-                    showScore={showScore}
-                    setShowScore={setShowScore}
-                    onRedeemClick={() => setActiveTab('rewards')}
-                    onReferralClick={() => router.push('/qrido/customer')}
-                    userProfile={userProfile}
-                />
-            ) : (
-                <div className="relative overflow-hidden bg-[#111827] rounded-[24px] p-6 md:p-8 shadow-2xl shadow-black/40 border border-white/5 text-white">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                        <div className="space-y-2 text-center sm:text-left">
-                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-white">Acumule pontos em compras!</h3>
-                            <p className="text-xs text-slate-300 font-bold italic">
-                                Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
-                            </p>
+                        <div className="h-11 w-11 bg-[#F7AA1C] border-2 border-[#1E242B] rounded-2xl flex items-center justify-center text-[#1E242B] font-black text-lg shadow-[2px_2px_0px_#1E242B] shrink-0">
+                            {userProfile?.full_name ? userProfile.full_name.charAt(0).toUpperCase() : <User className="h-5 w-5" />}
                         </div>
-                        <Button
-                            onClick={() => router.push('/login?role=customer')}
-                            className="bg-[#FBBF24] hover:bg-[#f59e0b] text-[#111827] font-black italic uppercase text-xs px-6 h-12 rounded-xl shrink-0 shadow-lg"
-                        >
-                            Seja QRIDO
-                        </Button>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider italic">
+                                Seja bem-vindo
+                            </p>
+                            <h1 className="text-base sm:text-lg font-black text-[#1E242B] uppercase italic tracking-tight">
+                                {userProfile ? userProfile.full_name : 'Qrido'}
+                            </h1>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {userProfile && (
+                            <>
+                                <button
+                                    onClick={() => setActiveTab('requests')}
+                                    className="relative p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
+                                    title="Notificações / Pedidos"
+                                >
+                                    <Bell className="h-5 w-5" />
+                                    {hasNewNotifications && (
+                                        <span className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-[#E9592C] border-2 border-[#1E242B] rounded-full animate-pulse" />
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => router.push('/qrido/settings')}
+                                    className="p-2.5 bg-white border-2 border-[#1E242B] rounded-2xl text-[#1E242B] hover:bg-[#FAF8F5] transition-all shadow-[2px_2px_0px_#1E242B]"
+                                    title="Configurações"
+                                >
+                                    <Settings className="h-5 w-5" />
+                                </button>
+                            </>
+                        )}
+                        {!userProfile && (
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="bg-brand-blue hover:bg-brand-blue/90 text-white font-black italic uppercase tracking-wider text-[10px] px-4 h-10 rounded-2xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B]"
+                            >
+                                Entrar / Criar Conta
+                            </Button>
+                        )}
                     </div>
                 </div>
-            )}
 
-            {/* Grade de Ações Rápidas (5 Botões Perfeitamente Alinhados) */}
-            <div className="grid grid-cols-5 gap-1.5 sm:gap-3 w-full py-2">
-                {[
-                    { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-[#E9592C] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
-                    { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
-                    { id: 'rewards', label: 'Brindes', icon: Gift, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
-                    { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-[#297CCB] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
-                    { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-[#167657] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
-                ].map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => {
-                            if (tab.id !== 'offers' && tab.id !== 'my_stores' && tab.id !== 'rewards' && !userProfile) {
-                                setShowLoginPromptModal(true)
-                                return
-                            }
-                            setActiveTab(tab.id as any)
-                        }}
-                        className="flex flex-col items-center gap-1.5 group min-w-0"
-                    >
-                        <div className={cn(
-                            "h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center transition-all border-2 shrink-0",
-                            activeTab === tab.id
-                                ? `${tab.activeColor} scale-105`
-                                : "bg-white border-[#1E242B]/10 text-slate-500 group-hover:border-[#1E242B]/30 shadow-sm"
-                        )}>
-                            <tab.icon className="h-5 w-5 sm:h-6 sm:w-6" />
-                        </div>
-                        <span className={cn(
-                            "text-[9px] sm:text-[10px] font-black uppercase italic tracking-tight transition-colors text-center truncate w-full",
-                            activeTab === tab.id ? "text-[#1E242B]" : "text-slate-500"
-                        )}>
-                            {tab.label}
-                        </span>
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === 'offers' ? (
-                <div className="animate-in fade-in duration-500 space-y-6 pb-10">
-                    {featuredProducts.some(product => loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) && (
-                        <div className="bg-gradient-to-r from-amber-500 to-[#E9592C] p-5 rounded-3xl text-white shadow-lg relative overflow-hidden flex items-center justify-between">
-                            <div className="relative z-10 flex items-center gap-3">
-                                <GoldCoinsIcon />
-                                <div>
-                                    <h3 className="text-lg font-black italic uppercase tracking-wide leading-none">Hoje tem ponto em dobro no Qrido!</h3>
-                                    <p className="text-white/90 font-medium italic text-[11px] mt-1">Aproveite para pontuar em dobro nos produtos sinalizados abaixo.</p>
-                                </div>
+                {/* Cartão de Score Principal (Hero) - ESTILO QRIDO REDESINHADO */}
+                {userProfile ? (
+                    <PointsHeroCard
+                        globalScore={globalScore}
+                        allTimeScore={allTimeScore}
+                        showScore={showScore}
+                        setShowScore={setShowScore}
+                        onRedeemClick={() => setActiveTab('rewards')}
+                        onReferralClick={() => router.push('/qrido/customer')}
+                        userProfile={userProfile}
+                    />
+                ) : (
+                    <div className="relative overflow-hidden bg-[#F7AA1C] text-[#1E242B] rounded-3xl p-6 md:p-8 border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] transition-all">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                            <div className="space-y-2 text-center sm:text-left">
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight text-[#1E242B]">
+                                    Acumule pontos em compras!
+                                </h3>
+                                <p className="text-xs text-[#1E242B]/90 font-bold italic max-w-xl">
+                                    Faça login para salvar seus pontos, trocar por recompensas exclusivas e acompanhar seus pedidos.
+                                </p>
                             </div>
-                            <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-1/3" />
+                            <Button
+                                onClick={() => router.push('/login?role=customer')}
+                                className="bg-white hover:bg-slate-100 text-[#1E242B] font-black italic uppercase text-xs px-6 h-12 rounded-2xl shrink-0 border-2 border-[#1E242B] shadow-[3px_3px_0px_#1E242B] transition-all"
+                            >
+                                Seja QRIDO
+                            </Button>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {featuredProductsLoading ? (
-                        <div className="flex justify-center py-12">
-                            <div className="h-8 w-8 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    ) : featuredProducts.length === 0 ? (
-                        <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
-                            <ShoppingBag className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                            <p className="text-sm font-bold text-slate-400 italic">Nenhum produto em destaque no momento.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {featuredProducts.map((product) => {
-                                const company = companies.find(c => c.id === product.company_id)
-                                const pointsMultiplier = (product.double_points_active || (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false)) ? 2 : 1
-                                
-                                return (
-                                    <Card key={product.id} className="border-none shadow-md bg-white border border-slate-100 overflow-hidden rounded-[24px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
-                                        {pointsMultiplier > 1 && (
-                                            <div className="absolute top-2.5 left-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
-                                                <GoldCoinsIcon />
-                                                <span>Pontos em Dobro</span>
-                                            </div>
-                                        )}
-                                        {product.is_top_seller && (
-                                            <div className="absolute top-2.5 right-2.5 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
-                                                🔥 Top Vendas Qrido
-                                            </div>
-                                        )}
-                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-9 p-4 gap-3">
-                                            <div className="flex-1 flex flex-col justify-center min-w-0">
-                                                <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <Store className="h-3 w-3 text-brand-blue" />
-                                                    <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[130px]">
-                                                        {company?.full_name || 'Parceiro'}
-                                                    </span>
-                                                </div>
-                                                <CardTitle className="text-base font-black text-slate-900 uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
-                                                <p className="text-brand-blue font-black italic text-xs">R$ {product.price}</p>
-                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
-                                            </div>
-                                            
-                                            <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
-                                                <div className={cn(
-                                                    "border text-[9px] font-black py-1.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-8 w-full",
-                                                    pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
-                                                )}>
-                                                    +{product.points_reward * pointsMultiplier} PTS
-                                                </div>
-                                                <Button
-                                                    className={cn(
-                                                        "w-full h-9 rounded-xl font-black italic uppercase text-[9px] shadow-md transition-all duration-300 px-1 truncate flex items-center justify-center",
-                                                        lastAddedItem === product.id
-                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20"
-                                                    )}
-                                                    onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                                >
-                                                    {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </Card>
-                                )
-                            })}
-                        </div>
-                    )}
+                {/* Grade de Ações Rápidas (5 Botões Perfeitamente Alinhados) */}
+                <div className="grid grid-cols-5 gap-1.5 sm:gap-3 w-full py-2">
+                    {[
+                        { id: 'offers', label: 'Ofertas', icon: ShoppingBag, activeColor: 'bg-[#E9592C] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                        { id: 'my_stores', label: 'Lojas', icon: Store, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                        { id: 'rewards', label: 'Brindes', icon: Gift, activeColor: 'bg-[#F7AA1C] text-[#1E242B] border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                        { id: 'requests', label: 'Pedidos', icon: ShoppingBag, activeColor: 'bg-[#297CCB] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                        { id: 'history', label: 'Extrato', icon: HistoryIcon, activeColor: 'bg-[#167657] text-white border-[#1E242B] shadow-[3px_3px_0px_#1E242B]' },
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => {
+                                if (tab.id !== 'offers' && tab.id !== 'my_stores' && tab.id !== 'rewards' && !userProfile) {
+                                    setShowLoginPromptModal(true)
+                                    return
+                                }
+                                setActiveTab(tab.id as any)
+                            }}
+                            className="flex flex-col items-center gap-1.5 group min-w-0"
+                        >
+                            <div className={cn(
+                                "h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center transition-all border-2 shrink-0",
+                                activeTab === tab.id
+                                    ? `${tab.activeColor} scale-105`
+                                    : "bg-white border-[#1E242B]/10 text-slate-500 group-hover:border-[#1E242B]/30 shadow-sm"
+                            )}>
+                                <tab.icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                            </div>
+                            <span className={cn(
+                                "text-[9px] sm:text-[10px] font-black uppercase italic tracking-tight transition-colors text-center truncate w-full",
+                                activeTab === tab.id ? "text-[#1E242B]" : "text-slate-500"
+                            )}>
+                                {tab.label}
+                            </span>
+                        </button>
+                    ))}
                 </div>
-            ) : activeTab === 'my_stores' ? (
+
+                {activeTab === 'offers' ? (
+                    <div className="animate-in fade-in duration-500 space-y-6 pb-10">
+                        {featuredProducts.some(product => loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false) && (
+                            <div className="bg-[#F7AA1C] p-5 rounded-3xl text-[#1E242B] border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] relative overflow-hidden flex items-center justify-between">
+                                <div className="relative z-10 flex items-center gap-3">
+                                    <GoldCoinsIcon />
+                                    <div>
+                                        <h3 className="text-lg font-black italic uppercase tracking-wide leading-none">Hoje tem ponto em dobro no Qrido!</h3>
+                                        <p className="text-[#1E242B]/90 font-bold italic text-[11px] mt-1">Aproveite para pontuar em dobro nos produtos sinalizados abaixo.</p>
+                                    </div>
+                                </div>
+                                <div className="absolute top-0 right-0 h-full w-1/3 bg-white/10 skew-x-12 translate-x-1/3" />
+                            </div>
+                        )}
+
+                        {featuredProductsLoading ? (
+                            <div className="flex justify-center py-12">
+                                <div className="h-8 w-8 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
+                            </div>
+                        ) : featuredProducts.length === 0 ? (
+                            <div className="text-center py-10 bg-white rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B]">
+                                <ShoppingBag className="h-8 w-8 text-slate-400 mx-auto mb-3" />
+                                <p className="text-sm font-black text-slate-600 italic">Nenhum produto em destaque no momento.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {featuredProducts.map((product) => {
+                                    const company = companies.find(c => c.id === product.company_id)
+                                    const pointsMultiplier = (product.double_points_active || (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false)) ? 2 : 1
+                                    
+                                    return (
+                                        <Card key={product.id} className="bg-white border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_#1E242B] transition-all h-full flex flex-col group relative">
+                                            {pointsMultiplier > 1 && (
+                                                <div className="absolute top-2.5 left-2.5 bg-[#F7AA1C] text-[#1E242B] border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-[1px_1px_0px_#1E242B] z-10 flex items-center gap-1">
+                                                    <GoldCoinsIcon />
+                                                    <span>Pontos em Dobro</span>
+                                                </div>
+                                            )}
+                                            {product.is_top_seller && (
+                                                <div className="absolute top-2.5 right-2.5 bg-[#E9592C] text-white border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-[1px_1px_0px_#1E242B] z-10">
+                                                    🔥 Top Vendas Qrido
+                                                </div>
+                                            )}
+                                            <div className="flex flex-row items-stretch justify-between flex-1 pt-9 p-4 gap-3">
+                                                <div className="flex-1 flex flex-col justify-center min-w-0">
+                                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                                        <Store className="h-3 w-3 text-brand-blue" />
+                                                        <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[130px]">
+                                                            {company?.full_name || 'Parceiro'}
+                                                        </span>
+                                                    </div>
+                                                    <CardTitle className="text-base font-black text-[#1E242B] uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
+                                                    <p className="text-brand-blue font-black italic text-xs">R$ {product.price}</p>
+                                                    <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
+                                                </div>
+                                                
+                                                <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
+                                                    <div className={cn(
+                                                        "border-2 border-[#1E242B] text-[9px] font-black py-1.5 rounded-xl italic uppercase text-center flex items-center justify-center h-8 w-full shadow-[1px_1px_0px_#1E242B]",
+                                                        pointsMultiplier > 1 ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-slate-100 text-[#1E242B]"
+                                                    )}>
+                                                        +{product.points_reward * pointsMultiplier} PTS
+                                                    </div>
+                                                    <Button
+                                                        className={cn(
+                                                            "w-full h-9 rounded-xl border-2 border-[#1E242B] font-black italic uppercase text-[9px] shadow-[2px_2px_0px_#1E242B] transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                            lastAddedItem === product.id
+                                                                ? "bg-[#167657] text-white"
+                                                                : "bg-[#E9592C] hover:bg-[#d4481d] text-white"
+                                                        )}
+                                                        onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                    >
+                                                        {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ) : activeTab === 'my_stores' ? (
                 <div className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-4 pb-20">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
