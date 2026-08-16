@@ -32,7 +32,6 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@next/swc-darwin-x64": "^16.3.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

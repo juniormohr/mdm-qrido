@@ -400,6 +400,8 @@ function AdminContent() {
             .from('loyalty_transactions')
             .select('customer_id, user_id, points, type, created_at')
 
+        const matchedStoreCustomerIds = new Set<string>()
+
         let combinedCustomers: Customer[] = []
         if (endUserProfiles && endUserProfiles.length > 0) {
             combinedCustomers = endUserProfiles.map(u => {
@@ -410,6 +412,10 @@ function AdminContent() {
                     const emailMatch = u.email && sc.email && u.email.toLowerCase() === sc.email.toLowerCase()
                     const idMatch = sc.user_id === u.id || sc.id === u.id
                     return phoneMatch || emailMatch || idMatch
+                })
+
+                matchingStoreRecords.forEach(sc => {
+                    if (sc.id) matchedStoreCustomerIds.add(sc.id)
                 })
 
                 // 1. Saldo Ativo de Pontos
@@ -473,14 +479,47 @@ function AdminContent() {
                     company_name: preferredStoreName
                 }
             })
-        } else if (storeCustomers && storeCustomers.length > 0) {
-            combinedCustomers = storeCustomers.map(c => ({
-                ...c,
-                total_points: c.points_balance || 0,
-                preferred_store: c.profiles?.full_name || 'Loja',
-                company_name: c.profiles?.full_name || 'Grupo Desconhecido'
-            }))
         }
+
+        // Adiciona clientes da tabela 'customers' que ainda não possuem um perfil correspondente (role='customer' em profiles)
+        if (storeCustomers && storeCustomers.length > 0) {
+            const standaloneStoreCustomers = storeCustomers.filter(sc => !matchedStoreCustomerIds.has(sc.id))
+            
+            const standaloneMap = new Map<string, Customer>()
+            standaloneStoreCustomers.forEach(c => {
+                const phoneClean = c.phone ? c.phone.replace(/\D/g, '') : ''
+                const emailClean = c.email ? c.email.toLowerCase().trim() : ''
+                const key = phoneClean || emailClean || c.id
+
+                const storeName = (c.user_id && companyNameMap[c.user_id]) ? companyNameMap[c.user_id] : (c.profiles?.full_name || 'Loja')
+
+                if (standaloneMap.has(key)) {
+                    const existing = standaloneMap.get(key)!
+                    existing.points_balance += (c.points_balance || 0)
+                    existing.total_points += (c.points_balance || 0)
+                    if ((!existing.name || existing.name === 'Cliente Sem Nome') && c.name) {
+                        existing.name = c.name
+                    }
+                    if (!existing.phone && c.phone) existing.phone = c.phone
+                    if (!existing.email && c.email) existing.email = c.email
+                } else {
+                    standaloneMap.set(key, {
+                        ...c,
+                        name: c.name || 'Cliente Sem Nome',
+                        phone: c.phone || '-',
+                        email: c.email || '',
+                        cpf_cnpj: c.cpf_cnpj || '',
+                        points_balance: c.points_balance || 0,
+                        total_points: c.points_balance || 0,
+                        preferred_store: storeName,
+                        company_name: storeName
+                    })
+                }
+            })
+
+            combinedCustomers.push(...Array.from(standaloneMap.values()))
+        }
+
         setAllCustomers(combinedCustomers)
 
         const { data: transactions } = await supabase
@@ -625,7 +664,7 @@ function AdminContent() {
 
         setStats({
             totalHoldings, totalGroups, totalCompanies: totalStores, newCompaniesThisMonth: newComps,
-            totalCustomers: endUserProfiles?.length || 0, newCustomersThisMonth: newCusts,
+            totalCustomers: combinedCustomers.length, newCustomersThisMonth: newCusts,
             sales30Days, salesAccumulated, points30Days, pointsAccumulated, redemptions30Days, redemptionsAccumulated, estimatedRevenue: revenue
         })
 
