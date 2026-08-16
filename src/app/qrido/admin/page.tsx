@@ -1030,7 +1030,7 @@ function AdminContent() {
                                         <div className="pt-2 border-t border-slate-100">
                                             <Button
                                                 variant="ghost"
-                                                onClick={() => toggleEntityAccordion(comp.id, type)}
+                                                onClick={() => toggleEntityAccordion(comp.id, entityTypeName)}
                                                 className="w-full flex items-center justify-between text-xs font-black uppercase text-[#167657] hover:bg-emerald-50/60 rounded-xl py-2 px-3 transition-colors"
                                             >
                                                 <span className="flex items-center gap-2">
