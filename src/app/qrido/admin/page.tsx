@@ -780,6 +780,13 @@ function AdminContent() {
         if (error) {
             alert('Erro ao atualizar plano: ' + error.message)
         } else {
+            // Atualizar/garantir assinatura ativa
+            await supabase.from('subscriptions').upsert({
+                user_id: companyId,
+                status: 'active',
+                plan: newTier === 'master' ? 'master' : 'pro',
+                updated_at: new Date().toISOString()
+            })
             fetchAllData()
         }
     }
