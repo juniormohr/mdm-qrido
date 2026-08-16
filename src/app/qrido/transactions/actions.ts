@@ -278,6 +278,23 @@ export async function confirmRedemptionAction(data: {
     return { success: true }
 }
 
+function isCampaignDateActive(startDateStr?: string | null, endDateStr?: string | null, now: Date = new Date()): boolean {
+    if (!startDateStr || !endDateStr) return false
+    try {
+        const startIsoDay = startDateStr.split('T')[0]
+        const endIsoDay = endDateStr.split('T')[0]
+
+        // Início do dia (00:00:00) no fuso do Brasil (-03:00)
+        const start = new Date(`${startIsoDay}T00:00:00-03:00`)
+        // Fim do dia (23:59:59.999) no fuso do Brasil (-03:00)
+        const end = new Date(`${endIsoDay}T23:59:59.999-03:00`)
+
+        return now >= start && now <= end
+    } catch {
+        return false
+    }
+}
+
 export async function processTransactionAction(data: {
     customerId: string,
     totalPoints: number,
@@ -333,9 +350,7 @@ export async function processTransactionAction(data: {
     const isDoublePoints = groups?.some(g => {
         if (!g.double_points) return false
         if (g.event_start_date && g.event_end_date) {
-            const start = new Date(g.event_start_date)
-            const end = new Date(g.event_end_date)
-            return now >= start && now <= end
+            return isCampaignDateActive(g.event_start_date, g.event_end_date, now)
         }
         return true
     }) || false
@@ -376,18 +391,14 @@ export async function processTransactionAction(data: {
 
             let hasActiveGroupCampaign = false
             if (activeGroupCampaigns && activeGroupCampaigns.length > 0) {
-                hasActiveGroupCampaign = activeGroupCampaigns.some((c: any) => {
-                    const startDate = new Date(c.start_date)
-                    const endDate = new Date(c.end_date)
-                    return now >= startDate && now <= endDate
-                })
+                hasActiveGroupCampaign = activeGroupCampaigns.some((c: any) => 
+                    isCampaignDateActive(c.start_date, c.end_date, now)
+                )
             }
 
             if (!hasActiveGroupCampaign && group.double_points) {
                 if (group.event_start_date && group.event_end_date) {
-                    const start = new Date(group.event_start_date)
-                    const end = new Date(group.event_end_date)
-                    hasActiveGroupCampaign = now >= start && now <= end
+                    hasActiveGroupCampaign = isCampaignDateActive(group.event_start_date, group.event_end_date, now)
                 } else {
                     hasActiveGroupCampaign = true
                 }
@@ -466,11 +477,9 @@ export async function processTransactionAction(data: {
 
                     let hasHoldingCampaign = false
                     if (holdingCampaigns && holdingCampaigns.length > 0) {
-                        hasHoldingCampaign = holdingCampaigns.some((c: any) => {
-                            const startDate = new Date(c.start_date)
-                            const endDate = new Date(c.end_date)
-                            return now >= startDate && now <= endDate
-                        })
+                        hasHoldingCampaign = holdingCampaigns.some((c: any) => 
+                            isCampaignDateActive(c.start_date, c.end_date, now)
+                        )
                     }
 
                     // Se a HOLDING possui campanha ativa -> Creditar na Carteira da Holding
@@ -550,11 +559,9 @@ export async function processTransactionAction(data: {
 
             let hasActiveAdminCampaign = false
             if (adminCampaigns && adminCampaigns.length > 0) {
-                hasActiveAdminCampaign = adminCampaigns.some((c: any) => {
-                    const startDate = new Date(c.start_date)
-                    const endDate = new Date(c.end_date)
-                    return now >= startDate && now <= endDate
-                })
+                hasActiveAdminCampaign = adminCampaigns.some((c: any) => 
+                    isCampaignDateActive(c.start_date, c.end_date, now)
+                )
             }
 
             // Se o ADMIN possui campanha ativa -> Creditar na Carteira do Admin

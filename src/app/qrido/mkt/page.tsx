@@ -255,8 +255,8 @@ export default function MarketingSettings() {
             const campPayload = {
                 entity_id: resolvedCompanyId,
                 title: campaign.title,
-                start_date: `${campaign.start_date}T00:00:00.000Z`,
-                end_date: `${campaign.end_date}T23:59:59.999Z`,
+                start_date: campaign.start_date ? new Date(`${campaign.start_date.split('T')[0]}T00:00:00-03:00`).toISOString() : null,
+                end_date: campaign.end_date ? new Date(`${campaign.end_date.split('T')[0]}T23:59:59.999-03:00`).toISOString() : null,
                 is_active: campaign.is_active,
                 double_points: config.double_points_active,
                 reward_ids: campaign.reward_ids,
