@@ -21,10 +21,9 @@ export async function POST(req: Request) {
         console.log('[GURU WEBHOOK] Payload recebido:', JSON.stringify(body))
 
         // O Guru envia a estrutura principal com 'status' e 'contact' / 'customer'
-        // Status comuns no Guru: approved, paid, canceled, refunded, chargedback, overdue, expired
-        const status = body.status || body.event || body.transaction?.status
-        const email = body.contact?.email || body.email || body.customer?.email || body.buyer?.email
-        const productPlan = body.product?.name || body.product?.id || body.subscription?.plan?.name
+        const rawStatus = (body.status || body.event || body.transaction?.status || '').toString().toLowerCase()
+        const email = (body.contact?.email || body.email || body.customer?.email || body.buyer?.email || '').trim().toLowerCase()
+        const productPlan = (body.product?.name || body.product?.id || body.subscription?.plan?.name || '').toString().toLowerCase()
 
         if (!email) {
             console.log('[GURU WEBHOOK] Ignorado: E-mail do cliente não encontrado no payload')
@@ -35,7 +34,7 @@ export async function POST(req: Request) {
         const { data: profile, error: profileError } = await supabaseAdmin
             .from('profiles')
             .select('id, email, subscription_tier')
-            .eq('email', email.trim().toLowerCase())
+            .eq('email', email)
             .maybeSingle()
 
         if (!profile) {
@@ -43,15 +42,19 @@ export async function POST(req: Request) {
             return NextResponse.json({ received: true, message: 'Profile not found' })
         }
 
-        const isApproved = ['approved', 'paid', 'active', 'PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED'].includes(status)
-        const isCanceledOrExpired = ['canceled', 'refunded', 'chargedback', 'expired', 'SUBSCRIPTION_DELETED'].includes(status)
-        const isOverdue = ['overdue', 'past_due', 'PAYMENT_OVERDUE'].includes(status)
+        const isApproved = ['approved', 'paid', 'active', 'payment_confirmed', 'payment_received', 'billet_paid', 'pix_paid'].includes(rawStatus)
+        const isCanceledOrExpired = ['canceled', 'refunded', 'chargedback', 'expired', 'subscription_deleted'].includes(rawStatus)
+        const isOverdue = ['overdue', 'past_due', 'payment_overdue'].includes(rawStatus)
 
         if (isApproved) {
-            // Mapear plano do Guru se necessário (opcional)
-            let targetTier = profile.subscription_tier && profile.subscription_tier !== 'basic' && profile.subscription_tier !== 'start' 
-                ? profile.subscription_tier 
-                : 'pro'
+            let targetTier = 'pro'
+            if (productPlan.includes('holding')) {
+                targetTier = 'master'
+            } else if (productPlan.includes('grupo') || productPlan.includes('mall')) {
+                targetTier = 'master'
+            } else if (profile.subscription_tier && profile.subscription_tier !== 'basic' && profile.subscription_tier !== 'start') {
+                targetTier = profile.subscription_tier
+            }
 
             // Atualiza status da assinatura para active
             await supabaseAdmin.from('subscriptions').upsert({
@@ -61,14 +64,12 @@ export async function POST(req: Request) {
                 updated_at: new Date().toISOString()
             })
 
-            // Garante que o tier no profile está correto
-            if (profile.subscription_tier === 'basic' || profile.subscription_tier === 'start' || !profile.subscription_tier) {
-                await supabaseAdmin.from('profiles').update({
-                    subscription_tier: targetTier
-                }).eq('id', profile.id)
-            }
+            // Garante que o tier no profile está atualizado (pro/master)
+            await supabaseAdmin.from('profiles').update({
+                subscription_tier: targetTier
+            }).eq('id', profile.id)
 
-            console.log(`[GURU WEBHOOK] Sucesso: Assinatura ativada para ${email} (${profile.id})`)
+            console.log(`[GURU WEBHOOK] Sucesso: Assinatura ativada para ${email} (${profile.id}) com plano ${targetTier}`)
         } else if (isCanceledOrExpired) {
             await supabaseAdmin.from('subscriptions').update({
                 status: 'canceled',
