@@ -45,27 +45,43 @@ export async function POST(request: Request) {
              return NextResponse.json({ error: 'Erro ao validar a lista de equipe.' }, { status: 500 })
         }
 
-        // Pre-verificação de e-mail e CPF duplicados no banco
-        const { data: existingEmail } = await supabaseAdmin
+        // Pre-verificação 1: E-mail em profiles
+        const { data: existingEmailProfile } = await supabaseAdmin
             .from('profiles')
-            .select('id')
-            .eq('email', cleanEmail)
+            .select('id, email')
+            .ilike('email', cleanEmail)
             .maybeSingle()
 
-        if (existingEmail) {
-            return NextResponse.json({ error: 'Este e-mail já está cadastrado no sistema.' }, { status: 400 })
+        if (existingEmailProfile) {
+            return NextResponse.json({ error: `O e-mail "${cleanEmail}" já está cadastrado no sistema.` }, { status: 400 })
         }
 
+        // Pre-verificação 2: CPF em profiles (testa formato numérico limpo, formatado e original)
         if (cleanCpf) {
-            const { data: existingCpf } = await supabaseAdmin
+            const formattedCpf = cleanCpf.length === 11 
+                ? cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') 
+                : cpf
+
+            const { data: existingCpfProfile } = await supabaseAdmin
                 .from('profiles')
-                .select('id')
-                .or(`cpf.eq.${cleanCpf},cpf_cnpj.eq.${cleanCpf},cpf_cnpj.eq.${cpf}`)
+                .select('id, cpf, cpf_cnpj')
+                .or(`cpf.eq.${cleanCpf},cpf.eq.${formattedCpf},cpf.eq.${cpf},cpf_cnpj.eq.${cleanCpf},cpf_cnpj.eq.${formattedCpf},cpf_cnpj.eq.${cpf}`)
                 .maybeSingle()
 
-            if (existingCpf) {
-                return NextResponse.json({ error: 'Este CPF já está cadastrado no sistema.' }, { status: 400 })
+            if (existingCpfProfile) {
+                return NextResponse.json({ error: `O CPF "${cpf}" já está cadastrado no sistema.` }, { status: 400 })
             }
+        }
+
+        // Pre-verificação 3: Checar se o e-mail existe no Auth
+        try {
+            const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+            const existingAuthUser = authUsers?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
+            if (existingAuthUser) {
+                return NextResponse.json({ error: `O e-mail "${cleanEmail}" já possui uma conta cadastrada.` }, { status: 400 })
+            }
+        } catch (e) {
+            console.error('Erro ao listar usuários no auth:', e)
         }
 
         // 2. Criar usuário no Auth
@@ -85,13 +101,18 @@ export async function POST(request: Request) {
         if (authError) {
             let userFriendlyError = authError.message
             if (
+                authError.message.includes('already registered') || 
+                authError.message.includes('already been registered') ||
+                authError.message.includes('email_exists')
+            ) {
+                userFriendlyError = `O e-mail "${cleanEmail}" já está cadastrado no sistema.`
+            } else if (
                 authError.message.includes('Database error creating new user') ||
                 authError.message.includes('Database error') ||
-                authError.message.includes('unique constraint')
+                authError.message.includes('unique constraint') ||
+                authError.message.includes('profiles_cpf_cnpj_key')
             ) {
-                userFriendlyError = 'Já existe uma conta cadastrada com este e-mail ou CPF no sistema.'
-            } else if (authError.message.includes('already registered') || authError.message.includes('already been registered')) {
-                userFriendlyError = 'Este e-mail já está cadastrado no sistema.'
+                userFriendlyError = 'Já existe uma conta cadastrada com este CPF ou E-mail no sistema.'
             }
             return NextResponse.json({ error: userFriendlyError }, { status: 400 })
         }
@@ -113,7 +134,7 @@ export async function POST(request: Request) {
     } catch (error: any) {
         let msg = error.message || 'Erro interno ao criar usuário'
         if (msg.includes('Database error creating new user')) {
-            msg = 'Já existe uma conta cadastrada com este e-mail ou CPF no sistema.'
+            msg = 'Já existe um cadastro no sistema com estes dados (E-mail ou CPF).'
         }
         return NextResponse.json({ error: msg }, { status: 500 })
     }
