@@ -1882,15 +1882,20 @@ function AdminContent() {
                                                                                                 <div className="min-w-0">
                                                                                                     <div className="flex items-center gap-2 flex-wrap">
                                                                                                         <span className="font-bold text-slate-800 flex items-center gap-1">
-                                                                                                            <Store className="w-3 h-3 text-slate-400" /> {tx.store_name}
+                                                                                                            <Store className="w-3.5 h-3.5 text-slate-400" /> {tx.store_name}
                                                                                                         </span>
                                                                                                         <span className="text-[10px] text-slate-400">
                                                                                                             • {new Date(tx.date).toLocaleDateString('pt-BR')} às {new Date(tx.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                                                                         </span>
                                                                                                     </div>
 
-                                                                                                    {/* Tags de Pontos em Dobro e Replicado em Grupo */}
+                                                                                                    {/* Tags de Pontos em Dobro, Replicado e Crédito de Grupo */}
                                                                                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                                                        {tx.is_group_credit && (
+                                                                                                            <span className="text-[9px] font-black bg-purple-600 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                                                                                                                <Building className="w-2.5 h-2.5" /> Carteira Geral do Grupo / Feira
+                                                                                                            </span>
+                                                                                                        )}
                                                                                                         {tx.reward_title && (
                                                                                                             <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                                                                                                                 Prêmio: {tx.reward_title}

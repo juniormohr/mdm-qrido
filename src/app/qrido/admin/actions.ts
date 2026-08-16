@@ -567,6 +567,21 @@ export async function fetchCustomerHistoryAction(customerId: string, userId?: st
     const { data: cgData } = await supabaseAdmin.from('company_groups').select('mall_id, store_id')
     const { data: hgData } = await supabaseAdmin.from('holding_groups').select('holding_id, group_id')
 
+    // Identificar os IDs que correspondem a Grupos/Malls
+    const groupProfilesIds = new Set<string>()
+    if (storeIds.length > 0) {
+      const { data: gProfs } = await supabaseAdmin
+        .from('profiles')
+        .select('id, role, company_type')
+        .in('id', storeIds)
+
+      gProfs?.forEach(p => {
+        if (['mall', 'group'].includes(p.role) || ['mall'].includes(p.company_type)) {
+          groupProfilesIds.add(p.id)
+        }
+      })
+    }
+
     const storeGroupMap: Record<string, string[]> = {}
     cgData?.forEach(cg => {
       if (!storeGroupMap[cg.store_id]) storeGroupMap[cg.store_id] = []
@@ -574,9 +589,10 @@ export async function fetchCustomerHistoryAction(customerId: string, userId?: st
     })
 
     const formattedTransactions = transactions.map(t => {
+      const isGroupTx = groupProfilesIds.has(t.user_id)
       const storeName = storeNameMap[t.user_id] || 'Loja'
       const groups = storeGroupMap[t.user_id] || []
-      const isReplicatedToGroup = groups.length > 0
+      const isReplicatedToGroup = !isGroupTx && groups.length > 0
       const isDoublePoints = Boolean(t.double_points || t.is_double_points || (t.notes && t.notes.includes('dobro')) || (t.type === 'earn' && t.sale_amount && t.points >= t.sale_amount * 2))
 
       return {
@@ -584,6 +600,7 @@ export async function fetchCustomerHistoryAction(customerId: string, userId?: st
         date: t.created_at,
         store_id: t.user_id,
         store_name: storeName,
+        is_group_credit: isGroupTx,
         type: t.type,
         sale_amount: t.sale_amount || 0,
         points: t.points || 0,
