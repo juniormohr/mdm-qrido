@@ -67,7 +67,7 @@ export async function fetchGroupDashboardDataAction(groupUserId: string) {
         .select('id, user_id, name, phone, email, points_balance, created_at')
         .in('user_id', acceptedStoreIds)
 
-      const unifiedMap = new Map<string, any>()
+      const unifiedMap = new Map<string, any>();
 
       (storeCusts || []).forEach((c: any) => {
         const phoneKey = c.phone ? c.phone.replace(/\D/g, '') : ''
