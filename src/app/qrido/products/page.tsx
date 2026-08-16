@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { fetchProductsDataAction } from './actions'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,7 +47,7 @@ function ProductManagementContent() {
     const [upsellLimit, setUpsellLimit] = useState(0)
     const [pointsPerReal, setPointsPerReal] = useState<number>(1.0)
     const [userRole, setUserRole] = useState<string | null>(null)
-    const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding'>('store')
+    const [companyType, setCompanyType] = useState<'store' | 'mall' | 'holding' | 'group'>('store')
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     
     // Estados do Destaque
@@ -65,7 +66,7 @@ function ProductManagementContent() {
     const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all')
 
     useEffect(() => {
-        fetchInitialUserAndOptions()
+        initUser()
     }, [])
 
     useEffect(() => {
@@ -86,174 +87,38 @@ function ProductManagementContent() {
         }
     }, [searchParams])
 
-    async function fetchInitialUserAndOptions() {
+    async function initUser() {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-
         setCurrentUserId(user.id)
-
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('subscription_tier, role, company_type, company_id')
-            .eq('id', user.id)
-            .single()
-
-        const role = profile?.role || 'company'
-        const compType = profile?.company_type || 'store'
-        setTier(profile?.subscription_tier || 'basic')
-        setUserRole(role)
-        setCompanyType(compType as 'store' | 'mall' | 'holding')
-
-        const isAdmin = role === 'admin'
-        const isHolding = role === 'holding' || compType === 'holding'
-        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
-
-        if (isAdmin) {
-            const { data: holdings } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.holding,role.eq.holding')
-            const { data: groups } = await supabase.from('profiles').select('id, full_name, role, company_type').or('company_type.eq.mall,role.eq.mall,role.eq.group')
-            const { data: stores } = await supabase.from('profiles').select('id, full_name, role, company_type').in('role', ['company', 'store'])
-
-            const filteredHoldings = (holdings || []).filter(h => h.role !== 'customer')
-            const filteredGroups = (groups || []).filter(g => g.role !== 'customer')
-            const filteredStores = (stores || []).filter(s => s.role !== 'customer' && s.company_type !== 'mall' && s.company_type !== 'holding')
-
-            setHoldingsList(filteredHoldings.map(h => ({ id: h.id, name: h.full_name || 'Holding' })))
-            setGroupsList(filteredGroups.map(g => ({ id: g.id, name: g.full_name || 'Grupo' })))
-            setStoresList(filteredStores.map(s => ({ id: s.id, name: s.full_name || 'Loja' })))
-        } else if (isHolding) {
-            const { data: hgData } = await supabase.from('holding_groups').select('group_id, profiles!holding_groups_group_id_fkey(id, full_name)').eq('holding_id', user.id).eq('status', 'accepted')
-            const grps = (hgData || []).map((item: any) => ({ id: item.group_id, name: item.profiles?.full_name || 'Grupo' }))
-            setGroupsList(grps)
-
-            if (grps.length > 0) {
-                const gIds = grps.map(g => g.id)
-                const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').in('mall_id', gIds).eq('status', 'accepted')
-                const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
-                setStoresList(strs)
-            }
-        } else if (isGroup) {
-            const { data: cgData } = await supabase.from('company_groups').select('store_id, profiles!company_groups_store_id_fkey(id, full_name)').eq('mall_id', user.id).eq('status', 'accepted')
-            const strs = (cgData || []).map((item: any) => ({ id: item.store_id, name: item.profiles?.full_name || 'Loja' }))
-            setStoresList(strs)
-        }
-    }
-
-    async function getEligibleEntityIds(userId: string, role: string, compType: string): Promise<string[]> {
-        const supabase = createClient()
-        const isAdmin = role === 'admin'
-        const isHolding = role === 'holding' || compType === 'holding'
-        const isGroup = role === 'mall' || role === 'group' || compType === 'mall'
-
-        if (isAdmin) {
-            if (selectedStoreId !== 'all') return [selectedStoreId]
-
-            if (selectedGroupId !== 'all') {
-                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
-                const storeIds = (cgData || []).map(c => c.store_id)
-                return [selectedGroupId, ...storeIds]
-            }
-
-            if (selectedHoldingId !== 'all') {
-                const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', selectedHoldingId).eq('status', 'accepted')
-                const gIds = (hgData || []).map(h => h.group_id)
-                let sIds: string[] = []
-                if (gIds.length > 0) {
-                    const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
-                    sIds = (cgData || []).map(c => c.store_id)
-                }
-                return [selectedHoldingId, ...gIds, ...sIds]
-            }
-
-            const { data: allProfiles } = await supabase.from('profiles').select('id')
-            return (allProfiles || []).map(p => p.id)
-        }
-
-        if (isHolding) {
-            if (selectedStoreId !== 'all') return [selectedStoreId]
-
-            if (selectedGroupId !== 'all') {
-                const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', selectedGroupId).eq('status', 'accepted')
-                const sIds = (cgData || []).map(c => c.store_id)
-                return [userId, selectedGroupId, ...sIds]
-            }
-
-            const { data: hgData } = await supabase.from('holding_groups').select('group_id').eq('holding_id', userId).eq('status', 'accepted')
-            const gIds = (hgData || []).map(h => h.group_id)
-            let sIds: string[] = []
-            if (gIds.length > 0) {
-                const { data: cgData } = await supabase.from('company_groups').select('store_id').in('mall_id', gIds).eq('status', 'accepted')
-                sIds = (cgData || []).map(c => c.store_id)
-            }
-            return [userId, ...gIds, ...sIds]
-        }
-
-        if (isGroup) {
-            if (selectedStoreId !== 'all') return [selectedStoreId]
-
-            const { data: cgData } = await supabase.from('company_groups').select('store_id').eq('mall_id', userId).eq('status', 'accepted')
-            const sIds = (cgData || []).map(c => c.store_id)
-            return [userId, ...sIds]
-        }
-
-        return [userId]
     }
 
     async function fetchProducts() {
         if (!currentUserId) return
         setLoading(true)
-        const supabase = createClient()
+        const res = await fetchProductsDataAction({
+            userId: currentUserId,
+            selectedHoldingId,
+            selectedGroupId,
+            selectedStoreId,
+        })
 
-        const eligibleIds = await getEligibleEntityIds(currentUserId, userRole || 'company', companyType)
-
-        if (eligibleIds.length === 0) {
-            setProducts([])
+        if (res.error) {
+            console.error('Error fetching products:', res.error)
             setLoading(false)
             return
         }
 
-        const { data: loyaltyData } = await supabase
-            .from('loyalty_configs')
-            .select('points_per_real')
-            .eq('user_id', currentUserId)
-            .maybeSingle()
+        if (res.products) setProducts(res.products as Product[])
+        if (res.holdingsList) setHoldingsList(res.holdingsList)
+        if (res.groupsList) setGroupsList(res.groupsList)
+        if (res.storesList) setStoresList(res.storesList)
+        if (res.userRole) setUserRole(res.userRole)
+        if (res.companyType) setCompanyType(res.companyType as any)
+        if (res.tier) setTier(res.tier)
+        if (res.pointsPerReal !== undefined) setPointsPerReal(res.pointsPerReal)
 
-        const ratio = loyaltyData && loyaltyData.points_per_real !== null ? Number(loyaltyData.points_per_real) : 1.0
-        setPointsPerReal(ratio)
-
-        const { data: rawProducts } = await supabase
-            .from('products')
-            .select('*')
-            .eq('is_active', true)
-            .in('company_id', eligibleIds)
-
-        const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name')
-            .in('id', eligibleIds)
-
-        const formattedProducts: Product[] = (rawProducts || []).map(p => {
-            const company = profiles?.find(prof => prof.id === p.company_id)
-            return {
-                ...p,
-                company_name: company?.full_name || (p.company_id === currentUserId ? 'Minha Empresa' : 'Empresa Partner')
-            }
-        })
-
-        // Ordenação: 
-        // 1. Produtos cadastrados pelo próprio usuário/admin logado primeiro
-        // 2. Ordem de cadastro decrescente (últimos cadastrados primeiro)
-        formattedProducts.sort((a, b) => {
-            const aIsMine = a.company_id === currentUserId ? 1 : 0
-            const bIsMine = b.company_id === currentUserId ? 1 : 0
-            if (aIsMine !== bIsMine) return bIsMine - aIsMine
-
-            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0
-            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0
-            return timeB - timeA
-        })
-
-        setProducts(formattedProducts)
         setLoading(false)
     }
 

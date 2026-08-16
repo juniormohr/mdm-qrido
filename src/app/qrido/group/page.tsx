@@ -149,96 +149,27 @@ function GroupDashboardContent() {
     }
   }, [preset]);
 
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+
   const fetchGroupData = async () => {
     setLoading(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Load stores linked to this group
-    const { data: cgData } = await supabase
-      .from("company_groups")
-      .select("store_id, status")
-      .eq("mall_id", user.id);
+    const { fetchGroupDashboardDataAction } = await import("./actions");
+    const res = await fetchGroupDashboardDataAction(user.id);
 
-    const allInvited: StoreOption[] = [];
-    const accepted: StoreOption[] = [];
-    const acceptedStoreIds: string[] = [];
-
-    if (cgData && cgData.length > 0) {
-      const storeIds = cgData.map((item: any) => item.store_id);
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, phone, created_at")
-        .in("id", storeIds);
-
-      const { data: storeTxs } = await supabase
-        .from("loyalty_transactions")
-        .select("user_id")
-        .in("user_id", storeIds);
-
-      const txCountMap: Record<string, number> = {};
-      storeTxs?.forEach((t: any) => {
-        txCountMap[t.user_id] = (txCountMap[t.user_id] || 0) + 1;
-      });
-
-      const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
-
-      cgData.forEach((item: any) => {
-        const prof = profilesMap.get(item.store_id);
-        const st: StoreOption = {
-          id: item.store_id,
-          name: prof?.full_name || "Loja",
-          email: prof?.email,
-          phone: prof?.phone,
-          status: item.status || "accepted",
-          created_at: prof?.created_at,
-          total_transactions: txCountMap[item.store_id] || 0,
-        };
-        allInvited.push(st);
-        if (item.status === "accepted" || item.status === "active" || !item.status) {
-          accepted.push(st);
-          acceptedStoreIds.push(item.store_id);
-        }
-      });
+    if (res.error) {
+      console.error("Erro ao carregar dados do grupo:", res.error);
+      setLoading(false);
+      return;
     }
 
-    setAllInvitedStores(allInvited);
-    setAcceptedStores(accepted);
-
-    // Load clients of accepted stores
-    if (acceptedStoreIds.length > 0) {
-      const { data: storeCusts } = await supabase
-        .from("customers")
-        .select("*, profiles:user_id(full_name)")
-        .in("user_id", acceptedStoreIds);
-
-      if (storeCusts) setCustomers(storeCusts);
-    } else {
-      setCustomers([]);
-    }
-
-    // Load all available stores for invite modal
-    const { data: allStores } = await supabase
-      .from("profiles")
-      .select("id, full_name, email, role, company_type")
-      .eq("company_type", "store")
-      .in("role", ["company", "store"]);
-
-    if (allStores) {
-      const storesOnly = allStores.filter(
-        (s: any) =>
-          s.id !== user.id &&
-          s.role !== "customer" &&
-          s.role !== "admin" &&
-          s.role !== "holding" &&
-          s.role !== "mall" &&
-          s.role !== "group" &&
-          s.company_type === "store"
-      );
-      const uninvited = storesOnly.filter(s => !allInvited.some(inv => inv.id === s.id));
-      setAvailableStoresForInvite(uninvited);
-    }
+    if (res.allInvitedStores) setAllInvitedStores(res.allInvitedStores);
+    if (res.acceptedStores) setAcceptedStores(res.acceptedStores);
+    if (res.customers) setCustomers(res.customers);
+    if (res.availableStoresForInvite) setAvailableStoresForInvite(res.availableStoresForInvite);
 
     setLoading(false);
   };
@@ -562,33 +493,116 @@ function GroupDashboardContent() {
       {activeTab === "customers" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm overflow-hidden space-y-4">
-            <h3 className="text-lg font-black italic uppercase text-slate-900">Clientes Atendidos pelas Lojas do Grupo</h3>
-            {customers.length === 0 ? (
-              <div className="text-center py-12 text-slate-400 font-medium">
-                Nenhum cliente registrado nas lojas participantes.
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-black italic uppercase text-slate-900">Clientes Atendidos pelas Lojas do Grupo</h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Pontos unificados acumulados exclusivamente nas lojas deste grupo.
+                </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-700">
-                  <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-4">Cliente</th>
-                      <th className="py-3 px-4">Telefone</th>
-                      <th className="py-3 px-4">Saldo Pontos</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                    {customers.map(c => (
-                      <tr key={c.id} className="hover:bg-slate-50/80">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
-                        <td className="py-3.5 px-4 text-slate-600">{c.phone || '-'}</td>
-                        <td className="py-3.5 px-4 font-black text-[#297CCB]">{c.points_balance || 0} pts</td>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  className="rounded-2xl font-bold text-xs gap-2 border-slate-200"
+                  onClick={() => {
+                    if (customers.length === 0) return;
+                    const headers = ['Nome', 'Telefone', 'Email', 'Pontos Unificados Grupo'];
+                    const csv = [
+                      headers.join(','),
+                      ...customers.map(c => [
+                        `"${c.name || ''}"`,
+                        `"${c.phone || ''}"`,
+                        `"${c.email || ''}"`,
+                        c.points_balance || 0
+                      ].join(','))
+                    ].join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `clientes_grupo_${new Date().toISOString().split('T')[0]}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                >
+                  Exportar CSV
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <Search className="h-4 w-4 text-slate-400 ml-1" />
+              <Input
+                placeholder="Buscar cliente por nome, telefone ou e-mail..."
+                className="border-none shadow-none focus-visible:ring-0 text-slate-600 font-medium placeholder:text-slate-400 text-xs bg-transparent"
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {(() => {
+              const filtered = customers.filter(c => {
+                const term = customerSearchTerm.toLowerCase();
+                return (c.name || '').toLowerCase().includes(term) ||
+                  (c.phone || '').includes(term) ||
+                  (c.email || '').toLowerCase().includes(term);
+              });
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="text-center py-12 text-slate-400 font-medium">
+                    {customers.length === 0 ? "Nenhum cliente registrado nas lojas participantes." : "Nenhum cliente encontrado com a busca digitada."}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-700">
+                    <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b border-slate-200">
+                      <tr>
+                        <th className="py-3 px-4">Cliente</th>
+                        <th className="py-3 px-4">Contato</th>
+                        <th className="py-3 px-4 text-center">Saldo de Pontos no Grupo</th>
+                        <th className="py-3 px-4 text-right">Ações</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {filtered.map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50/80">
+                          <td className="py-3.5 px-4 font-bold text-slate-900">{c.name}</td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-col text-xs">
+                              <span className="text-slate-700 font-bold">{c.phone || '-'}</span>
+                              {c.email && <span className="text-slate-400">{c.email}</span>}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span className="inline-flex items-center rounded-xl bg-[#297CCB]/10 px-3 py-1 text-xs font-black text-[#297CCB] border border-[#297CCB]/20">
+                              {c.points_balance || 0} pts
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            {c.phone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1.5 rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold text-xs"
+                                onClick={() => handleWhatsAppSend(c.name, c.phone)}
+                              >
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                WhatsApp
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
