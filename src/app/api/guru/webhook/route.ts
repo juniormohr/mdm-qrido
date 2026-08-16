@@ -58,8 +58,7 @@ export async function POST(req: Request) {
                 user_id: profile.id,
                 status: 'active',
                 plan: targetTier,
-                updated_at: new Date().toISOString(),
-                current_period_end: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString()
+                updated_at: new Date().toISOString()
             })
 
             // Garante que o tier no profile está correto
