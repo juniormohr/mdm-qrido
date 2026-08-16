@@ -385,6 +385,8 @@ function AdminContent() {
         const companyMetrics = profiles?.map(p => {
             const companyTransactions = txSummary?.filter(t => t.user_id === p.id) || []
             const redemptions = companyTransactions.filter(t => t.type === 'redeem').length
+            const volume = companyTransactions.length
+            const isEngaged = volume > 10
             const isPartnership = p.subscription_tier === 'partnership' && (!p.partnership_end_date || new Date(p.partnership_end_date) > new Date())
             const hasPaidSub = activeSubs?.some(s => s.user_id === p.id && (s.status === 'active' || s.status === 'trialing'))
             const hasActivePaidSub = (hasPaidSub && p.subscription_tier !== 'start') || isPartnership || p.subscription_tier === 'pro' || p.subscription_tier === 'master' || (hasPaidSub && p.subscription_tier === 'basic')
