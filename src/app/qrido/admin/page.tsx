@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction, fetchCompanyGroupRelationsAction } from './actions'
+import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction, fetchCompanyGroupRelationsAction, fetchCustomerHistoryAction, fetchEntityHistoryAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import {
     Plus, Users, User, MessageSquareMore, TrendingUp, Store,
     Filter, BarChart3, Search, Trash2, Edit2,
     ArrowUpRight, DollarSign, Wallet, Calendar,
-    UserPlus, Link2, Flame, ChevronRight, Mail, Phone, MessageCircle, Zap, Power, Lock, Building, Shield,
+    UserPlus, Link2, Flame, ChevronRight, ChevronDown, ChevronUp, History, Sparkles, Layers, Mail, Phone, MessageCircle, Zap, Power, Lock, Building, Shield,
     Award, Gift, Trophy, ShoppingBag, KeyRound, Loader2, CheckCircle2, AlertCircle, X
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -143,6 +143,51 @@ function AdminContent() {
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
     const [customerSort, setCustomerSort] = useState('name_asc')
+
+    // Estados para o Histórico em Leque (Clientes e Entidades)
+    const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null)
+    const [customerHistoryData, setCustomerHistoryData] = useState<Record<string, any>>({})
+    const [loadingCustomerHistory, setLoadingCustomerHistory] = useState<Record<string, boolean>>({})
+
+    const [expandedEntityId, setExpandedEntityId] = useState<string | null>(null)
+    const [entityHistoryData, setEntityHistoryData] = useState<Record<string, any>>({})
+    const [loadingEntityHistory, setLoadingEntityHistory] = useState<Record<string, boolean>>({})
+
+    const toggleCustomerAccordion = async (cust: Customer) => {
+        if (expandedCustomerId === cust.id) {
+            setExpandedCustomerId(null)
+            return
+        }
+
+        setExpandedCustomerId(cust.id)
+
+        if (!customerHistoryData[cust.id]) {
+            setLoadingCustomerHistory(prev => ({ ...prev, [cust.id]: true }))
+            const res = await fetchCustomerHistoryAction(cust.id, cust.user_id, cust.phone, cust.email)
+            if (res.success && res.data) {
+                setCustomerHistoryData(prev => ({ ...prev, [cust.id]: res.data }))
+            }
+            setLoadingCustomerHistory(prev => ({ ...prev, [cust.id]: false }))
+        }
+    }
+
+    const toggleEntityAccordion = async (entityId: string, entityType: string) => {
+        if (expandedEntityId === entityId) {
+            setExpandedEntityId(null)
+            return
+        }
+
+        setExpandedEntityId(entityId)
+
+        if (!entityHistoryData[entityId]) {
+            setLoadingEntityHistory(prev => ({ ...prev, [entityId]: true }))
+            const res = await fetchEntityHistoryAction(entityId, entityType)
+            if (res.success && res.data) {
+                setEntityHistoryData(prev => ({ ...prev, [entityId]: res.data }))
+            }
+            setLoadingEntityHistory(prev => ({ ...prev, [entityId]: false }))
+        }
+    }
 
     const handleWhatsAppSend = (name: string, phone?: string) => {
         if (!phone) {
@@ -980,6 +1025,94 @@ function AdminContent() {
                                                 <p className="text-xl font-black text-brand-blue italic">{comp.volume || 0}</p>
                                             </div>
                                         </div>
+
+                                        {/* Botão de Histórico em Leque (Acórdão) */}
+                                        <div className="pt-2 border-t border-slate-100">
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => toggleEntityAccordion(comp.id, type)}
+                                                className="w-full flex items-center justify-between text-xs font-black uppercase text-[#167657] hover:bg-emerald-50/60 rounded-xl py-2 px-3 transition-colors"
+                                            >
+                                                <span className="flex items-center gap-2">
+                                                    <History className="h-4 w-4 text-[#167657]" />
+                                                    Histórico de Atividades
+                                                </span>
+                                                {expandedEntityId === comp.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            </Button>
+
+                                            {expandedEntityId === comp.id && (
+                                                <div className="mt-3 p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3 animate-in slide-in-from-top-2 duration-300">
+                                                    {loadingEntityHistory[comp.id] ? (
+                                                        <div className="flex items-center justify-center py-4 text-xs font-bold text-slate-400 gap-2">
+                                                            <Loader2 className="h-4 w-4 animate-spin text-[#167657]" />
+                                                            Carregando histórico...
+                                                        </div>
+                                                    ) : entityHistoryData[comp.id] ? (
+                                                        <div className="space-y-3">
+                                                            <div className="grid grid-cols-3 gap-2 bg-white p-3 rounded-xl border border-slate-100 text-center shadow-xs">
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Total Vendas</p>
+                                                                    <p className="text-xs font-black text-emerald-600 italic">R$ {entityHistoryData[comp.id].total_sales?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Pontos Emitidos</p>
+                                                                    <p className="text-xs font-black text-brand-blue italic">{entityHistoryData[comp.id].total_points_earned?.toLocaleString('pt-BR')} pts</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase">Resgates</p>
+                                                                    <p className="text-xs font-black text-amber-600 italic">{entityHistoryData[comp.id].total_redemptions}</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Últimas Transações Registradas:</p>
+                                                                {entityHistoryData[comp.id].transactions?.length === 0 ? (
+                                                                    <p className="text-xs font-medium text-slate-400 py-2 text-center">Nenhuma movimentação registrada.</p>
+                                                                ) : (
+                                                                    entityHistoryData[comp.id].transactions?.map((tx: any) => (
+                                                                        <div key={tx.id} className="bg-white p-2.5 rounded-xl border border-slate-200/60 flex items-center justify-between text-xs gap-2">
+                                                                            <div>
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase", tx.type === 'earn' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800')}>
+                                                                                        {tx.type === 'earn' ? 'Compra' : 'Resgate'}
+                                                                                    </span>
+                                                                                    <span className="font-bold text-slate-800">{tx.customer_name}</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 flex-wrap">
+                                                                                    <span>Loja: {tx.store_name}</span>
+                                                                                    <span>•</span>
+                                                                                    <span>{new Date(tx.date).toLocaleDateString()}</span>
+                                                                                </div>
+                                                                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                                                                    {tx.double_points && (
+                                                                                        <span className="text-[9px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                                                                            <Sparkles className="w-2.5 h-2.5" /> Pontos em Dobro
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {tx.replicated_to_group && (
+                                                                                        <span className="text-[9px] font-black bg-blue-500 text-white px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                                                                                            <Layers className="w-2.5 h-2.5" /> Replicado p/ Grupo
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-right shrink-0">
+                                                                                {tx.sale_amount > 0 && (
+                                                                                    <p className="font-black text-emerald-600 text-xs">R$ {tx.sale_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                                                                                )}
+                                                                                <p className={cn("font-black text-xs", tx.type === 'earn' ? 'text-brand-blue' : 'text-amber-600')}>
+                                                                                    {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            )}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             )
@@ -1617,50 +1750,184 @@ function AdminContent() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {sortedCustomers.map(cust => (
-                                        <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-6 px-8">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 font-black uppercase italic text-xl shrink-0">
-                                                        {cust.name?.charAt(0) || 'C'}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-black text-slate-900 uppercase italic leading-tight">{cust.name || 'Cliente Sem Nome'}</p>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] text-slate-400 font-bold">{cust.phone}</span>
-                                                            {cust.cpf_cnpj && (
-                                                                <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
-                                                                    {formatCpfCnpj(cust.cpf_cnpj)}
-                                                                </span>
-                                                            )}
+                                    {sortedCustomers.map(cust => {
+                                        const isExpanded = expandedCustomerId === cust.id
+                                        const history = customerHistoryData[cust.id]
+                                        const isLoading = loadingCustomerHistory[cust.id]
+
+                                        return (
+                                            <React.Fragment key={cust.id}>
+                                                <tr className={cn("hover:bg-slate-50/50 transition-colors", isExpanded && "bg-slate-50/80")}>
+                                                    <td className="py-6 px-8">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="h-12 w-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 font-black uppercase italic text-xl shrink-0">
+                                                                {cust.name?.charAt(0) || 'C'}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-slate-900 uppercase italic leading-tight">{cust.name || 'Cliente Sem Nome'}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="text-[10px] text-slate-400 font-bold">{cust.phone}</span>
+                                                                    {cust.cpf_cnpj && (
+                                                                        <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                                                                            {formatCpfCnpj(cust.cpf_cnpj)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-6 px-8">
-                                                <div className="flex items-center gap-2 text-xs text-slate-800 font-bold">
-                                                    <Store className="h-3.5 w-3.5 text-brand-blue shrink-0" />
-                                                    {cust.preferred_store || cust.company_name || 'Nenhuma compra'}
-                                                </div>
-                                            </td>
-                                            <td className="py-6 px-8 text-center text-lg font-black text-brand-blue italic">
-                                                {cust.points_balance} pts
-                                            </td>
-                                            <td className="py-6 px-8 text-center text-lg font-black text-amber-600 italic">
-                                                {cust.total_points || 0} pts
-                                            </td>
-                                            <td className="py-6 px-8 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" title="Editar Cliente" onClick={() => { setCurrentEntity(cust); setShowCustomerModal(true); }}>
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Deletar Cliente" onClick={() => handleDeleteCustomer(cust.id)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    </td>
+                                                    <td className="py-6 px-8">
+                                                        <div className="flex items-center gap-2 text-xs text-slate-800 font-bold">
+                                                            <Store className="h-3.5 w-3.5 text-brand-blue shrink-0" />
+                                                            {cust.preferred_store || cust.company_name || 'Nenhuma compra'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-6 px-8 text-center text-lg font-black text-brand-blue italic">
+                                                        {cust.points_balance} pts
+                                                    </td>
+                                                    <td className="py-6 px-8 text-center text-lg font-black text-amber-600 italic">
+                                                        {cust.total_points || 0} pts
+                                                    </td>
+                                                    <td className="py-6 px-8 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => toggleCustomerAccordion(cust)}
+                                                                className={cn("h-10 px-3 text-xs font-black uppercase rounded-xl transition-all flex items-center gap-1.5", isExpanded ? "bg-[#167657] text-white" : "text-[#167657] bg-emerald-50 hover:bg-emerald-100")}
+                                                                title="Ver Histórico em Leque"
+                                                            >
+                                                                <History className="h-4 w-4" />
+                                                                <span>Histórico</span>
+                                                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all" title="Editar Cliente" onClick={() => { setCurrentEntity(cust); setShowCustomerModal(true); }}>
+                                                                <Edit2 className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Deletar Cliente" onClick={() => handleDeleteCustomer(cust.id)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+
+                                                {/* Leque Expandido do Perfil do Cliente */}
+                                                {isExpanded && (
+                                                    <tr className="bg-slate-50/90 border-b-2 border-[#167657]/20">
+                                                        <td colSpan={5} className="p-6">
+                                                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 animate-in slide-in-from-top-2 duration-300">
+                                                                {isLoading ? (
+                                                                    <div className="flex items-center justify-center py-6 text-slate-400 font-bold text-xs gap-2">
+                                                                        <Loader2 className="h-5 w-5 animate-spin text-[#167657]" />
+                                                                        Carregando perfil e histórico do cliente...
+                                                                    </div>
+                                                                ) : history ? (
+                                                                    <>
+                                                                        {/* Ficha Cadastral / Detalhes de Perfil */}
+                                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 text-xs">
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data de Cadastro</p>
+                                                                                <p className="font-bold text-slate-800 mt-1 flex items-center gap-1.5">
+                                                                                    <Calendar className="w-3.5 h-3.5 text-[#167657]" />
+                                                                                    {new Date(history.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipo de Perfil</p>
+                                                                                <div className="mt-1">
+                                                                                    {history.is_staff ? (
+                                                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-200 inline-flex items-center gap-1">
+                                                                                            <Shield className="w-3 h-3 text-purple-600" /> Staff / Admin
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-100 text-blue-800 border border-blue-200 inline-flex items-center gap-1">
+                                                                                            <User className="w-3 h-3 text-blue-600" /> Cliente Comum
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Quem Cadastrou</p>
+                                                                                <p className="font-bold text-slate-800 mt-1 flex items-center gap-1.5">
+                                                                                    <UserPlus className="w-3.5 h-3.5 text-amber-500" />
+                                                                                    {history.created_by || 'Auto-cadastro'}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Tabela de Transações / Histórico de Compras e Pontos */}
+                                                                        <div className="space-y-3">
+                                                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                                                                                <ShoppingBag className="w-4 h-4 text-brand-blue" />
+                                                                                Histórico Completo de Compras e Pontuação:
+                                                                            </h4>
+
+                                                                            {history.transactions?.length === 0 ? (
+                                                                                <div className="text-center py-6 bg-slate-50 rounded-2xl text-slate-400 text-xs font-medium border border-slate-100">
+                                                                                    Nenhuma compra ou resgate efetuado por este cliente.
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
+                                                                                    {history.transactions?.map((tx: any) => (
+                                                                                        <div key={tx.id} className="p-3.5 bg-white hover:bg-slate-50/80 transition-colors flex items-center justify-between gap-4 text-xs">
+                                                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                                                <div className={cn("p-2 rounded-xl text-xs font-black uppercase shrink-0", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700')}>
+                                                                                                    {tx.type === 'earn' ? 'Compra' : 'Resgate'}
+                                                                                                </div>
+                                                                                                <div className="min-w-0">
+                                                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                                                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                                                                                                            <Store className="w-3 h-3 text-slate-400" /> {tx.store_name}
+                                                                                                        </span>
+                                                                                                        <span className="text-[10px] text-slate-400">
+                                                                                                            • {new Date(tx.date).toLocaleDateString('pt-BR')} às {new Date(tx.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                                                        </span>
+                                                                                                    </div>
+
+                                                                                                    {/* Tags de Pontos em Dobro e Replicado em Grupo */}
+                                                                                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                                                        {tx.reward_title && (
+                                                                                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                                                                                                Prêmio: {tx.reward_title}
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        {tx.double_points && (
+                                                                                                            <span className="text-[9px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                                                                                                                <Sparkles className="w-2.5 h-2.5" /> Pontos em Dobro
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                        {tx.replicated_to_group && (
+                                                                                                            <span className="text-[9px] font-black bg-blue-500 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                                                                                                                <Layers className="w-2.5 h-2.5" /> Replicado para Grupo
+                                                                                                            </span>
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            <div className="text-right shrink-0">
+                                                                                                {tx.sale_amount > 0 && (
+                                                                                                    <p className="font-black text-emerald-600 text-xs">
+                                                                                                        R$ {tx.sale_amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                                                    </p>
+                                                                                                )}
+                                                                                                <p className={cn("font-black text-xs", tx.type === 'earn' ? 'text-brand-blue' : 'text-amber-600')}>
+                                                                                                    {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
+                                                                                                </p>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </>
+                                                                ) : null}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
                         </div>

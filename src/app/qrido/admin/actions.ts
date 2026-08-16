@@ -452,3 +452,281 @@ export async function fetchCompanyGroupRelationsAction() {
     return { hgData: [], cgData: [] }
   }
 }
+
+export async function fetchCustomerHistoryAction(customerId: string, userId?: string, phone?: string, email?: string) {
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Dados do Usuário Auth / Profile
+    let profileData: any = null
+    const targetUserId = userId || customerId
+    if (targetUserId) {
+      const { data: p } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', targetUserId)
+        .maybeSingle()
+      profileData = p
+    }
+
+    // Se não encontrou por ID, tenta por e-mail ou telefone
+    if (!profileData && email) {
+      const { data: p } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle()
+      profileData = p
+    }
+
+    // 2. Auth User metadata para pegar quem fez o cadastro (created_by / created_by_name)
+    let createdByInfo: string | null = null
+    if (targetUserId) {
+      try {
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(targetUserId)
+        if (authUser?.user?.user_metadata) {
+          const meta = authUser.user.user_metadata
+          createdByInfo = meta.created_by_name || meta.created_by || meta.registered_by || null
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar auth user:', e)
+      }
+    }
+
+    // 3. Registros na tabela 'customers'
+    let customersRecords: any[] = []
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : ''
+
+    const { data: cList } = await supabaseAdmin
+      .from('customers')
+      .select('*, profiles:user_id(full_name)')
+
+    if (cList) {
+      customersRecords = cList.filter((c: any) => {
+        const cPhoneClean = c.phone ? c.phone.replace(/\D/g, '') : ''
+        const pMatch = cleanPhone && cPhoneClean && cleanPhone === cPhoneClean
+        const eMatch = email && c.email && email.toLowerCase() === c.email.toLowerCase()
+        const idMatch = c.user_id === targetUserId || c.id === customerId
+        return pMatch || eMatch || idMatch
+      })
+    }
+
+    // 4. IDs de customer / profile vinculados para buscar transações
+    const customerIdsSet = new Set<string>()
+    if (customerId) customerIdsSet.add(customerId)
+    if (targetUserId) customerIdsSet.add(targetUserId)
+    customersRecords.forEach(c => {
+      if (c.id) customerIdsSet.add(c.id)
+    })
+
+    const customerIdsArray = Array.from(customerIdsSet)
+
+    // 5. Transações de Lealdade
+    let transactions: any[] = []
+    if (customerIdsArray.length > 0) {
+      const { data: txs } = await supabaseAdmin
+        .from('loyalty_transactions')
+        .select('*, rewards(title, points_required)')
+        .in('customer_id', customerIdsArray)
+        .order('created_at', { ascending: false })
+
+      if (txs) transactions = txs
+    }
+
+    // 6. Mapear nomes das Lojas onde comprou
+    const storeIds = Array.from(new Set(transactions.map(t => t.user_id).filter(Boolean)))
+    let storeNameMap: Record<string, string> = {}
+
+    if (storeIds.length > 0) {
+      const { data: storeProfiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, full_name, company_name')
+        .in('id', storeIds)
+
+      storeProfiles?.forEach(s => {
+        storeNameMap[s.id] = s.company_name || s.full_name || 'Loja'
+      })
+    }
+
+    // 7. Mapeamento de Grupos e Holdings para saber se teve pontos replicados ou em dobro
+    const { data: cgData } = await supabaseAdmin.from('company_groups').select('mall_id, store_id')
+    const { data: hgData } = await supabaseAdmin.from('holding_groups').select('holding_id, group_id')
+
+    const storeGroupMap: Record<string, string[]> = {}
+    cgData?.forEach(cg => {
+      if (!storeGroupMap[cg.store_id]) storeGroupMap[cg.store_id] = []
+      storeGroupMap[cg.store_id].push(cg.mall_id)
+    })
+
+    const formattedTransactions = transactions.map(t => {
+      const storeName = storeNameMap[t.user_id] || 'Loja'
+      const groups = storeGroupMap[t.user_id] || []
+      const isReplicatedToGroup = groups.length > 0
+      const isDoublePoints = Boolean(t.double_points || t.is_double_points || (t.notes && t.notes.includes('dobro')) || (t.type === 'earn' && t.sale_amount && t.points >= t.sale_amount * 2))
+
+      return {
+        id: t.id,
+        date: t.created_at,
+        store_id: t.user_id,
+        store_name: storeName,
+        type: t.type,
+        sale_amount: t.sale_amount || 0,
+        points: t.points || 0,
+        double_points: isDoublePoints,
+        replicated_to_group: isReplicatedToGroup,
+        reward_title: t.rewards?.title || null,
+        notes: t.notes || null
+      }
+    })
+
+    return {
+      success: true,
+      data: {
+        created_at: profileData?.created_at || customersRecords[0]?.created_at || new Date().toISOString(),
+        is_staff: Boolean(profileData?.is_staff || profileData?.role === 'staff' || profileData?.role === 'admin'),
+        created_by: createdByInfo || (profileData?.created_by ? 'Sistema' : 'Auto-cadastro'),
+        transactions: formattedTransactions
+      }
+    }
+  } catch (err: any) {
+    console.error('Error in fetchCustomerHistoryAction:', err)
+    return { error: err.message || 'Erro ao carregar histórico do cliente.' }
+  }
+}
+
+export async function fetchEntityHistoryAction(entityId: string, entityType: string) {
+  try {
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Determinar todas as lojas vinculadas à entidade
+    let targetStoreIds: string[] = []
+
+    if (entityType === 'empresa' || entityType === 'store') {
+      targetStoreIds = [entityId]
+    } else if (entityType === 'grupo' || entityType === 'mall') {
+      const { data: cgData } = await supabaseAdmin
+        .from('company_groups')
+        .select('store_id')
+        .eq('mall_id', entityId)
+      targetStoreIds = (cgData || []).map(cg => cg.store_id)
+    } else if (entityType === 'holding') {
+      // Buscar grupos da holding
+      const { data: hgData } = await supabaseAdmin
+        .from('holding_groups')
+        .select('group_id')
+        .eq('holding_id', entityId)
+      const groupIds = (hgData || []).map(hg => hg.group_id)
+
+      if (groupIds.length > 0) {
+        const { data: cgData } = await supabaseAdmin
+          .from('company_groups')
+          .select('store_id')
+          .in('mall_id', groupIds)
+        targetStoreIds = (cgData || []).map(cg => cg.store_id)
+      }
+    }
+
+    if (targetStoreIds.length === 0 && (entityType === 'empresa' || entityType === 'store')) {
+      targetStoreIds = [entityId]
+    }
+
+    // 2. Buscar transações vinculadas às lojas
+    let transactions: any[] = []
+    if (targetStoreIds.length > 0) {
+      const { data: txs } = await supabaseAdmin
+        .from('loyalty_transactions')
+        .select('*, rewards(title)')
+        .in('user_id', targetStoreIds)
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      if (txs) transactions = txs
+    }
+
+    // 3. Buscar nomes dos clientes e das lojas
+    const storeIdsSet = new Set(transactions.map(t => t.user_id).filter(Boolean))
+    const customerIdsSet = new Set(transactions.map(t => t.customer_id).filter(Boolean))
+
+    const { data: storeProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, company_name')
+      .in('id', Array.from(storeIdsSet))
+
+    const storeNameMap: Record<string, string> = {}
+    storeProfiles?.forEach(s => {
+      storeNameMap[s.id] = s.company_name || s.full_name || 'Loja'
+    })
+
+    const { data: customerProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', Array.from(customerIdsSet))
+
+    const customerNameMap: Record<string, string> = {}
+    customerProfiles?.forEach(c => {
+      customerNameMap[c.id] = c.full_name || c.phone || 'Cliente'
+    })
+
+    // Se faltou no customerProfiles, busca em customers
+    const missingCustomerIds = Array.from(customerIdsSet).filter(id => !customerNameMap[id])
+    if (missingCustomerIds.length > 0) {
+      const { data: cList } = await supabaseAdmin
+        .from('customers')
+        .select('id, name, phone')
+        .in('id', missingCustomerIds)
+
+      cList?.forEach(c => {
+        customerNameMap[c.id] = c.name || c.phone || 'Cliente'
+      })
+    }
+
+    // Mapeamento de grupos/holdings
+    const { data: cgData } = await supabaseAdmin.from('company_groups').select('mall_id, store_id')
+    const storeGroupMap: Record<string, string[]> = {}
+    cgData?.forEach(cg => {
+      if (!storeGroupMap[cg.store_id]) storeGroupMap[cg.store_id] = []
+      storeGroupMap[cg.store_id].push(cg.mall_id)
+    })
+
+    const formattedTransactions = transactions.map(t => {
+      const storeName = storeNameMap[t.user_id] || 'Loja'
+      const customerName = customerNameMap[t.customer_id] || 'Cliente'
+      const groups = storeGroupMap[t.user_id] || []
+      const isReplicatedToGroup = groups.length > 0
+      const isDoublePoints = Boolean(t.double_points || t.is_double_points || (t.notes && t.notes.includes('dobro')) || (t.type === 'earn' && t.sale_amount && t.points >= t.sale_amount * 2))
+
+      return {
+        id: t.id,
+        date: t.created_at,
+        store_name: storeName,
+        customer_name: customerName,
+        type: t.type,
+        sale_amount: t.sale_amount || 0,
+        points: t.points || 0,
+        double_points: isDoublePoints,
+        replicated_to_group: isReplicatedToGroup,
+        reward_title: t.rewards?.title || null
+      }
+    })
+
+    // Calcular estatísticas agregadas do histórico
+    const totalSales = formattedTransactions.reduce((acc, t) => acc + (t.type === 'earn' ? t.sale_amount : 0), 0)
+    const totalPointsEarned = formattedTransactions.reduce((acc, t) => acc + (t.type === 'earn' ? t.points : 0), 0)
+    const totalRedemptions = formattedTransactions.filter(t => t.type === 'redeem').length
+
+    return {
+      success: true,
+      data: {
+        total_stores: targetStoreIds.length,
+        total_sales: totalSales,
+        total_points_earned: totalPointsEarned,
+        total_redemptions: totalRedemptions,
+        transactions: formattedTransactions
+      }
+    }
+  } catch (err: any) {
+    console.error('Error in fetchEntityHistoryAction:', err)
+    return { error: err.message || 'Erro ao carregar histórico da entidade.' }
+  }
+}
+
