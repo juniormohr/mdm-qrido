@@ -588,28 +588,29 @@ export async function fetchCustomerHistoryAction(customerId: string, userId?: st
       storeGroupMap[cg.store_id].push(cg.mall_id)
     })
 
-    const formattedTransactions = transactions.map(t => {
-      const isGroupTx = groupProfilesIds.has(t.user_id)
-      const storeName = storeNameMap[t.user_id] || 'Loja'
-      const groups = storeGroupMap[t.user_id] || []
-      const isReplicatedToGroup = !isGroupTx && groups.length > 0
-      const isDoublePoints = Boolean(t.double_points || t.is_double_points || (t.notes && t.notes.includes('dobro')) || (t.type === 'earn' && t.sale_amount && t.points >= t.sale_amount * 2))
+    const formattedTransactions = transactions
+      .filter(t => !groupProfilesIds.has(t.user_id)) // Remove as duplicatas espelhadas geradas na carteira do grupo
+      .map(t => {
+        const storeName = storeNameMap[t.user_id] || 'Loja'
+        const groups = storeGroupMap[t.user_id] || []
+        const isReplicatedToGroup = groups.length > 0
+        const isDoublePoints = Boolean(t.double_points || t.is_double_points || (t.notes && t.notes.includes('dobro')) || (t.type === 'earn' && t.sale_amount && t.points >= t.sale_amount * 2))
 
-      return {
-        id: t.id,
-        date: t.created_at,
-        store_id: t.user_id,
-        store_name: storeName,
-        is_group_credit: isGroupTx,
-        type: t.type,
-        sale_amount: t.sale_amount || 0,
-        points: t.points || 0,
-        double_points: isDoublePoints,
-        replicated_to_group: isReplicatedToGroup,
-        reward_title: t.rewards?.title || null,
-        notes: t.notes || null
-      }
-    })
+        return {
+          id: t.id,
+          date: t.created_at,
+          store_id: t.user_id,
+          store_name: storeName,
+          is_group_credit: false,
+          type: t.type,
+          sale_amount: t.sale_amount || 0,
+          points: t.points || 0,
+          double_points: isDoublePoints,
+          replicated_to_group: isReplicatedToGroup,
+          reward_title: t.rewards?.title || null,
+          notes: t.notes || null
+        }
+      })
 
     return {
       success: true,
