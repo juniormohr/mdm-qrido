@@ -546,6 +546,21 @@ export async function fetchCustomerHistoryAction(customerId: string, userId?: st
       storeProfiles?.forEach(s => {
         storeNameMap[s.id] = s.company_name || s.full_name || 'Loja'
       })
+
+      // Se alguma loja não constar no profiles, tenta buscar na tabela de customers / profiles adicionais
+      const missingStoreIds = storeIds.filter(id => !storeNameMap[id])
+      if (missingStoreIds.length > 0) {
+        const { data: cStoreProfiles } = await supabaseAdmin
+          .from('customers')
+          .select('user_id, name, profiles:user_id(full_name)')
+          .in('user_id', missingStoreIds)
+
+        cStoreProfiles?.forEach((c: any) => {
+          if (c.user_id && !storeNameMap[c.user_id]) {
+            storeNameMap[c.user_id] = c.profiles?.full_name || c.name || 'Loja'
+          }
+        })
+      }
     }
 
     // 7. Mapeamento de Grupos e Holdings para saber se teve pontos replicados ou em dobro

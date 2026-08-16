@@ -463,9 +463,6 @@ function AdminContent() {
                     if (sc.id) matchedStoreCustomerIds.add(sc.id)
                 })
 
-                // 1. Saldo Ativo de Pontos
-                const totalActivePoints = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
-
                 // Set de IDs vinculados
                 const customerIdsSet = new Set<string>()
                 customerIdsSet.add(u.id)
@@ -476,10 +473,19 @@ function AdminContent() {
                 // Transações deste cliente
                 const customerTxs = (allLoyaltyTxs || []).filter(t => customerIdsSet.has(t.customer_id) || t.customer_id === u.id)
 
-                // 2. Saldo Total (acumulado histórico de pontos ganhos sem subtrair resgates)
-                const totalAllTimePoints = customerTxs
+                // 1. Saldo Ativo Real (Pontos de ganho válidos menos resgates)
+                const sumTxsActive = customerTxs.reduce((acc, t) => {
+                    const pts = Number(t.points) || 0
+                    return t.type === 'earn' ? acc + pts : acc - pts
+                }, 0)
+                const sumStoreBalances = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
+                const totalActivePoints = Math.max(sumTxsActive, sumStoreBalances)
+
+                // 2. Saldo Total Acumulado (Soma de todos os pontos ganhos historicamente)
+                const sumTxsEarn = customerTxs
                     .filter(t => t.type === 'earn')
                     .reduce((acc, t) => acc + (Number(t.points) || 0), 0)
+                const totalAllTimePoints = Math.max(sumTxsEarn, totalActivePoints)
 
                 // 3. Loja Preferida (loja onde comprou/visitou mais vezes)
                 const storeVisitsMap: Record<string, number> = {}
