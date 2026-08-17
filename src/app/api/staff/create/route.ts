@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
     try {
-        const { name, email, cpf, company_id } = await request.json()
+        const { email, cpf, company_id } = await request.json()
 
-        if (!name || !email || !cpf || !company_id) {
-            return NextResponse.json({ error: 'Todos os campos são obrigatórios' }, { status: 400 })
+        if ((!email && !cpf) || !company_id) {
+            return NextResponse.json({ error: 'É necessário informar E-mail ou CPF e a empresa.' }, { status: 400 })
         }
 
-        // Criar cliente supabase com a Service Role Key para bypassar o fluxo de autenticação padrão
+        // Criar cliente supabase com a Service Role Key
         const supabaseAdmin = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -21,13 +21,13 @@ export async function POST(request: Request) {
             }
         )
 
-        const cleanEmail = email.trim().toLowerCase()
-        const cleanCpf = cpf.replace(/\D/g, '')
+        const cleanEmail = email ? email.trim().toLowerCase() : ''
+        const cleanCpf = cpf ? cpf.replace(/\D/g, '') : ''
 
-        // 1. Validar se a empresa possui slots disponíveis
+        // 1. Validar se a empresa existe
         const { data: companyProfile, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .select('staff_slots, subscription_tier')
+            .select('id')
             .eq('id', company_id)
             .single()
 
@@ -35,107 +35,64 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Empresa não encontrada.' }, { status: 404 })
         }
 
-        const { data: currentStaff, error: staffCountError } = await supabaseAdmin
-            .from('profiles')
-            .select('id', { count: 'exact' })
-            .eq('company_id', company_id)
-            .eq('role', 'company_staff')
+        // 2. Buscar se a pessoa JÁ POSSUI perfil no Qrido (por E-mail ou CPF)
+        let targetProfile = null
 
-        if (staffCountError) {
-             return NextResponse.json({ error: 'Erro ao validar a lista de equipe.' }, { status: 500 })
+        if (cleanEmail) {
+            const { data: profileByEmail } = await supabaseAdmin
+                .from('profiles')
+                .select('id, full_name, email, cpf, role, company_id')
+                .ilike('email', cleanEmail)
+                .maybeSingle()
+            if (profileByEmail) targetProfile = profileByEmail
         }
 
-        // Pre-verificação 1: E-mail em profiles
-        const { data: existingEmailProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('id, email')
-            .ilike('email', cleanEmail)
-            .maybeSingle()
-
-        if (existingEmailProfile) {
-            return NextResponse.json({ error: `O e-mail "${cleanEmail}" já está cadastrado no sistema.` }, { status: 400 })
-        }
-
-        // Pre-verificação 2: CPF em profiles (testa formato numérico limpo, formatado e original)
-        if (cleanCpf) {
+        if (!targetProfile && cleanCpf) {
             const formattedCpf = cleanCpf.length === 11 
                 ? cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') 
                 : cpf
 
-            const { data: existingCpfProfile } = await supabaseAdmin
+            const { data: profileByCpf } = await supabaseAdmin
                 .from('profiles')
-                .select('id, cpf, cpf_cnpj')
+                .select('id, full_name, email, cpf, role, company_id')
                 .or(`cpf.eq.${cleanCpf},cpf.eq.${formattedCpf},cpf.eq.${cpf},cpf_cnpj.eq.${cleanCpf},cpf_cnpj.eq.${formattedCpf},cpf_cnpj.eq.${cpf}`)
                 .maybeSingle()
-
-            if (existingCpfProfile) {
-                return NextResponse.json({ error: `O CPF "${cpf}" já está cadastrado no sistema.` }, { status: 400 })
-            }
+            if (profileByCpf) targetProfile = profileByCpf
         }
 
-        // Pre-verificação 3: Checar se o e-mail existe no Auth
-        try {
-            const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
-            const existingAuthUser = authUsers?.users?.find(u => u.email?.toLowerCase() === cleanEmail)
-            if (existingAuthUser) {
-                return NextResponse.json({ error: `O e-mail "${cleanEmail}" já possui uma conta cadastrada.` }, { status: 400 })
-            }
-        } catch (e) {
-            console.error('Erro ao listar usuários no auth:', e)
+        // Se a pessoa NÃO tem perfil no Qrido
+        if (!targetProfile) {
+            return NextResponse.json({ 
+                error: 'Esta pessoa ainda não tem um perfil no Qrido, peça para criar uma conta como cliente e depois, tente mandar o convite novamente.' 
+            }, { status: 404 })
         }
 
-        // 2. Criar usuário no Auth
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-            email: cleanEmail,
-            password: '123456', // Senha padrão solicitada pelo cliente
-            email_confirm: true,
-            user_metadata: {
-                full_name: name,
-                cpf: cleanCpf || cpf,
-                cpf_cnpj: cleanCpf || cpf,
-                role: 'company_staff',
-                company_id: company_id
-            }
+        // 3. Verificar se a pessoa já faz parte ou já tem convite dessa loja
+        if (targetProfile.company_id === company_id && targetProfile.role === 'company_staff') {
+            return NextResponse.json({ error: 'Esta pessoa já é membro da equipe desta loja.' }, { status: 400 })
+        }
+
+        // 4. Enviar Convite / Vincular à loja
+        const { error: updateError } = await supabaseAdmin
+            .from('profiles')
+            .update({
+                company_id: company_id,
+                // Mantém o perfil intacto, associando a empresa
+            })
+            .eq('id', targetProfile.id)
+
+        if (updateError) {
+            return NextResponse.json({ error: 'Erro ao associar o colaborador à loja.' }, { status: 500 })
+        }
+
+        return NextResponse.json({ 
+            success: true, 
+            message: `Convite de staff enviado com sucesso para ${targetProfile.full_name || targetProfile.email}!`,
+            user: targetProfile 
         })
 
-        if (authError) {
-            let userFriendlyError = authError.message
-            if (
-                authError.message.includes('already registered') || 
-                authError.message.includes('already been registered') ||
-                authError.message.includes('email_exists')
-            ) {
-                userFriendlyError = `O e-mail "${cleanEmail}" já está cadastrado no sistema.`
-            } else if (
-                authError.message.includes('Database error creating new user') ||
-                authError.message.includes('Database error') ||
-                authError.message.includes('unique constraint') ||
-                authError.message.includes('profiles_cpf_cnpj_key')
-            ) {
-                userFriendlyError = 'Já existe uma conta cadastrada com este CPF ou E-mail no sistema.'
-            }
-            return NextResponse.json({ error: userFriendlyError }, { status: 400 })
-        }
-
-        // O profile é criado automaticamente via trigger (do 20240217 migration).
-        // Atualizamos o profile com company_id, cpf e cpf_cnpj.
-        if (authData.user) {
-             await supabaseAdmin.from('profiles').update({
-                 company_id: company_id,
-                 cpf: cleanCpf || cpf,
-                 cpf_cnpj: cleanCpf || cpf,
-                 role: 'company_staff',
-                 full_name: name
-             }).eq('id', authData.user.id)
-        }
-
-        return NextResponse.json({ success: true, user: authData.user })
-
     } catch (error: any) {
-        let msg = error.message || 'Erro interno ao criar usuário'
-        if (msg.includes('Database error creating new user')) {
-            msg = 'Já existe um cadastro no sistema com estes dados (E-mail ou CPF).'
-        }
-        return NextResponse.json({ error: msg }, { status: 500 })
+        return NextResponse.json({ error: error.message || 'Erro interno ao enviar convite.' }, { status: 500 })
     }
 }
+

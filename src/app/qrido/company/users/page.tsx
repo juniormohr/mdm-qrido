@@ -100,8 +100,8 @@ export default function UsersPage() {
     }
 
     async function handleCreateUser() {
-        if (!newStaff.name || !newStaff.email || !newStaff.cpf) {
-             alert('Atenção: Preencha todos os campos.')
+        if (!newStaff.email && !newStaff.cpf) {
+             alert('Atenção: Informe o E-mail ou CPF do colaborador.')
              return
         }
         setIsCreating(true)
@@ -118,12 +118,12 @@ export default function UsersPage() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.error)
 
-            alert('Usuário Criado: O funcionário já pode fazer login com a senha padrão 123456.')
+            alert(data.message || 'Convite enviado com sucesso!')
             setIsCreateModalOpen(false)
             setNewStaff({ name: '', email: '', cpf: '' })
             fetchData()
         } catch (error: any) {
-            let errMsg = error.message || 'Erro ao cadastrar usuário.'
+            let errMsg = error.message || 'Erro ao convidar usuário.'
             alert(`Erro: ${errMsg}`)
         } finally {
             setIsCreating(false)
@@ -198,35 +198,28 @@ export default function UsersPage() {
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
                 <DialogContent className="sm:max-w-[425px] rounded-[24px]">
                     <DialogHeader>
-                        <DialogTitle className="text-xl font-black italic uppercase">Incluir Usuário</DialogTitle>
+                        <DialogTitle className="text-xl font-black italic uppercase">Convidar Staff</DialogTitle>
                         <DialogDescription className="font-medium text-slate-500">
-                            Preencha os dados do seu funcionário. A senha inicial será <strong className="text-slate-900">123456</strong>.
+                            Informe o E-mail ou CPF do colaborador. Ele já deve possuir uma conta de cliente criada no Qrido.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <div className="flex flex-col gap-2">
-                            <Label htmlFor="name" className="font-bold">Nome Completo</Label>
-                            <Input
-                                id="name"
-                                value={newStaff.name}
-                                onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
-                                className="rounded-xl"
-                            />
-                        </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="email" className="font-bold">E-mail</Label>
                             <Input
                                 id="email"
                                 type="email"
+                                placeholder="colaborador@exemplo.com"
                                 value={newStaff.email}
                                 onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
                                 className="rounded-xl"
                             />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="cpf" className="font-bold">CPF</Label>
+                            <Label htmlFor="cpf" className="font-bold">CPF (opcional se informou e-mail)</Label>
                             <Input
                                 id="cpf"
+                                placeholder="000.000.000-00"
                                 value={newStaff.cpf}
                                 onChange={(e) => setNewStaff({ ...newStaff, cpf: e.target.value })}
                                 className="rounded-xl"
@@ -236,7 +229,7 @@ export default function UsersPage() {
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)} className="rounded-xl font-bold">Cancelar</Button>
                         <Button onClick={handleCreateUser} disabled={isCreating} className="bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl font-bold">
-                            {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar Usuário'}
+                            {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar Convite'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
