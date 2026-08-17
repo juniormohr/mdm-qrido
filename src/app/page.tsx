@@ -177,6 +177,8 @@ function CustomerDashboardContent() {
 
     const hasNewNotifications = purchaseRequests.some(r => r.status === 'pending')
 
+    const [storeProductsMap, setStoreProductsMap] = useState<Record<string, Product[]>>({})
+
     const fetchFeaturedProducts = async () => {
         setFeaturedProductsLoading(true)
         const supabase = createClient()
@@ -188,6 +190,14 @@ function CustomerDashboardContent() {
         if (error) {
             console.error('Erro ao buscar produtos em destaque:', error)
         } else if (data) {
+            // Mapear produtos por empresa para a busca global de produtos na aba de Lojas
+            const mapByCompany: Record<string, Product[]> = {}
+            data.forEach(p => {
+                if (!mapByCompany[p.company_id]) mapByCompany[p.company_id] = []
+                mapByCompany[p.company_id].push(p)
+            })
+            setStoreProductsMap(mapByCompany)
+
             const activeCompanyIdsList = new Set(companies.map(c => c.id))
             const validProducts = data.filter(p => activeCompanyIdsList.has(p.company_id))
 
@@ -1457,11 +1467,10 @@ function CustomerDashboardContent() {
                                     const q = searchQuery.toLowerCase().trim()
                                     const matchesCompany = (company.full_name || '').toLowerCase().includes(q) ||
                                                            (company.address || '').toLowerCase().includes(q)
-                                    const matchesProduct = (featuredProducts || []).some(
-                                        p => p.company_id === company.id && (
-                                            (p.name || '').toLowerCase().includes(q) ||
-                                            (p.description || '').toLowerCase().includes(q)
-                                        )
+                                    const companyProds = storeProductsMap[company.id] || []
+                                    const matchesProduct = companyProds.some(
+                                        p => (p.name || '').toLowerCase().includes(q) ||
+                                             (p.description || '').toLowerCase().includes(q)
                                     )
                                     return matchesCompany || matchesProduct
                                 })
