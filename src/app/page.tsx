@@ -509,11 +509,14 @@ function CustomerDashboardContent() {
                  const store = eligibleStores.find(s => s.id === cId)
                  const userStore = myStores.find(s => s.id === cId)
                  const storeRewards = rewardsByCompany[cId]
-                 if (storeRewards.length > 0) {
+                 const userBalance = userStore?.points_balance || 0
+
+                 // Apenas inclui os brindes se o cliente tiver algum ponto (> 0) na loja
+                 if (storeRewards.length > 0 && userBalance > 0) {
                      featuredRewards.push({
                          ...storeRewards[0],
                          company_name: store?.full_name || 'Empresa Parceira',
-                         user_balance: userStore?.points_balance || 0
+                         user_balance: userBalance
                      })
                  }
              })
@@ -1404,12 +1407,12 @@ function CustomerDashboardContent() {
                         )}
                     </div>
 
-                    {/* Campo de Busca por Nome da Empresa */}
+                    {/* Campo de Busca por Nome da Empresa ou Produto */}
                     <div className="relative w-full">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                             type="text"
-                            placeholder="Buscar loja por nome..."
+                            placeholder="Buscar por loja ou produto..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-10 h-10 bg-white border-slate-200 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:border-brand-blue shadow-sm"
@@ -1452,8 +1455,15 @@ function CustomerDashboardContent() {
                                 .filter(company => {
                                     if (!searchQuery.trim()) return true
                                     const q = searchQuery.toLowerCase().trim()
-                                    return (company.full_name || '').toLowerCase().includes(q) ||
-                                           (company.address || '').toLowerCase().includes(q)
+                                    const matchesCompany = (company.full_name || '').toLowerCase().includes(q) ||
+                                                           (company.address || '').toLowerCase().includes(q)
+                                    const matchesProduct = (featuredProducts || []).some(
+                                        p => p.company_id === company.id && (
+                                            (p.name || '').toLowerCase().includes(q) ||
+                                            (p.description || '').toLowerCase().includes(q)
+                                        )
+                                    )
+                                    return matchesCompany || matchesProduct
                                 })
                                 .sort((a, b) => {
                                     const aFav = favorites.includes(a.id) ? 1 : 0
@@ -1584,7 +1594,15 @@ function CustomerDashboardContent() {
                                                             <div className="text-center py-6 text-slate-400 font-bold text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
                                                         ) : (
                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                {[...products].sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0)).map(product => (
+                                                                {[...products]
+                                                                    .filter(product => {
+                                                                        if (!searchQuery.trim()) return true
+                                                                        const q = searchQuery.toLowerCase().trim()
+                                                                        return (product.name || '').toLowerCase().includes(q) ||
+                                                                               (product.description || '').toLowerCase().includes(q)
+                                                                    })
+                                                                    .sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0))
+                                                                    .map(product => (
                                                                     <div key={product.id} className="bg-white rounded-[16px] p-3 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
                                                                         {product.is_top_seller && (
                                                                             <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase italic shadow-sm z-10 flex items-center gap-1">
