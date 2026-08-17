@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,13 +9,14 @@ import { Label } from '@/components/ui/label'
 import { Search, Calculator, CheckCircle2, ShoppingBag, Plus, Minus, Trash2, X, AlertCircle } from 'lucide-react'
 import { BackButton } from '@/components/ui/back-button'
 import { cn } from '@/lib/utils'
-import { processTransactionAction } from '../actions'
+import { processTransactionAction, searchCustomersAction, fetchCompanyProductsAction } from '../actions'
 
 interface Customer {
     id: string
     name: string
     points_balance: number
-    phone: string
+    phone: string | null
+    cpf?: string | null
 }
 
 interface Product {
@@ -46,47 +46,27 @@ export default function NewTransactionPage() {
     const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
     const [showSummary, setShowSummary] = useState(false)
 
-    // Buscar clientes para seleção
+    // Buscar clientes para seleção via Server Action
     useEffect(() => {
-        if (searchTerm.length < 2) {
+        if (searchTerm.trim().length < 2) {
             setCustomers([])
             return
         }
 
         const fetchCustomers = async () => {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            const { data } = await supabase
-                .from('customers')
-                .select('id, name, points_balance, phone')
-                .eq('user_id', user.id)
-                .or(`phone.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`)
-                .limit(5)
-
-            if (data) setCustomers(data)
+            const res = await searchCustomersAction(searchTerm)
+            if (res.data) setCustomers(res.data as Customer[])
         }
 
         const timer = setTimeout(fetchCustomers, 300)
         return () => clearTimeout(timer)
     }, [searchTerm])
 
-    // Buscar produtos da empresa
+    // Buscar produtos da empresa via Server Action
     useEffect(() => {
         const fetchProducts = async () => {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            const { data } = await supabase
-                .from('products')
-                .select('id, name, price, points_reward')
-                .eq('company_id', user.id)
-                .is('is_active', true)
-                .order('name')
-
-            if (data) setAllProducts(data)
+            const res = await fetchCompanyProductsAction()
+            if (res.data) setAllProducts(res.data)
         }
         fetchProducts()
     }, [])
@@ -162,7 +142,7 @@ export default function NewTransactionPage() {
                             <div className="relative">
                                 <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                                 <Input
-                                    placeholder="Buscar por nome ou telefone..."
+                                    placeholder="Buscar por nome, telefone ou CPF..."
                                     className="pl-10 h-12 rounded-2xl border-slate-100 bg-slate-50/50 font-medium"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -172,10 +152,14 @@ export default function NewTransactionPage() {
                                         {customers.map(c => (
                                             <button
                                                 key={c.id}
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-none"
+                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 font-bold text-slate-700 transition-colors border-b border-slate-50 last:border-none flex justify-between items-center"
                                                 onClick={() => setSelectedCustomer(c)}
                                             >
-                                                {c.name} <span className="text-slate-400 font-medium text-xs ml-2">({c.phone})</span>
+                                                <div>
+                                                    <span className="text-slate-800">{c.name}</span>
+                                                    {c.phone && <span className="text-slate-400 font-medium text-xs ml-2">({c.phone})</span>}
+                                                </div>
+                                                {c.cpf && <span className="text-xs text-slate-400 font-mono">CPF: {c.cpf}</span>}
                                             </button>
                                         ))}
                                     </div>
@@ -186,7 +170,10 @@ export default function NewTransactionPage() {
                                 <div>
                                     <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest">Cliente Selecionado</p>
                                     <p className="font-black text-slate-800 text-lg">{selectedCustomer.name}</p>
-                                    <p className="text-xs text-slate-500 font-bold">{selectedCustomer.phone}</p>
+                                    <div className="flex gap-3 text-xs text-slate-500 font-bold">
+                                        {selectedCustomer.phone && <span>Tel: {selectedCustomer.phone}</span>}
+                                        {selectedCustomer.cpf && <span>CPF: {selectedCustomer.cpf}</span>}
+                                    </div>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={() => setSelectedCustomer(null)} className="text-slate-400 hover:text-red-500 font-bold">
                                     Alterar
@@ -194,6 +181,7 @@ export default function NewTransactionPage() {
                             </div>
                         )}
                     </div>
+
 
                     {/* Passo 2: Detalhes da Venda */}
                     <div className={cn("space-y-4 transition-all duration-300", !selectedCustomer && "opacity-30 pointer-events-none grayscale")}>

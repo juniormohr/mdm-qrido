@@ -634,3 +634,94 @@ export async function processTransactionAction(data: {
 
     return { success: true }
 }
+
+export async function searchCustomersAction(searchTerm: string) {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        return { data: [] }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: 'Usuário não autenticado.' }
+
+    const adminSupabase = createAdminClient()
+
+    let storeIds = [user.id]
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        storeIds = [userProfile.company_id]
+    } else if (userProfile?.role === 'group' || userProfile?.role === 'holding') {
+        const { data: groupStores } = await adminSupabase
+            .from('company_groups')
+            .select('store_id')
+            .or(`mall_id.eq.${user.id},group_admin_id.eq.${user.id}`)
+            .in('status', ['accepted', 'active'])
+        const sIds = groupStores?.map(g => g.store_id) || []
+        storeIds = Array.from(new Set([user.id, ...sIds]))
+    }
+
+    const term = searchTerm.trim()
+    const cleanDigits = term.replace(/\D/g, '')
+
+    let orConditions = `name.ilike.%${term}%,phone.ilike.%${term}%,cpf.ilike.%${term}%`
+    if (cleanDigits.length > 0) {
+        orConditions += `,phone.ilike.%${cleanDigits}%,cpf.ilike.%${cleanDigits}%`
+    }
+
+    const { data, error } = await adminSupabase
+        .from('customers')
+        .select('id, name, points_balance, phone, cpf')
+        .in('user_id', storeIds)
+        .or(orConditions)
+        .limit(10)
+
+    if (error) {
+        console.error('Erro ao buscar clientes:', error)
+        return { data: [], error: error.message }
+    }
+
+    return { data: data || [] }
+}
+
+export async function fetchCompanyProductsAction() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: [], error: 'Usuário não autenticado.' }
+
+    const adminSupabase = createAdminClient()
+
+    let storeIds = [user.id]
+    const { data: userProfile } = await adminSupabase
+        .from('profiles')
+        .select('role, company_id')
+        .eq('id', user.id)
+        .maybeSingle()
+
+    if (userProfile?.role === 'company_staff' && userProfile.company_id) {
+        storeIds = [userProfile.company_id]
+    } else if (userProfile?.role === 'group' || userProfile?.role === 'holding') {
+        const { data: groupStores } = await adminSupabase
+            .from('company_groups')
+            .select('store_id')
+            .or(`mall_id.eq.${user.id},group_admin_id.eq.${user.id}`)
+            .in('status', ['accepted', 'active'])
+        const sIds = groupStores?.map(g => g.store_id) || []
+        storeIds = Array.from(new Set([user.id, ...sIds]))
+    }
+
+    const { data, error } = await adminSupabase
+        .from('products')
+        .select('id, name, price, points_reward')
+        .in('company_id', storeIds)
+        .is('is_active', true)
+        .order('name')
+
+    if (error) return { data: [], error: error.message }
+    return { data: data || [] }
+}
+
