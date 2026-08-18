@@ -1822,24 +1822,138 @@ function AdminContent() {
                                     {allTransactions.slice(0, 50).map(tx => {
                                         const clientName = getCustomerDisplayName(tx)
                                         const company = companies.find(p => p.id === tx.user_id)
+                                        const txProfile = (profiles || []).find(p => p.id === tx.user_id)
                                         const storeName = company?.full_name || company?.company_name || 'Loja'
+                                        const isStore = isStoreProfile(txProfile)
+                                        const isReplicated = !isStore
+                                        const isRedeem = tx.type === 'redeem'
+                                        const isDouble = isStore && Boolean(tx.double_points || tx.is_double_points || (tx.notes && tx.notes.includes('dobro')) || (tx.sale_amount > 0 && tx.points >= tx.sale_amount * 1.8))
+
+                                        if (isRedeem) {
+                                            return (
+                                                <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-xs font-black text-slate-800 uppercase italic truncate">{clientName}</p>
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-200 uppercase">
+                                                                    RESGATE
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
+                                                                <span className="text-slate-300">•</span>
+                                                                <p className="text-[9px] text-slate-400 font-medium">
+                                                                    {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-sm font-black text-red-500">-{tx.points} pts</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        }
+
+                                        if (isReplicated) {
+                                            return (
+                                                <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-blue-50/30 transition-colors gap-4">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-xs font-black text-slate-800 uppercase italic truncate">{clientName}</p>
+                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 uppercase">
+                                                                    PONTOS REPLICADOS
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider truncate">{storeName}</p>
+                                                                <span className="text-blue-200">•</span>
+                                                                <p className="text-[9px] text-slate-400 font-medium">
+                                                                    {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-sm font-black text-blue-600">+{tx.points} pts</p>
+                                                    </div>
+                                                </div>
+                                            )
+                                        }
+
+                                        if (isDouble) {
+                                            const basePts = tx.sale_amount > 0 ? Math.round(tx.sale_amount) : Math.floor(tx.points / 2)
+                                            const extraPts = tx.points - basePts
+
+                                            return (
+                                                <div key={tx.id} className="divide-y divide-slate-50">
+                                                    <div className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-black text-slate-800 uppercase italic truncate">{clientName}</p>
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                                                                        PONTOS
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
+                                                                    <span className="text-slate-300">•</span>
+                                                                    <p className="text-[9px] text-slate-400 font-medium">
+                                                                        {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <p className="text-sm font-black text-emerald-600">+{basePts} pts</p>
+                                                            {tx.sale_amount > 0 && (
+                                                                <p className="text-[10px] font-bold text-slate-400">
+                                                                    R$ {Number(tx.sale_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-4 flex items-center justify-between hover:bg-purple-50/30 transition-colors gap-4 bg-purple-50/10">
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-black text-slate-800 uppercase italic truncate">{clientName}</p>
+                                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 uppercase">
+                                                                        PONTOS EM DOBRO
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider truncate">{storeName}</p>
+                                                                    <span className="text-purple-200">•</span>
+                                                                    <p className="text-[9px] text-purple-400 font-medium">
+                                                                        {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <p className="text-sm font-black text-purple-600">+{extraPts} pts</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        }
 
                                         return (
                                             <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <div>
                                                         <div className="flex items-center gap-2">
-                                                            <p className="text-xs font-black text-slate-800 uppercase italic truncate">
-                                                                {clientName}
-                                                            </p>
-                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 uppercase">
-                                                                {tx.type === 'earn' ? 'Crédito' : 'Resgate'}
+                                                            <p className="text-xs font-black text-slate-800 uppercase italic truncate">{clientName}</p>
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                                                                PONTOS
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-0.5">
-                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
-                                                                {storeName}
-                                                            </p>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
                                                             <span className="text-slate-300">•</span>
                                                             <p className="text-[9px] text-slate-400 font-medium">
                                                                 {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -1848,9 +1962,7 @@ function AdminContent() {
                                                     </div>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <p className={cn("text-sm font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
-                                                        {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
-                                                    </p>
+                                                    <p className="text-sm font-black text-emerald-600">+{tx.points} pts</p>
                                                     {tx.sale_amount > 0 && (
                                                         <p className="text-[10px] font-bold text-slate-400">
                                                             R$ {Number(tx.sale_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
