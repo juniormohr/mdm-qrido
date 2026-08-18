@@ -1739,7 +1739,6 @@ function AdminContent() {
                         </CardContent>
                     </Card>
                 </div>
-                </div>
             )}
 
             {/* Holdings Tab */}
