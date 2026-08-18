@@ -740,9 +740,9 @@ function AdminContent() {
             const isStore = isStoreProfile(txProfile)
 
             if (t.type === 'earn') {
+                periodPoints += pts
                 if (isStore) {
                     periodSales += amount
-                    periodPoints += pts
                     if (t.user_id) {
                         companyVolumes[t.user_id] = (companyVolumes[t.user_id] || 0) + 1
                         const currComp = companySalesMap.get(t.user_id) || { companyId: t.user_id, totalSales: 0, totalTransactions: 0 }
