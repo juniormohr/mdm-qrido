@@ -117,6 +117,14 @@ function AdminContent() {
     const [selectedStoreId, setSelectedStoreId] = useState<string>('all')
     const [heatmapData, setHeatmapData] = useState<DailyDataPoint[]>([])
     const [holdingGroupsMap, setHoldingGroupsMap] = useState<Record<string, string[]>>({})
+    const isStoreProfile = (p: any) => {
+        if (!p) return false
+        const isHolding = p.role === 'holding' || p.company_type === 'holding'
+        const isGroup = p.company_type === 'mall' || p.role === 'mall' || p.role === 'group'
+        const isAdmin = p.role === 'admin' || p.company_type === 'admin'
+        return !isHolding && !isGroup && !isAdmin
+    }
+
     const [groupStoresMap, setGroupStoresMap] = useState<Record<string, string[]>>({})
 
     const [stats, setStats] = useState<AdminStats>({
@@ -1822,9 +1830,8 @@ function AdminContent() {
                                     {allTransactions.slice(0, 50).map(tx => {
                                         const clientName = getCustomerDisplayName(tx)
                                         const company = companies.find(p => p.id === tx.user_id)
-                                        const txProfile = (profiles || []).find(p => p.id === tx.user_id)
                                         const storeName = company?.full_name || company?.company_name || 'Loja'
-                                        const isStore = isStoreProfile(txProfile)
+                                        const isStore = isStoreProfile(company)
                                         const isReplicated = !isStore
                                         const isRedeem = tx.type === 'redeem'
                                         const isDouble = isStore && Boolean(tx.double_points || tx.is_double_points || (tx.notes && tx.notes.includes('dobro')) || (tx.sale_amount > 0 && tx.points >= tx.sale_amount * 1.8))
