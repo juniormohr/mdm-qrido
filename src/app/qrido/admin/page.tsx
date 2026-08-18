@@ -592,7 +592,7 @@ function AdminContent() {
 
         setAllCustomers(combinedCustomers)
 
-        const idToCustomerMap = new Map<string, any>()
+        const idToCustomerMap = new Map<string, any>();
         (storeCustomers || []).forEach(sc => {
             idToCustomerMap.set(sc.id, {
                 id: sc.id,
