@@ -139,6 +139,7 @@ function AdminContent() {
     const [allTransactions, setAllTransactions] = useState<any[]>([])
     const [topRewards, setTopRewards] = useState<any[]>([])
     const [topCustomers, setTopCustomers] = useState<any[]>([])
+    const [topCompanies, setTopCompanies] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
@@ -314,12 +315,17 @@ function AdminContent() {
                 { event: '*', schema: 'public', table: 'customers' },
                 () => { fetchAllData() }
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'loyalty_transactions' },
+                () => { fetchAllData() }
+            )
             .subscribe()
 
         return () => {
             supabase.removeChannel(channel)
         }
-    }, [])
+    }, [startDate, endDate, selectedHoldingId, selectedGroupId, selectedStoreId])
 
     async function fetchAllData() {
         setLoading(true)
@@ -573,37 +579,111 @@ function AdminContent() {
 
         setAllCustomers(combinedCustomers)
 
-        const { data: transactions } = await supabase
+        // Filtrar transações por período e hierarquia
+        let filteredTxsQuery = supabase
             .from('loyalty_transactions')
             .select('*')
+            .gte('created_at', `${startDate}T00:00:00`)
+            .lte('created_at', `${endDate}T23:59:59`)
             .order('created_at', { ascending: false })
-            .limit(100)
 
-        if (transactions) setAllTransactions(transactions)
+        if (selectedStoreId !== 'all') {
+            filteredTxsQuery = filteredTxsQuery.eq('user_id', selectedStoreId)
+        } else if (selectedGroupId !== 'all') {
+            const storeIds = groupStoresMap[selectedGroupId] || []
+            if (storeIds.length > 0) {
+                filteredTxsQuery = filteredTxsQuery.in('user_id', storeIds)
+            } else {
+                filteredTxsQuery = filteredTxsQuery.eq('user_id', '00000000-0000-0000-0000-000000000000')
+            }
+        } else if (selectedHoldingId !== 'all') {
+            const gIds = holdingGroupsMap[selectedHoldingId] || []
+            let storeIds: string[] = []
+            gIds.forEach(gId => {
+                storeIds.push(...(groupStoresMap[gId] || []))
+            })
+            if (storeIds.length > 0) {
+                filteredTxsQuery = filteredTxsQuery.in('user_id', storeIds)
+            } else {
+                filteredTxsQuery = filteredTxsQuery.eq('user_id', '00000000-0000-0000-0000-000000000000')
+            }
+        }
 
+        const { data: periodTransactions } = await filteredTxsQuery
+        const transactionsList = periodTransactions || []
+
+        setAllTransactions(transactionsList)
+
+        // Count Resgates por Reward no período
+        const redeemCounts: Record<string, number> = {}
+        const companyVolumes: Record<string, number> = {}
+        const companySalesMap = new Map<string, { companyId: string; totalSales: number; totalTransactions: number }>()
+        const customerSpendMap = new Map<string, { customerId: string; totalSpent: number; totalPoints: number; companyId: string }>()
+
+        let periodSales = 0, periodPoints = 0, periodRedemptions = 0
+        let salesAccumulated = 0, pointsAccumulated = 0, redemptionsAccumulated = 0
+
+        transactionsList.forEach(t => {
+            const amount = Number(t.sale_amount || 0)
+            const pts = Number(t.points || 0)
+            if (t.type === 'earn') {
+                periodSales += amount
+                periodPoints += pts
+                if (t.user_id) {
+                    companyVolumes[t.user_id] = (companyVolumes[t.user_id] || 0) + 1
+                    const currComp = companySalesMap.get(t.user_id) || { companyId: t.user_id, totalSales: 0, totalTransactions: 0 }
+                    currComp.totalSales += amount
+                    currComp.totalTransactions += 1
+                    companySalesMap.set(t.user_id, currComp)
+                }
+                if (t.customer_id) {
+                    const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
+                    const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
+
+                    const currCust = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
+                    currCust.totalSpent += amount
+                    currCust.totalPoints += pts
+                    customerSpendMap.set(groupKey, currCust)
+                }
+            } else if (t.type === 'redeem') {
+                periodRedemptions += 1
+                if (t.reward_id) redeemCounts[t.reward_id] = (redeemCounts[t.reward_id] || 0) + 1
+            }
+        })
+
+        // Para dados acumulados (todos os tempos)
+        const { data: allTimeTxs } = await supabase.from('loyalty_transactions').select('sale_amount, points, type')
+        if (allTimeTxs) {
+            allTimeTxs.forEach(t => {
+                if (t.type === 'earn') {
+                    salesAccumulated += Number(t.sale_amount || 0)
+                    pointsAccumulated += Number(t.points || 0)
+                } else if (t.type === 'redeem') {
+                    redemptionsAccumulated += 1
+                }
+            })
+        }
+
+        // Top Empresas (Vendas no período)
+        const topCompaniesList = Array.from(companySalesMap.values())
+            .sort((a, b) => b.totalSales - a.totalSales)
+            .slice(0, 5)
+            .map(item => {
+                const company = (profiles || []).find(p => p.id === item.companyId)
+                return {
+                    id: item.companyId,
+                    name: company?.company_name || company?.full_name || 'Empresa Parceira',
+                    totalSales: item.totalSales,
+                    totalTransactions: item.totalTransactions
+                }
+            })
+        setTopCompanies(topCompaniesList)
+
+        // Top Recompensas
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
             .eq('is_active', true)
-
-        const { data: redeemTransactions } = await supabase
-            .from('loyalty_transactions')
-            .select('reward_id, user_id')
-            .eq('type', 'redeem')
-
-        const redeemCounts: Record<string, number> = {}
-        if (redeemTransactions) {
-            redeemTransactions.forEach(tx => {
-                if (tx.reward_id) redeemCounts[tx.reward_id] = (redeemCounts[tx.reward_id] || 0) + 1
-            })
-        }
-
-        const companyVolumes: Record<string, number> = {}
-        if (txSummary) {
-            txSummary.forEach(tx => {
-                if (tx.user_id) companyVolumes[tx.user_id] = (companyVolumes[tx.user_id] || 0) + 1
-            })
-        }
 
         const rewardsWithStats = (rewardsData || [])
             .filter(r => {
@@ -625,7 +705,7 @@ function AdminContent() {
 
         const tryAddRewards = (candidates: any[]) => {
             for (const item of candidates) {
-                if (selectedRewards.length >= 3) break
+                if (selectedRewards.length >= 5) break
                 if (!selectedCompanyIds.has(item.user_id)) {
                     selectedRewards.push(item)
                     selectedCompanyIds.add(item.user_id)
@@ -635,15 +715,15 @@ function AdminContent() {
 
         const crit1 = [...rewardsWithStats].filter(r => r.resgates > 0).sort((a, b) => b.resgates - a.resgates)
         tryAddRewards(crit1)
-        if (selectedRewards.length < 3) {
+        if (selectedRewards.length < 5) {
             const crit2 = [...rewardsWithStats].filter(r => r.volume_empresa > 0).sort((a, b) => b.volume_empresa - a.volume_empresa)
             tryAddRewards(crit2)
         }
-        if (selectedRewards.length < 3) {
+        if (selectedRewards.length < 5) {
             const crit3 = [...rewardsWithStats].sort((a, b) => a.points_required - b.points_required)
             tryAddRewards(crit3)
         }
-        if (selectedRewards.length < 3) {
+        if (selectedRewards.length < 5) {
             const remainingCandidates = [...rewardsWithStats]
                 .filter(r => !selectedRewards.some(sr => sr.id === r.id))
                 .sort((a, b) => {
@@ -651,43 +731,13 @@ function AdminContent() {
                     return a.points_required - b.points_required
                 })
             for (const item of remainingCandidates) {
-                if (selectedRewards.length >= 3) break
+                if (selectedRewards.length >= 5) break
                 selectedRewards.push(item)
             }
         }
         setTopRewards(selectedRewards)
 
-        const now = new Date()
-        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-        const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
-        let sales30Days = 0, salesAccumulated = 0, points30Days = 0, pointsAccumulated = 0, redemptions30Days = 0, redemptionsAccumulated = 0
-        const customerSpendMap = new Map<string, { customerId: string; totalSpent: number; totalPoints: number; companyId: string }>()
-
-        if (transactions) {
-            transactions.forEach(t => {
-                const is30Days = t.created_at >= thirtyDaysAgoIso
-                const amount = Number(t.sale_amount || 0), pts = Number(t.points || 0)
-                if (t.type === 'earn') {
-                    salesAccumulated += amount
-                    pointsAccumulated += pts
-                    if (is30Days) { sales30Days += amount; points30Days += pts }
-                    if (t.customer_id) {
-                        const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
-                        const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
-                        
-                        const curr = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
-                        curr.totalSpent += amount
-                        curr.totalPoints += pts
-                        customerSpendMap.set(groupKey, curr)
-                    }
-                } else if (t.type === 'redeem') {
-                    redemptionsAccumulated += 1
-                    if (is30Days) redemptions30Days += 1
-                }
-            })
-        }
-
+        // Top Clientes
         const topCustomersList = Array.from(customerSpendMap.values())
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
@@ -703,9 +753,10 @@ function AdminContent() {
                     totalPoints: item.totalPoints
                 }
             })
-
         setTopCustomers(topCustomersList)
 
+        const now = new Date()
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
         const newComps = profiles?.filter(p => p.created_at >= firstDayOfMonth).length || 0
         const newCusts = endUserProfiles?.filter(c => c.created_at >= firstDayOfMonth).length || 0
         const totalHoldings = profiles?.filter(p => p.role === 'holding' || p.company_type === 'holding').length || 0
@@ -716,20 +767,18 @@ function AdminContent() {
         setStats({
             totalHoldings, totalGroups, totalCompanies: totalStores, newCompaniesThisMonth: newComps,
             totalCustomers: combinedCustomers.length, newCustomersThisMonth: newCusts,
-            sales30Days, salesAccumulated, points30Days, pointsAccumulated, redemptions30Days, redemptionsAccumulated, estimatedRevenue: revenue
+            sales30Days: periodSales, salesAccumulated, points30Days: periodPoints, pointsAccumulated, redemptions30Days: periodRedemptions, redemptionsAccumulated, estimatedRevenue: revenue
         })
 
         const dailyMap = new Map<string, { sales: number; transactions: number }>()
-        if (transactions) {
-            transactions.forEach((t: any) => {
-                const dateStr = new Date(t.created_at).toISOString().split('T')[0]
-                const amount = Number(t.sale_amount || 0)
-                const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
-                curr.sales += amount
-                curr.transactions += 1
-                dailyMap.set(dateStr, curr)
-            })
-        }
+        transactionsList.forEach((t: any) => {
+            const dateStr = new Date(t.created_at).toISOString().split('T')[0]
+            const amount = Number(t.sale_amount || 0)
+            const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
+            curr.sales += amount
+            curr.transactions += 1
+            dailyMap.set(dateStr, curr)
+        })
         setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
         setLoading(false)
     }
@@ -946,7 +995,7 @@ function AdminContent() {
                                                         {comp.isEngaged && (
                                                             <div className="flex items-center gap-0.5 text-[#E9592C] text-[8px] font-black uppercase px-2 py-0.5 bg-[#E9592C]/10 rounded-lg border border-[#E9592C]/30">
                                                                 <Flame className="h-2.5 w-2.5 fill-current" />
-                                                                ENGAGED
+                                                                ENGAJADA
                                                             </div>
                                                         )}
                                                     </div>
@@ -1468,84 +1517,46 @@ function AdminContent() {
                         subtitle="Movimentação diária por volume de vendas respeitando a paleta oficial Qrido"
                     />
 
+                    {/* Rankings de Top Desempenho (Top Empresas, Top Clientes, Top Recompensas) */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Auditoria de Transações */}
+                        {/* Top Empresas Ranking */}
                         <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
                             <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
                                 <div>
-                                    <CardTitle className="text-lg font-black italic uppercase text-slate-800">Auditoria</CardTitle>
-                                    <p className="text-[11px] text-slate-400 font-medium">Últimas movimentações.</p>
+                                    <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Empresas</CardTitle>
+                                    <p className="text-[11px] text-slate-400 font-medium">Empresas com mais vendas no período.</p>
                                 </div>
-                                <div className="p-2 bg-slate-50 rounded-xl text-slate-400">
-                                    <Calendar className="h-4 w-4" />
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <div className="divide-y divide-slate-50">
-                                    {allTransactions.slice(0, 6).map(tx => (
-                                        <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-2">
-                                            <div className="flex items-center gap-3">
-                                                <div className={cn("p-2 rounded-xl font-black text-[10px]", tx.type === 'earn' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600')}>
-                                                    {tx.type === 'earn' ? 'EARN' : 'REDEEM'}
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-800">
-                                                        {tx.type === 'earn' ? 'Crédito' : 'Resgate'}
-                                                    </p>
-                                                    <p className="text-[9px] text-slate-400 font-medium">
-                                                        {new Date(tx.created_at).toLocaleDateString()}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className={cn("text-xs font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
-                                                    {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
-                                                </p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Top Recompensas Ranking */}
-                        <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
-                            <CardHeader className="p-6 border-b border-slate-50">
-                                <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
-                                <p className="text-[11px] text-slate-400 font-medium">Prêmios mais Qridos.</p>
+                                <Store className="h-5 w-5 text-brand-orange" />
                             </CardHeader>
                             <CardContent className="p-6">
                                 <div className="space-y-4">
-                                    {topRewards.length === 0 ? (
+                                    {topCompanies.length === 0 ? (
                                         <div className="text-center py-6 text-slate-400 text-xs font-medium">
-                                            Nenhum prêmio disponível.
+                                            Nenhuma empresa registrada com vendas no período.
                                         </div>
                                     ) : (
-                                        topRewards.map((reward, index) => {
+                                        topCompanies.map((comp, index) => {
                                             const rank = index + 1
                                             return (
-                                                <div key={reward.id} className="flex items-center gap-3 group">
+                                                <div key={comp.id + index} className="flex items-center gap-3 group">
                                                     <div className={cn(
                                                         "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shrink-0",
-                                                        rank === 1 
-                                                            ? "bg-amber-50 text-amber-500 border border-amber-200" 
+                                                        rank === 1
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200"
                                                             : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
                                                     )}>
-                                                        {rank === 1 ? '🥇' : rank}
+                                                        {rank === 1 ? '🏢' : rank}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
-                                                            {reward.title}
-                                                        </p>
-                                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider truncate">
-                                                            {reward.company_name}
+                                                            {comp.name}
                                                         </p>
                                                         <div className="flex items-center justify-between mt-1">
-                                                            <span className="text-[10px] font-bold text-slate-500 italic">
-                                                                {reward.resgates} resgates
+                                                            <span className="text-[11px] font-black text-emerald-600 italic">
+                                                                R$ {comp.totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                                             </span>
-                                                            <span className="text-[9px] font-black text-brand-blue bg-brand-blue/5 px-2 py-0.5 rounded-full">
-                                                                {reward.points_required} pts
+                                                            <span className="text-[9px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                                {comp.totalTransactions} vendas
                                                             </span>
                                                         </div>
                                                     </div>
@@ -1608,7 +1619,126 @@ function AdminContent() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Top Recompensas Ranking */}
+                        <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                            <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle className="text-lg font-black italic uppercase text-slate-800">Top Recompensas</CardTitle>
+                                    <p className="text-[11px] text-slate-400 font-medium">Prêmios mais Qridos.</p>
+                                </div>
+                                <Gift className="h-5 w-5 text-brand-orange" />
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="space-y-4">
+                                    {topRewards.length === 0 ? (
+                                        <div className="text-center py-6 text-slate-400 text-xs font-medium">
+                                            Nenhum prêmio disponível.
+                                        </div>
+                                    ) : (
+                                        topRewards.map((reward, index) => {
+                                            const rank = index + 1
+                                            return (
+                                                <div key={reward.id} className="flex items-center gap-3 group">
+                                                    <div className={cn(
+                                                        "h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm transition-all shrink-0",
+                                                        rank === 1 
+                                                            ? "bg-amber-50 text-amber-500 border border-amber-200" 
+                                                            : "bg-slate-50 text-slate-400 group-hover:bg-brand-blue group-hover:text-white"
+                                                    )}>
+                                                        {rank === 1 ? '🥇' : rank}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-bold text-slate-800 italic uppercase leading-none text-xs group-hover:text-brand-blue transition-colors truncate">
+                                                            {reward.title}
+                                                        </p>
+                                                        <p className="text-[9px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider truncate">
+                                                            {reward.company_name}
+                                                        </p>
+                                                        <div className="flex items-center justify-between mt-1">
+                                                            <span className="text-[10px] font-bold text-slate-500 italic">
+                                                                {reward.resgates} resgates
+                                                            </span>
+                                                            <span className="text-[9px] font-black text-brand-blue bg-brand-blue/5 px-2 py-0.5 rounded-full">
+                                                                {reward.points_required} pts
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
                     </div>
+
+                    {/* Card de Auditoria de Transações (Abaixo em destaque) */}
+                    <Card className="border-none shadow-sm bg-white rounded-[32px] overflow-hidden">
+                        <CardHeader className="p-6 border-b border-slate-50 flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-lg font-black italic uppercase text-slate-800">Auditoria</CardTitle>
+                                <p className="text-[11px] text-slate-400 font-medium">Movimentações no período selecionado.</p>
+                            </div>
+                            <div className="p-2 bg-slate-50 rounded-xl text-slate-400 flex items-center gap-1 text-xs font-bold">
+                                <Calendar className="h-4 w-4" />
+                                <span>{allTransactions.length} registros</span>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            {allTransactions.length === 0 ? (
+                                <div className="text-center py-10 text-slate-400 text-xs font-medium">
+                                    Nenhuma movimentação registrada no período selecionado.
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-50">
+                                    {allTransactions.slice(0, 10).map(tx => {
+                                        const cust = allCustomers.find(c => c.id === tx.customer_id || c.user_id === tx.customer_id)
+                                        const company = companies.find(p => p.id === tx.user_id)
+                                        const clientName = cust?.name || 'Cliente'
+                                        const storeName = company?.full_name || company?.company_name || cust?.company_name || 'Loja'
+
+                                        return (
+                                            <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-black text-slate-800 uppercase italic truncate">
+                                                                {clientName}
+                                                            </p>
+                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 uppercase">
+                                                                {tx.type === 'earn' ? 'Crédito' : 'Resgate'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
+                                                                {storeName}
+                                                            </p>
+                                                            <span className="text-slate-300">•</span>
+                                                            <p className="text-[9px] text-slate-400 font-medium">
+                                                                {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <p className={cn("text-sm font-black", tx.type === 'earn' ? 'text-emerald-500' : 'text-red-500')}>
+                                                        {tx.type === 'earn' ? '+' : '-'}{tx.points} pts
+                                                    </p>
+                                                    {tx.sale_amount > 0 && (
+                                                        <p className="text-[10px] font-bold text-slate-400">
+                                                            R$ {Number(tx.sale_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
                 </div>
             )}
 

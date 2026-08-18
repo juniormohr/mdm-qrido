@@ -92,6 +92,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     ]
 
     const adminNav = [
+        { name: 'Painel Admin', href: '/qrido/admin', icon: LayoutDashboard },
         { name: 'Painel Empresa', href: '/qrido/company', icon: LayoutDashboard },
         { name: 'Holdings', href: '/qrido/admin?tab=holdings', icon: Building2 },
         { name: 'Grupos', href: '/qrido/admin?tab=groups', icon: Store },
