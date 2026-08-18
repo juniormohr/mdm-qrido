@@ -530,11 +530,12 @@ function AdminContent() {
                     const firstStoreProf = (profiles || []).find(p => p.id === matchingStoreRecords[0].user_id)
                     preferredStoreName = firstStoreProf?.full_name || firstStoreProf?.company_name || matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
                 }
+                const realName = u.full_name || matchingStoreRecords.find(sc => sc.name && sc.name !== 'Cliente Sem Nome' && sc.name !== 'Cliente Especial')?.name || matchingStoreRecords[0]?.name || 'Cliente Sem Nome'
 
                 return {
                     id: matchingStoreRecords[0]?.id || u.id,
                     user_id: u.id,
-                    name: u.full_name || matchingStoreRecords[0]?.name || 'Cliente Sem Nome',
+                    name: realName,
                     phone: u.phone || matchingStoreRecords[0]?.phone || '-',
                     email: u.email || matchingStoreRecords[0]?.email || '',
                     cpf_cnpj: (u as any).cpf_cnpj || matchingStoreRecords[0]?.cpf_cnpj || '',
@@ -542,7 +543,8 @@ function AdminContent() {
                     total_points: totalAllTimePoints,
                     preferred_store: preferredStoreName,
                     created_at: u.created_at,
-                    company_name: preferredStoreName
+                    company_name: preferredStoreName,
+                    linked_ids: Array.from(customerIdsSet)
                 }
             })
         }
@@ -565,7 +567,7 @@ function AdminContent() {
                     const existing = standaloneMap.get(key)!
                     existing.points_balance += (c.points_balance || 0)
                     existing.total_points += (c.points_balance || 0)
-                    if ((!existing.name || existing.name === 'Cliente Sem Nome') && c.name) {
+                    if ((!existing.name || existing.name === 'Cliente Sem Nome' || existing.name === 'Cliente Especial') && c.name) {
                         existing.name = c.name
                     }
                     if (!existing.phone && c.phone) existing.phone = c.phone
@@ -589,6 +591,27 @@ function AdminContent() {
         }
 
         setAllCustomers(combinedCustomers)
+
+        const idToCustomerMap = new Map<string, any>()
+        (storeCustomers || []).forEach(sc => {
+            idToCustomerMap.set(sc.id, {
+                id: sc.id,
+                name: sc.name || 'Cliente Especial',
+                phone: sc.phone || '-',
+                company_name: sc.profiles?.full_name || 'Loja'
+            })
+        })
+        combinedCustomers.forEach(c => {
+            if (c.id) idToCustomerMap.set(c.id, c)
+            if (c.user_id) idToCustomerMap.set(c.user_id, c)
+            if (c.phone) {
+                const pClean = c.phone.replace(/\D/g, '')
+                if (pClean) idToCustomerMap.set(pClean, c)
+            }
+            if ((c as any).linked_ids) {
+                (c as any).linked_ids.forEach((lid: string) => idToCustomerMap.set(lid, c))
+            }
+        })
 
         let filteredTxsQuery = supabase
             .from('loyalty_transactions')
@@ -650,7 +673,7 @@ function AdminContent() {
                         companySalesMap.set(t.user_id, currComp)
                     }
                     if (t.customer_id) {
-                        const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
+                        const foundCust = idToCustomerMap.get(t.customer_id) || combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
                         const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
 
                         const currCust = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
@@ -760,7 +783,7 @@ function AdminContent() {
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
             .map(item => {
-                const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
+                const foundCust = idToCustomerMap.get(item.customerId) || combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId) || (storeCustomers || []).find(sc => sc.id === item.customerId)
                 const company = (profiles || []).find(p => p.id === item.companyId)
 
                 let displayCompanyName = 'Loja Parceira'
@@ -770,9 +793,17 @@ function AdminContent() {
                     displayCompanyName = foundCust.company_name
                 }
 
+                let displayName = foundCust?.name
+                if (!displayName || displayName === 'Cliente Especial' || displayName === 'Cliente Sem Nome') {
+                    const matchingSc = (storeCustomers || []).find(sc => sc.id === item.customerId || (sc.phone && foundCust?.phone && sc.phone.replace(/\D/g, '') === foundCust.phone.replace(/\D/g, '')))
+                    if (matchingSc?.name && matchingSc.name !== 'Cliente Sem Nome' && matchingSc.name !== 'Cliente Especial') {
+                        displayName = matchingSc.name
+                    }
+                }
+
                 return {
                     id: item.customerId,
-                    name: foundCust?.name || 'Cliente Especial',
+                    name: displayName || 'Cliente Especial',
                     phone: foundCust?.phone || '-',
                     company_name: displayCompanyName,
                     totalSpent: item.totalSpent,
