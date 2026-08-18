@@ -435,6 +435,13 @@ function AdminContent() {
         profiles?.forEach((p: any) => {
             companyNameMap[p.id] = p.company_name || p.full_name || 'Loja'
         })
+        const isStoreProfile = (p: any) => {
+            if (!p) return false
+            const isHolding = p.role === 'holding' || p.company_type === 'holding'
+            const isGroup = p.company_type === 'mall' || p.role === 'mall' || p.role === 'group'
+            const isAdmin = p.role === 'admin' || p.company_type === 'admin'
+            return !isHolding && !isGroup && !isAdmin
+        }
 
         const { data: endUserProfiles } = await supabase
             .from('profiles')
@@ -449,7 +456,7 @@ function AdminContent() {
 
         const { data: allLoyaltyTxs } = await supabase
             .from('loyalty_transactions')
-            .select('customer_id, user_id, points, type, created_at')
+            .select('*')
 
         const matchedStoreCustomerIds = new Set<string>()
 
@@ -469,17 +476,14 @@ function AdminContent() {
                     if (sc.id) matchedStoreCustomerIds.add(sc.id)
                 })
 
-                // Set de IDs vinculados
                 const customerIdsSet = new Set<string>()
                 customerIdsSet.add(u.id)
                 matchingStoreRecords.forEach(sc => {
                     if (sc.id) customerIdsSet.add(sc.id)
                 })
 
-                // Transações deste cliente
                 const customerTxs = (allLoyaltyTxs || []).filter(t => customerIdsSet.has(t.customer_id) || t.customer_id === u.id)
 
-                // 1. Saldo Ativo Real (Pontos de ganho válidos menos resgates)
                 const sumTxsActive = customerTxs.reduce((acc, t) => {
                     const pts = Number(t.points) || 0
                     return t.type === 'earn' ? acc + pts : acc - pts
@@ -487,22 +491,26 @@ function AdminContent() {
                 const sumStoreBalances = matchingStoreRecords.reduce((acc, sc) => acc + (sc.points_balance || 0), 0)
                 const totalActivePoints = Math.max(sumTxsActive, sumStoreBalances)
 
-                // 2. Saldo Total Acumulado (Soma de todos os pontos ganhos historicamente)
                 const sumTxsEarn = customerTxs
                     .filter(t => t.type === 'earn')
                     .reduce((acc, t) => acc + (Number(t.points) || 0), 0)
                 const totalAllTimePoints = Math.max(sumTxsEarn, totalActivePoints)
 
-                // 3. Loja Preferida (loja onde comprou/visitou mais vezes)
                 const storeVisitsMap: Record<string, number> = {}
                 customerTxs.forEach(t => {
                     if (t.user_id) {
-                        storeVisitsMap[t.user_id] = (storeVisitsMap[t.user_id] || 0) + 1
+                        const uProf = (profiles || []).find(p => p.id === t.user_id)
+                        if (isStoreProfile(uProf)) {
+                            storeVisitsMap[t.user_id] = (storeVisitsMap[t.user_id] || 0) + 1
+                        }
                     }
                 })
                 matchingStoreRecords.forEach(sc => {
-                    if (sc.user_id && !storeVisitsMap[sc.user_id]) {
-                        storeVisitsMap[sc.user_id] = 1
+                    if (sc.user_id) {
+                        const scProf = (profiles || []).find(p => p.id === sc.user_id)
+                        if (isStoreProfile(scProf) && !storeVisitsMap[sc.user_id]) {
+                            storeVisitsMap[sc.user_id] = 1
+                        }
                     }
                 })
 
@@ -519,7 +527,8 @@ function AdminContent() {
                 if (preferredStoreId && companyNameMap[preferredStoreId]) {
                     preferredStoreName = companyNameMap[preferredStoreId]
                 } else if (matchingStoreRecords.length > 0) {
-                    preferredStoreName = matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
+                    const firstStoreProf = (profiles || []).find(p => p.id === matchingStoreRecords[0].user_id)
+                    preferredStoreName = firstStoreProf?.full_name || firstStoreProf?.company_name || matchingStoreRecords[0].profiles?.full_name || 'Loja Vinculada'
                 }
 
                 return {
@@ -538,7 +547,6 @@ function AdminContent() {
             })
         }
 
-        // Adiciona clientes da tabela 'customers' que ainda não possuem um perfil correspondente (role='customer' em profiles)
         if (storeCustomers && storeCustomers.length > 0) {
             const standaloneStoreCustomers = storeCustomers.filter(sc => !matchedStoreCustomerIds.has(sc.id))
             
@@ -548,7 +556,10 @@ function AdminContent() {
                 const emailClean = c.email ? c.email.toLowerCase().trim() : ''
                 const key = phoneClean || emailClean || c.id
 
-                const storeName = (c.user_id && companyNameMap[c.user_id]) ? companyNameMap[c.user_id] : (c.profiles?.full_name || 'Loja')
+                const storeProf = c.user_id ? (profiles || []).find(p => p.id === c.user_id) : null
+                const storeName = (storeProf && isStoreProfile(storeProf))
+                    ? (storeProf.company_name || storeProf.full_name || 'Loja')
+                    : (c.user_id && companyNameMap[c.user_id] ? companyNameMap[c.user_id] : (c.profiles?.full_name || 'Loja'))
 
                 if (standaloneMap.has(key)) {
                     const existing = standaloneMap.get(key)!
@@ -579,7 +590,6 @@ function AdminContent() {
 
         setAllCustomers(combinedCustomers)
 
-        // Filtrar transações por período e hierarquia
         let filteredTxsQuery = supabase
             .from('loyalty_transactions')
             .select('*')
@@ -614,7 +624,6 @@ function AdminContent() {
 
         setAllTransactions(transactionsList)
 
-        // Count Resgates por Reward no período
         const redeemCounts: Record<string, number> = {}
         const companyVolumes: Record<string, number> = {}
         const companySalesMap = new Map<string, { companyId: string; totalSales: number; totalTransactions: number }>()
@@ -626,24 +635,30 @@ function AdminContent() {
         transactionsList.forEach(t => {
             const amount = Number(t.sale_amount || 0)
             const pts = Number(t.points || 0)
-            if (t.type === 'earn') {
-                periodSales += amount
-                periodPoints += pts
-                if (t.user_id) {
-                    companyVolumes[t.user_id] = (companyVolumes[t.user_id] || 0) + 1
-                    const currComp = companySalesMap.get(t.user_id) || { companyId: t.user_id, totalSales: 0, totalTransactions: 0 }
-                    currComp.totalSales += amount
-                    currComp.totalTransactions += 1
-                    companySalesMap.set(t.user_id, currComp)
-                }
-                if (t.customer_id) {
-                    const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
-                    const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
+            const txProfile = (profiles || []).find(p => p.id === t.user_id)
+            const isStore = isStoreProfile(txProfile)
 
-                    const currCust = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
-                    currCust.totalSpent += amount
-                    currCust.totalPoints += pts
-                    customerSpendMap.set(groupKey, currCust)
+            if (t.type === 'earn') {
+                if (isStore) {
+                    periodSales += amount
+                    periodPoints += pts
+                    if (t.user_id) {
+                        companyVolumes[t.user_id] = (companyVolumes[t.user_id] || 0) + 1
+                        const currComp = companySalesMap.get(t.user_id) || { companyId: t.user_id, totalSales: 0, totalTransactions: 0 }
+                        currComp.totalSales += amount
+                        currComp.totalTransactions += 1
+                        companySalesMap.set(t.user_id, currComp)
+                    }
+                    if (t.customer_id) {
+                        const foundCust = combinedCustomers.find(c => c.id === t.customer_id || c.user_id === t.customer_id)
+                        const groupKey = (foundCust?.phone || foundCust?.name || t.customer_id).replace(/\D/g, '') || foundCust?.name || t.customer_id
+
+                        const currCust = customerSpendMap.get(groupKey) || { customerId: t.customer_id, totalSpent: 0, totalPoints: 0, companyId: t.user_id }
+                        currCust.totalSpent += amount
+                        currCust.totalPoints += pts
+                        currCust.companyId = t.user_id
+                        customerSpendMap.set(groupKey, currCust)
+                    }
                 }
             } else if (t.type === 'redeem') {
                 periodRedemptions += 1
@@ -651,12 +666,14 @@ function AdminContent() {
             }
         })
 
-        // Para dados acumulados (todos os tempos)
-        const { data: allTimeTxs } = await supabase.from('loyalty_transactions').select('sale_amount, points, type')
+        const { data: allTimeTxs } = await supabase.from('loyalty_transactions').select('user_id, sale_amount, points, type')
         if (allTimeTxs) {
             allTimeTxs.forEach(t => {
+                const txProfile = (profiles || []).find(p => p.id === t.user_id)
                 if (t.type === 'earn') {
-                    salesAccumulated += Number(t.sale_amount || 0)
+                    if (isStoreProfile(txProfile)) {
+                        salesAccumulated += Number(t.sale_amount || 0)
+                    }
                     pointsAccumulated += Number(t.points || 0)
                 } else if (t.type === 'redeem') {
                     redemptionsAccumulated += 1
@@ -664,8 +681,11 @@ function AdminContent() {
             })
         }
 
-        // Top Empresas (Vendas no período)
         const topCompaniesList = Array.from(companySalesMap.values())
+            .filter(item => {
+                const company = (profiles || []).find(p => p.id === item.companyId)
+                return isStoreProfile(company)
+            })
             .sort((a, b) => b.totalSales - a.totalSales)
             .slice(0, 5)
             .map(item => {
@@ -679,7 +699,6 @@ function AdminContent() {
             })
         setTopCompanies(topCompaniesList)
 
-        // Top Recompensas
         const { data: rewardsData } = await supabase
             .from('rewards')
             .select('*')
@@ -737,18 +756,25 @@ function AdminContent() {
         }
         setTopRewards(selectedRewards)
 
-        // Top Clientes
         const topCustomersList = Array.from(customerSpendMap.values())
             .sort((a, b) => b.totalSpent - a.totalSpent)
             .slice(0, 5)
             .map(item => {
                 const foundCust = combinedCustomers.find(c => c.id === item.customerId || c.user_id === item.customerId)
                 const company = (profiles || []).find(p => p.id === item.companyId)
+
+                let displayCompanyName = 'Loja Parceira'
+                if (company && isStoreProfile(company)) {
+                    displayCompanyName = company.full_name || company.company_name || 'Loja Parceira'
+                } else if (foundCust?.company_name && foundCust.company_name !== 'Nenhuma compra' && foundCust.company_name !== 'Loja') {
+                    displayCompanyName = foundCust.company_name
+                }
+
                 return {
                     id: item.customerId,
                     name: foundCust?.name || 'Cliente Especial',
                     phone: foundCust?.phone || '-',
-                    company_name: company?.full_name || foundCust?.company_name || 'Loja Parceira',
+                    company_name: displayCompanyName,
                     totalSpent: item.totalSpent,
                     totalPoints: item.totalPoints
                 }
