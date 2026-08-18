@@ -140,10 +140,59 @@ function AdminContent() {
     const [topRewards, setTopRewards] = useState<any[]>([])
     const [topCustomers, setTopCustomers] = useState<any[]>([])
     const [topCompanies, setTopCompanies] = useState<any[]>([])
+    const [idToCustomerMapState, setIdToCustomerMapState] = useState<Record<string, any>>({})
+    const [rawStoreCustomers, setRawStoreCustomers] = useState<any[]>([])
+    const [rawEndUserProfiles, setRawEndUserProfiles] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
     const [customerCompanyFilter, setCustomerCompanyFilter] = useState('all')
     const [customerSort, setCustomerSort] = useState('name_asc')
+
+    const getCustomerDisplayName = (tx: any) => {
+        if (!tx || !tx.customer_id) return 'Cliente Especial'
+        const customerId = tx.customer_id
+
+        const mapped = customerId ? idToCustomerMapState[customerId] : null
+        let name = mapped?.name || mapped?.full_name
+
+        if (!name || ['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(name)) {
+            const foundAll = allCustomers.find(c =>
+                c.id === customerId ||
+                c.user_id === customerId ||
+                ((c as any).linked_ids && (c as any).linked_ids.includes(customerId))
+            )
+            if (foundAll?.name && !['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(foundAll.name)) {
+                name = foundAll.name
+            }
+        }
+
+        if (!name || ['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(name)) {
+            const foundSc = rawStoreCustomers.find(sc => sc.id === customerId)
+            if (foundSc?.name && !['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(foundSc.name)) {
+                name = foundSc.name
+            }
+        }
+
+        const phone = mapped?.phone || allCustomers.find(c => c.id === customerId)?.phone || rawStoreCustomers.find(sc => sc.id === customerId)?.phone
+        if ((!name || ['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(name)) && phone && phone !== '-') {
+            const cleanPhone = phone.replace(/\D/g, '')
+            if (cleanPhone) {
+                const scByPhone = rawStoreCustomers.find(sc => sc.phone && sc.phone.replace(/\D/g, '') === cleanPhone && sc.name && !['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(sc.name))
+                if (scByPhone) name = scByPhone.name
+
+                if (!name || ['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(name)) {
+                    const profByPhone = rawEndUserProfiles.find(u => u.phone && u.phone.replace(/\D/g, '') === cleanPhone && u.full_name)
+                    if (profByPhone) name = profByPhone.full_name
+                }
+            }
+        }
+
+        if (!name || ['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(name)) {
+            if (phone && phone !== '-') return phone
+        }
+
+        return name || 'Cliente Especial'
+    }
 
     // Estados para o Histórico em Leque (Clientes e Entidades)
     const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null)
@@ -590,28 +639,49 @@ function AdminContent() {
             combinedCustomers.push(...Array.from(standaloneMap.values()))
         }
 
+        setRawStoreCustomers(storeCustomers || [])
+        setRawEndUserProfiles(endUserProfiles || [])
         setAllCustomers(combinedCustomers)
 
         const idToCustomerMap = new Map<string, any>();
+        const idToCustomerObj: Record<string, any> = {};
+
         (storeCustomers || []).forEach(sc => {
-            idToCustomerMap.set(sc.id, {
+            const item = {
                 id: sc.id,
                 name: sc.name || 'Cliente Especial',
                 phone: sc.phone || '-',
                 company_name: sc.profiles?.full_name || 'Loja'
-            })
+            }
+            idToCustomerMap.set(sc.id, item)
+            idToCustomerObj[sc.id] = item
         })
+
         combinedCustomers.forEach(c => {
-            if (c.id) idToCustomerMap.set(c.id, c)
-            if (c.user_id) idToCustomerMap.set(c.user_id, c)
+            if (c.id) {
+                idToCustomerMap.set(c.id, c)
+                idToCustomerObj[c.id] = c
+            }
+            if (c.user_id) {
+                idToCustomerMap.set(c.user_id, c)
+                idToCustomerObj[c.user_id] = c
+            }
             if (c.phone) {
                 const pClean = c.phone.replace(/\D/g, '')
-                if (pClean) idToCustomerMap.set(pClean, c)
+                if (pClean) {
+                    idToCustomerMap.set(pClean, c)
+                    idToCustomerObj[pClean] = c
+                }
             }
             if ((c as any).linked_ids) {
-                (c as any).linked_ids.forEach((lid: string) => idToCustomerMap.set(lid, c))
+                (c as any).linked_ids.forEach((lid: string) => {
+                    idToCustomerMap.set(lid, c)
+                    idToCustomerObj[lid] = c
+                })
             }
         })
+
+        setIdToCustomerMapState(idToCustomerObj)
 
         let filteredTxsQuery = supabase
             .from('loyalty_transactions')
@@ -1749,11 +1819,10 @@ function AdminContent() {
                                 </div>
                             ) : (
                                 <div className="divide-y divide-slate-50">
-                                    {allTransactions.slice(0, 10).map(tx => {
-                                        const cust = allCustomers.find(c => c.id === tx.customer_id || c.user_id === tx.customer_id)
+                                    {allTransactions.slice(0, 50).map(tx => {
+                                        const clientName = getCustomerDisplayName(tx)
                                         const company = companies.find(p => p.id === tx.user_id)
-                                        const clientName = cust?.name || 'Cliente'
-                                        const storeName = company?.full_name || company?.company_name || cust?.company_name || 'Loja'
+                                        const storeName = company?.full_name || company?.company_name || 'Loja'
 
                                         return (
                                             <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors gap-4">

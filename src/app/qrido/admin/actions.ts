@@ -693,25 +693,47 @@ export async function fetchEntityHistoryAction(entityId: string, entityType: str
     const { data: customerProfiles } = await supabaseAdmin
       .from('profiles')
       .select('id, full_name, phone')
-      .in('id', Array.from(customerIdsSet))
+
+    const { data: allCustomersList } = await supabaseAdmin
+      .from('customers')
+      .select('id, name, phone')
 
     const customerNameMap: Record<string, string> = {}
+    const phoneToNameMap: Record<string, string> = {}
+
     customerProfiles?.forEach(c => {
-      customerNameMap[c.id] = c.full_name || c.phone || 'Cliente'
+      if (c.full_name) {
+        customerNameMap[c.id] = c.full_name
+        if (c.phone) {
+          const cleanP = c.phone.replace(/\D/g, '')
+          if (cleanP) phoneToNameMap[cleanP] = c.full_name
+        }
+      }
     })
 
-    // Se faltou no customerProfiles, busca em customers
-    const missingCustomerIds = Array.from(customerIdsSet).filter(id => !customerNameMap[id])
-    if (missingCustomerIds.length > 0) {
-      const { data: cList } = await supabaseAdmin
-        .from('customers')
-        .select('id, name, phone')
-        .in('id', missingCustomerIds)
+    allCustomersList?.forEach(c => {
+      if (c.name && !['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(c.name)) {
+        customerNameMap[c.id] = c.name
+        if (c.phone) {
+          const cleanP = c.phone.replace(/\D/g, '')
+          if (cleanP && !phoneToNameMap[cleanP]) phoneToNameMap[cleanP] = c.name
+        }
+      }
+    })
 
-      cList?.forEach(c => {
-        customerNameMap[c.id] = c.name || c.phone || 'Cliente'
-      })
-    }
+    // Resolve any remaining IDs using phone cross-reference
+    allCustomersList?.forEach(c => {
+      if (!customerNameMap[c.id]) {
+        const cleanP = c.phone ? c.phone.replace(/\D/g, '') : ''
+        if (cleanP && phoneToNameMap[cleanP]) {
+          customerNameMap[c.id] = phoneToNameMap[cleanP]
+        } else if (c.name && !['Cliente', 'Cliente Sem Nome', 'Cliente Especial'].includes(c.name)) {
+          customerNameMap[c.id] = c.name
+        } else if (c.phone && c.phone !== '-') {
+          customerNameMap[c.id] = c.phone
+        }
+      }
+    })
 
     // Mapeamento de grupos/holdings
     const { data: cgData } = await supabaseAdmin.from('company_groups').select('mall_id, store_id')
