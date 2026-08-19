@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { toLocalDateString } from './dateUtils'
 
 export interface DailyDataPoint {
   date: string
@@ -142,7 +143,7 @@ export async function fetchAnalyticsData(
     const storeTransactions = txs.filter(t => !t.store_id || t.store_id === t.user_id)
 
     storeTransactions.forEach((t: any) => {
-      const dateStr = new Date(t.created_at).toISOString().split('T')[0]
+      const dateStr = toLocalDateString(t.created_at)
       const amount = Number(t.sale_amount || 0)
       const pts = Number(t.points || 0)
 
@@ -154,7 +155,9 @@ export async function fetchAnalyticsData(
       }
 
       const currDay = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
-      currDay.sales += amount
+      if (t.type === 'earn') {
+        currDay.sales += amount
+      }
       currDay.transactions += 1
       dailyMap.set(dateStr, currDay)
 

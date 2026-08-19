@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createCompanyAction, deleteCompanyAction, toggleCompanyStatusAction, resetUserPasswordAction, searchUsersForResetAction, fetchCompaniesMetadataAction, updateCompanyMetadataAction, updateCustomerAdminAction, fetchCompanyGroupRelationsAction, fetchCustomerHistoryAction, fetchEntityHistoryAction } from './actions'
 import { HeatmapPixelChart, DailyDataPoint } from '@/components/holding/HeatmapPixelChart'
+import { toLocalDateString, getTodayLocalDate, getDaysAgoLocalDate } from '@/lib/dateUtils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -102,12 +103,10 @@ function AdminContent() {
     }
 
     const get30DaysAgo = () => {
-        const d = new Date()
-        d.setDate(d.getDate() - 30)
-        return d.toISOString().split('T')[0]
+        return getDaysAgoLocalDate(30)
     }
     const getToday = () => {
-        return new Date().toISOString().split('T')[0]
+        return getTodayLocalDate()
     }
 
     const [startDate, setStartDate] = useState<string>(get30DaysAgo())
@@ -907,12 +906,17 @@ function AdminContent() {
 
         const dailyMap = new Map<string, { sales: number; transactions: number }>()
         transactionsList.forEach((t: any) => {
-            const dateStr = new Date(t.created_at).toISOString().split('T')[0]
+            const dateStr = toLocalDateString(t.created_at)
             const amount = Number(t.sale_amount || 0)
-            const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
-            curr.sales += amount
-            curr.transactions += 1
-            dailyMap.set(dateStr, curr)
+            const txProfile = (profiles || []).find(p => p.id === t.user_id)
+            const isStore = isStoreProfile(txProfile)
+
+            if (t.type === 'earn' && isStore) {
+                const curr = dailyMap.get(dateStr) || { sales: 0, transactions: 0 }
+                curr.sales += amount
+                curr.transactions += 1
+                dailyMap.set(dateStr, curr)
+            }
         })
         setHeatmapData(Array.from(dailyMap.entries()).map(([date, d]) => ({ date, sales: d.sales, transactions: d.transactions })))
         setLoading(false)

@@ -9,6 +9,7 @@ import { Plus, Users, MessageSquareMore, TrendingUp, Package, CheckCircle2, Zap,
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { HeatmapPixelChart, DailyDataPoint } from "@/components/holding/HeatmapPixelChart"
+import { toLocalDateString, getTodayLocalDate, getDaysAgoLocalDate } from "@/lib/dateUtils"
 
 type DateFilterPreset = "yesterday" | "last_7_days" | "last_30_days" | "custom"
 
@@ -54,25 +55,15 @@ export default function CompanyDashboard() {
     useEffect(() => {
         const today = new Date()
         if (preset === "yesterday") {
-            const yesterday = new Date(today)
-            yesterday.setDate(today.getDate() - 1)
-            const iso = yesterday.toISOString().split("T")[0]
+            const iso = getDaysAgoLocalDate(1)
             setStartDate(iso)
             setEndDate(iso)
         } else if (preset === "last_7_days") {
-            const d7 = new Date(today)
-            d7.setDate(today.getDate() - 7)
-            const iso7 = d7.toISOString().split("T")[0]
-            const isoToday = today.toISOString().split("T")[0]
-            setStartDate(iso7)
-            setEndDate(isoToday)
+            setStartDate(getDaysAgoLocalDate(7))
+            setEndDate(getTodayLocalDate())
         } else if (preset === "last_30_days") {
-            const d30 = new Date(today)
-            d30.setDate(today.getDate() - 30)
-            const iso30 = d30.toISOString().split("T")[0]
-            const isoToday = today.toISOString().split("T")[0]
-            setStartDate(iso30)
-            setEndDate(isoToday)
+            setStartDate(getDaysAgoLocalDate(30))
+            setEndDate(getTodayLocalDate())
         }
     }, [preset])
 
@@ -167,10 +158,8 @@ export default function CompanyDashboard() {
 
         if (transactions) {
             transactions.forEach(t => {
-                const dateObj = new Date(t.created_at)
-                const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
+                const dateKey = toLocalDateString(t.created_at)
                 const currentDaily = dailyMap.get(dateKey) || { sales: 0, transactions: 0 }
-                currentDaily.transactions += 1
 
                 if (t.type === 'earn') {
                     const amount = Number(t.sale_amount) || 0
@@ -178,6 +167,7 @@ export default function CompanyDashboard() {
                     salesAmount += amount
                     pointsEarned += pts
                     currentDaily.sales += amount
+                    currentDaily.transactions += 1
                 } else if (t.type === 'redeem') {
                     const pts = Number(t.points) || 0
                     redeemCount += 1
