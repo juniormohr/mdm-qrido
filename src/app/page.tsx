@@ -1464,18 +1464,18 @@ function CustomerDashboardContent() {
 
                     {/* Campo de Busca por Nome da Empresa ou Produto */}
                     <div className="relative w-full">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1E242B]" />
                         <Input
                             type="text"
                             placeholder="Buscar por loja ou produto..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-10 h-10 bg-white border-slate-200 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:border-brand-blue shadow-sm"
+                            className="pl-10 h-12 bg-white border-2 border-[#1E242B] rounded-2xl text-xs font-black italic placeholder:text-slate-400 focus-visible:ring-0 shadow-[3px_3px_0px_#1E242B]"
                         />
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#1E242B] hover:text-black text-xs font-black"
                             >
                                 ✕
                             </button>
@@ -1483,29 +1483,29 @@ function CustomerDashboardContent() {
                     </div>
 
                     {!userLocation && !locationError && (
-                        <div className="bg-brand-blue/5 p-3 rounded-2xl border border-brand-blue/10 flex items-center justify-between shadow-inner">
+                        <div className="bg-[#FAF8F5] p-3.5 rounded-2xl border-2 border-[#1E242B] flex items-center justify-between shadow-[3px_3px_0px_#1E242B]">
                             <div className="flex items-center gap-2.5">
-                                <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center text-brand-blue shadow-sm">
+                                <div className="h-9 w-9 bg-[#F7AA1C] rounded-xl border-2 border-[#1E242B] flex items-center justify-center text-[#1E242B] shadow-[1px_1px_0px_#1E242B]">
                                     <MapPin className="h-4 w-4" />
                                 </div>
                                 <div>
-                                    <p className="text-xs font-black text-slate-700 uppercase italic">Encontre lojas próximas</p>
-                                    <p className="text-[10px] text-slate-500 font-bold">Ative a localização para ver a distância.</p>
+                                    <p className="text-xs font-black text-[#1E242B] uppercase italic">Encontre lojas próximas</p>
+                                    <p className="text-[10px] text-slate-600 font-bold italic">Ative a localização para ver a distância.</p>
                                 </div>
                             </div>
-                            <Button onClick={requestLocation} variant="outline" className="border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-8 text-[10px] font-black uppercase italic tracking-wider">
+                            <Button onClick={requestLocation} className="border-2 border-[#1E242B] bg-[#F7AA1C] text-[#1E242B] hover:bg-[#F7AA1C]/90 rounded-xl h-8 px-3 text-[10px] font-black uppercase italic tracking-wider shadow-[2px_2px_0px_#1E242B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none">
                                 Permitir
                             </Button>
                         </div>
                     )}
 
                     {companies.length === 0 && !loading ? (
-                        <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-200">
-                            <Store className="h-8 w-8 text-slate-300 mx-auto mb-3" />
-                            <p className="text-sm font-bold text-slate-400 italic">Nenhuma loja Qrida parceira encontrada na sua região.</p>
+                        <div className="text-center py-10 bg-white rounded-3xl border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B]">
+                            <Store className="h-8 w-8 text-slate-400 mx-auto mb-3" />
+                            <p className="text-sm font-black text-slate-600 italic">Nenhuma loja Qrida parceira encontrada na sua região.</p>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-4">
                             {companies
                                 .filter(company => {
                                     if (!searchQuery.trim()) return true
@@ -1533,15 +1533,15 @@ function CustomerDashboardContent() {
                                 const isFav = favorites.includes(company.id)
 
                                 return (
-                                    <Card id={`loja-${company.id}`} key={company.id} className={cn("border-none shadow-md bg-white rounded-[20px] transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-brand-blue/30" : "hover:scale-[1.005] hover:shadow-lg")} style={{ animationDelay: `${index * 50}ms` }}>
+                                    <Card id={`loja-${company.id}`} key={company.id} className={cn("border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] bg-white rounded-3xl transition-all duration-300 overflow-hidden", isExpanded ? "ring-2 ring-[#1E242B]" : "hover:-translate-y-0.5 hover:shadow-[5px_5px_0px_#1E242B]")} style={{ animationDelay: `${index * 50}ms` }}>
                                         <CardContent className="p-0">
-                                            <div className={cn("flex items-center justify-between cursor-pointer p-3.5 sm:p-4 transition-colors", isExpanded ? "bg-slate-50/50" : "hover:bg-slate-50/50")} onClick={() => handleSelectCompany(company)}>
+                                            <div className={cn("flex items-center justify-between cursor-pointer p-3.5 sm:p-4 transition-colors", isExpanded ? "bg-[#FAF8F5]" : "hover:bg-[#FAF8F5]")} onClick={() => handleSelectCompany(company)}>
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-11 w-11 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center border border-white shadow-inner relative">
-                                                        <span className="text-base font-black text-slate-600 italic">{(company.full_name || 'E').charAt(0)}</span>
+                                                    <div className="h-11 w-11 bg-[#F7AA1C] rounded-2xl flex items-center justify-center border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] relative shrink-0">
+                                                        <span className="text-base font-black text-[#1E242B] italic">{(company.full_name || 'E').charAt(0)}</span>
                                                     </div>
                                                     <div>
-                                                        <h3 className="font-black text-slate-900 text-sm uppercase italic tracking-tight flex items-center gap-1.5 flex-wrap">
+                                                        <h3 className="font-black text-[#1E242B] text-sm uppercase italic tracking-tight flex items-center gap-1.5 flex-wrap">
                                                             {company.full_name || 'Empresa Parceira'}
                                                             {isFav && (
                                                                 <span className="text-rose-500" title="Loja Favorita">
@@ -1549,43 +1549,43 @@ function CustomerDashboardContent() {
                                                                 </span>
                                                             )}
                                                             {pointsMultiplier > 1 && (
-                                                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-sm">
+                                                                <span className="bg-[#F7AA1C] text-[#1E242B] border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-[1px_1px_0px_#1E242B]">
                                                                     <GoldCoinsIcon /> Dobro
                                                                 </span>
                                                             )}
                                                             {balance > 0 && (
-                                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-sm">
+                                                                <span className="bg-[#E9592C] text-white border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic flex items-center gap-0.5 shadow-[1px_1px_0px_#1E242B]">
                                                                     {balance} pts
                                                                 </span>
                                                             )}
                                                         </h3>
                                                         {company.distance !== undefined && (
-                                                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-brand-orange mt-0.5">
+                                                            <div className="flex items-center gap-1 text-[9px] font-black uppercase text-[#E9592C] mt-0.5">
                                                                 <MapPin className="h-2.5 w-2.5" />
                                                                 {company.distance < 1 ? 'Menos de 1km' : `${company.distance.toFixed(1)} km`}
                                                                 {company.address && ` • ${company.address}`}
                                                             </div>
                                                         )}
                                                         {!isExpanded && (
-                                                            <p className="text-[9px] text-slate-400 font-bold mt-0.5">Visitar vitrine</p>
+                                                            <p className="text-[9px] text-slate-500 font-bold italic mt-0.5">Visitar vitrine</p>
                                                         )}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {isExpanded && (
                                                         <div className="hidden sm:flex flex-col text-right mr-2">
-                                                            <span className="text-[8px] font-black text-slate-400 uppercase italic">Saldo na Loja</span>
-                                                            <span className="text-xs font-black text-brand-orange">{customerBalance} pts</span>
+                                                            <span className="text-[8px] font-black text-slate-500 uppercase italic">Saldo na Loja</span>
+                                                            <span className="text-xs font-black text-[#E9592C]">{customerBalance} pts</span>
                                                         </div>
                                                     )}
                                                     <button
                                                         onClick={(e) => toggleFavorite(company.id, e)}
-                                                        className="h-8 w-8 rounded-xl flex items-center justify-center transition-all bg-rose-50 hover:bg-rose-100 text-rose-500"
+                                                        className="h-8 w-8 rounded-xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] flex items-center justify-center transition-all bg-rose-50 hover:bg-rose-100 text-rose-500"
                                                         title={isFav ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                                                     >
                                                         <Heart className={cn("h-4 w-4 transition-transform active:scale-125", isFav ? "fill-rose-500 text-rose-500" : "text-slate-300")} />
                                                     </button>
-                                                    <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center transition-all", isExpanded ? "bg-slate-200 text-slate-500" : "bg-brand-blue/10 text-brand-blue")}>
+                                                    <div className={cn("h-8 w-8 rounded-xl border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] flex items-center justify-center transition-all", isExpanded ? "bg-[#1E242B] text-white" : "bg-[#F7AA1C] text-[#1E242B]")}>
                                                         <ChevronRight className={cn("h-4 w-4 transition-transform duration-300", isExpanded ? "rotate-90" : "")} />
                                                     </div>
                                                 </div>
@@ -1594,33 +1594,33 @@ function CustomerDashboardContent() {
                                             {/* Expanded Accordion Content: Brindes 2x2 + Ofertas */}
                                             <div className={cn("grid transition-all duration-300 origin-top px-3.5 sm:px-4 pb-4", isExpanded ? "grid-rows-[1fr] opacity-100 mt-0" : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none")}>
                                                 <div className="overflow-hidden">
-                                                    <div className="pt-3 border-t border-slate-200/60">
+                                                    <div className="pt-3 border-t-2 border-[#1E242B]/10">
                                                         {/* Seção de Brindes da Loja em Grade 2x2 */}
                                                         {companyRewards.length > 0 && (
-                                                            <div className="mb-4 bg-gradient-to-br from-amber-50 to-orange-50/60 p-3 sm:p-3.5 rounded-2xl border border-orange-200/70 shadow-sm">
+                                                            <div className="mb-4 bg-[#FAF8F5] p-3.5 rounded-2xl border-2 border-[#1E242B] shadow-[3px_3px_0px_#1E242B]">
                                                                 <div className="flex items-center justify-between mb-2">
                                                                     <div className="flex items-center gap-1.5">
-                                                                        <div className="h-6 w-6 rounded-lg bg-orange-500 text-white flex items-center justify-center shadow-sm">
+                                                                        <div className="h-6 w-6 rounded-lg bg-[#E9592C] text-white border border-[#1E242B] flex items-center justify-center shadow-[1px_1px_0px_#1E242B]">
                                                                             <Gift className="h-3.5 w-3.5" />
                                                                         </div>
-                                                                        <h4 className="text-xs font-black uppercase italic tracking-wider text-slate-900">
+                                                                        <h4 className="text-xs font-black uppercase italic tracking-wider text-[#1E242B]">
                                                                             Brindes da Loja
                                                                         </h4>
                                                                     </div>
-                                                                    <span className="text-[8px] font-black uppercase italic text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200">
+                                                                    <span className="text-[8px] font-black uppercase italic text-[#1E242B] bg-[#F7AA1C] px-2 py-0.5 rounded-full border border-[#1E242B] shadow-[1px_1px_0px_#1E242B]">
                                                                         Resgate com Pontos
                                                                     </span>
                                                                 </div>
                                                                 <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                                                                     {companyRewards.map((reward) => (
-                                                                        <div key={reward.id} className="relative overflow-hidden bg-white border-2 border-orange-300 hover:border-orange-500 rounded-xl p-2.5 shadow-sm transition-all flex flex-col justify-between group">
-                                                                            <div className="absolute top-0 right-0 bg-gradient-to-l from-orange-500 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-bl-lg uppercase italic shadow-sm flex items-center gap-0.5">
+                                                                        <div key={reward.id} className="relative overflow-hidden bg-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] rounded-2xl p-3 transition-all flex flex-col justify-between group">
+                                                                            <div className="absolute top-0 right-0 bg-[#E9592C] text-white border-b-2 border-l-2 border-[#1E242B] text-[8px] font-black px-1.5 py-0.5 rounded-bl-xl uppercase italic shadow-sm flex items-center gap-0.5">
                                                                                 🎁 BRINDE
                                                                             </div>
                                                                             <div className="pt-3">
-                                                                                <h5 className="font-black text-xs text-slate-900 uppercase italic line-clamp-2 leading-tight">{reward.title}</h5>
+                                                                                <h5 className="font-black text-xs text-[#1E242B] uppercase italic line-clamp-2 leading-tight">{reward.title}</h5>
                                                                                 <div className="flex items-center justify-between mt-1">
-                                                                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-200">
+                                                                                    <span className="text-[9px] font-black text-[#1E242B] bg-[#F7AA1C] px-2 py-0.5 rounded-lg border border-[#1E242B] shadow-[1px_1px_0px_#1E242B]">
                                                                                         {reward.points_required} PTS
                                                                                     </span>
                                                                                 </div>
@@ -1629,10 +1629,10 @@ function CustomerDashboardContent() {
                                                                                 )}
                                                                             </div>
                                                                             <Button
-                                                                                className="w-full mt-2 h-7 rounded-lg font-black italic uppercase text-[8px] bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20 transition-all flex items-center justify-center"
+                                                                                className="w-full mt-2 h-9 min-h-[36px] rounded-xl font-black italic uppercase text-[9px] sm:text-[10px] bg-[#E9592C] hover:bg-[#d4481d] text-white border-2 border-[#1E242B] shadow-[2px_2px_0px_#1E242B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all flex items-center justify-center text-center px-1 truncate"
                                                                                 onClick={(e) => { e.stopPropagation(); handleRedeemReward(reward) }}
                                                                             >
-                                                                                QUERO AGORA
+                                                                                <span className="truncate w-full text-center">QUERO AGORA</span>
                                                                             </Button>
                                                                         </div>
                                                                     ))}
@@ -1642,24 +1642,24 @@ function CustomerDashboardContent() {
 
                                                         {loading && isExpanded ? (
                                                             <div className="flex justify-center py-6">
-                                                                <div className="h-7 w-7 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                                                                <div className="h-7 w-7 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
                                                             </div>
                                                         ) : (
                                                             <>
                                                                 {products.length > 0 && (
                                                                     <div className="relative w-full mb-3">
-                                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#1E242B]" />
                                                                         <Input
                                                                             type="text"
                                                                             placeholder={`Buscar produto nesta loja...`}
                                                                             value={productSearchQueries[company.id] || ''}
                                                                             onChange={(e) => setProductSearchQueries({ ...productSearchQueries, [company.id]: e.target.value })}
-                                                                            className="pl-9 h-8 bg-slate-50 border-slate-200 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:border-brand-blue"
+                                                                            className="pl-9 h-9 bg-white border-2 border-[#1E242B] rounded-xl text-xs font-black italic placeholder:text-slate-400 focus-visible:ring-0 shadow-[2px_2px_0px_#1E242B]"
                                                                         />
                                                                         {productSearchQueries[company.id] && (
                                                                             <button
                                                                                 onClick={() => setProductSearchQueries({ ...productSearchQueries, [company.id]: '' })}
-                                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#1E242B] hover:text-black text-xs font-black"
                                                                             >
                                                                                 ✕
                                                                             </button>
@@ -1668,7 +1668,7 @@ function CustomerDashboardContent() {
                                                                 )}
 
                                                                 {products.length === 0 && isExpanded ? (
-                                                                    <div className="text-center py-6 text-slate-400 font-bold text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                                    <div className="text-center py-6 text-slate-500 font-black text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
                                                                 ) : (
                                                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                                         {[...products]
@@ -1678,44 +1678,48 @@ function CustomerDashboardContent() {
                                                                                 return (product.name || '').toLowerCase().includes(q) ||
                                                                                        (product.description || '').toLowerCase().includes(q)
                                                                             })
-                                                                    .sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0))
-                                                                    .map(product => (
-                                                                    <div key={product.id} className="bg-white rounded-[16px] p-3 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
-                                                                        {product.is_top_seller && (
-                                                                            <div className="absolute top-0 right-0 bg-[#E9592C] text-white text-[8px] font-black px-2.5 py-0.5 rounded-bl-lg uppercase italic shadow-sm z-10 flex items-center gap-1">
-                                                                                <Flame className="h-2.5 w-2.5" /> Top Vendas Qrido
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-6 p-2 gap-2.5">
-                                                                            <div className="flex-1 flex flex-col justify-center min-w-0">
-                                                                                <h4 className="text-xs font-black text-slate-900 uppercase italic leading-tight">{product.name}</h4>
-                                                                                <p className="text-brand-blue font-black italic mt-0.5 text-xs">R$ {product.price}</p>
-                                                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
-                                                                            </div>
-                                                                            
-                                                                            <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
-                                                                                <div className={cn(
-                                                                                    "border text-[9px] font-black py-1.5 rounded-lg italic uppercase shadow-inner text-center flex items-center justify-center h-8 w-full",
-                                                                                    pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
-                                                                                )}>
-                                                                                    +{product.points_reward * pointsMultiplier} PTS
+                                                                            .sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0))
+                                                                            .map(product => (
+                                                                            <div key={product.id} className="bg-white rounded-2xl p-3.5 border-2 border-[#1E242B] shadow-[3px_3px_0px_#1E242B] flex flex-col justify-between hover:shadow-[4px_4px_0px_#1E242B] transition-all relative overflow-hidden group">
+                                                                                {product.is_top_seller && (
+                                                                                    <div className="absolute top-0 right-0 bg-[#E9592C] text-white border-b-2 border-l-2 border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-bl-xl uppercase italic shadow-sm z-10 flex items-center gap-1">
+                                                                                        <Flame className="h-2.5 w-2.5" /> Top Vendas Qrido
+                                                                                    </div>
+                                                                                )}
+                                                                                <div className="flex flex-row items-center justify-between flex-1 pt-5 pb-1 px-0.5 gap-2.5 min-w-0">
+                                                                                    <div className="flex-1 flex flex-col justify-center min-w-0 pr-1">
+                                                                                        <h4 className="text-xs sm:text-sm font-black text-[#1E242B] uppercase italic leading-tight truncate">{product.name}</h4>
+                                                                                        <p className="text-brand-blue font-black italic mt-0.5 text-xs">R$ {product.price}</p>
+                                                                                        <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2 leading-snug">{product.description}</p>
+                                                                                    </div>
+                                                                                    
+                                                                                    <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
+                                                                                        <div className={cn(
+                                                                                            "border-2 border-[#1E242B] text-[9px] font-black py-1.5 rounded-xl italic uppercase text-center flex items-center justify-center h-8 w-full shadow-[1px_1px_0px_#1E242B]",
+                                                                                            pointsMultiplier > 1 ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-slate-100 text-[#1E242B]"
+                                                                                        )}>
+                                                                                            +{product.points_reward * pointsMultiplier} PTS
+                                                                                        </div>
+                                                                                        <Button
+                                                                                            className={cn(
+                                                                                                "w-full h-9 min-h-[36px] rounded-xl border-2 border-[#1E242B] font-black italic uppercase text-[9px] sm:text-[10px] leading-tight shadow-[2px_2px_0px_#1E242B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all px-1.5 flex items-center justify-center text-center truncate",
+                                                                                                lastAddedItem === product.id
+                                                                                                    ? "bg-[#167657] text-white"
+                                                                                                    : "bg-[#E9592C] hover:bg-[#d4481d] text-white"
+                                                                                            )}
+                                                                                            onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
+                                                                                        >
+                                                                                            <span className="truncate w-full text-center">
+                                                                                                {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                                                            </span>
+                                                                                        </Button>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <Button
-                                                                                    className={cn(
-                                                                                        "w-full h-8 rounded-lg font-black italic uppercase text-[8px] shadow-sm transition-all duration-300 px-1 truncate flex items-center justify-center",
-                                                                                        lastAddedItem === product.id
-                                                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20"
-                                                                                    )}
-                                                                                    onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
-                                                                                >
-                                                                                    {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
-                                                                                </Button>
                                                                             </div>
-                                                                        </div>
+                                                                        ))}
                                                                     </div>
-                                                                ))}
-                                                            </div>
+                                                                )}
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
