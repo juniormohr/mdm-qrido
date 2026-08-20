@@ -1855,7 +1855,7 @@ function AdminContent() {
                                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
                                                                 <span className="text-slate-300">•</span>
                                                                 <p className="text-[9px] text-slate-400 font-medium">
-                                                                    {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    {toLocalDateString(tx.created_at, 'America/Sao_Paulo').split('-').reverse().join('/')} às {new Date(tx.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -1882,7 +1882,7 @@ function AdminContent() {
                                                                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider truncate">{storeName}</p>
                                                                 <span className="text-blue-200">•</span>
                                                                 <p className="text-[9px] text-slate-400 font-medium">
-                                                                    {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    {toLocalDateString(tx.created_at, 'America/Sao_Paulo').split('-').reverse().join('/')} às {new Date(tx.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                                                                 </p>
                                                             </div>
                                                         </div>
@@ -1913,7 +1913,7 @@ function AdminContent() {
                                                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
                                                                     <span className="text-slate-300">•</span>
                                                                     <p className="text-[9px] text-slate-400 font-medium">
-                                                                        {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                        {toLocalDateString(tx.created_at, 'America/Sao_Paulo').split('-').reverse().join('/')} às {new Date(tx.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -1940,7 +1940,7 @@ function AdminContent() {
                                                                     <p className="text-[10px] font-bold text-purple-400 uppercase tracking-wider truncate">{storeName}</p>
                                                                     <span className="text-purple-200">•</span>
                                                                     <p className="text-[9px] text-purple-400 font-medium">
-                                                                        {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                        {toLocalDateString(tx.created_at, 'America/Sao_Paulo').split('-').reverse().join('/')} às {new Date(tx.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                                                                     </p>
                                                                 </div>
                                                             </div>
@@ -1967,7 +1967,7 @@ function AdminContent() {
                                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{storeName}</p>
                                                             <span className="text-slate-300">•</span>
                                                             <p className="text-[9px] text-slate-400 font-medium">
-                                                                {new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                    {toLocalDateString(tx.created_at, 'America/Sao_Paulo').split('-').reverse().join('/')} às {new Date(tx.created_at).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                                                             </p>
                                                         </div>
                                                     </div>
