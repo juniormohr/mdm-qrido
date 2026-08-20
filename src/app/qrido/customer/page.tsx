@@ -1661,9 +1661,14 @@ export default function CustomerDashboard() {
                             </div>
                         </div>
                         {userLocation && (
-                            <Button onClick={requestLocation} variant="outline" className="w-full sm:w-auto border-brand-blue/20 text-brand-blue hover:bg-brand-blue/10 rounded-xl h-8 text-[10px] font-black uppercase italic tracking-wider shadow-sm">
+                            <Button onClick={requestLocation} className="w-full sm:w-auto border-2 border-[#1E242B] bg-[#F7AA1C] text-[#1E242B] hover:bg-[#F7AA1C]/90 rounded-xl h-8 text-[10px] font-black uppercase italic tracking-wider shadow-[2px_2px_0px_#1E242B]">
                                 <MapPin className="h-3 w-3 mr-1" />
-                                Atuali                    {/* Campo de Busca por Nome da Empresa ou Produto */}
+                                Atualizar Localização
+                            </Button>
+                        )}
+                    </div>
+
+                    {/* Campo de Busca por Nome da Empresa ou Produto */}
                     <div className="relative w-full">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#1E242B]" />
                         <Input
