@@ -150,6 +150,7 @@ function CustomerDashboardContent() {
     const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
     const [featuredProductsLoading, setFeaturedProductsLoading] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [productSearchQueries, setProductSearchQueries] = useState<Record<string, string>>({})
     const [favorites, setFavorites] = useState<string[]>([])
 
     useEffect(() => {
@@ -847,44 +848,88 @@ function CustomerDashboardContent() {
         setLoading(true)
         const supabase = createClient()
         
-        let rawCompanies: Company[] = []
+        // 1. Buscar todas as empresas ativas (perfis)
+        const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, company_type')
+            .in('role', ['company', 'mall', 'holding'])
 
+        // Buscar endereços cadastrados
+        const { data: addresses } = await supabase
+            .from('addresses')
+            .select('profile_id, city, state')
+
+        const addressMap = new Map<string, string>()
+        if (addresses) {
+            addresses.forEach((a: any) => {
+                if (a.profile_id && a.city) {
+                    addressMap.set(a.profile_id, `${a.city}${a.state ? `, ${a.state}` : ''}`)
+                }
+            })
+        }
+
+        let rawCompanies: Company[] = (profiles || []).map((p: any) => ({
+            id: p.id,
+            full_name: p.full_name,
+            company_type: p.company_type,
+            address: addressMap.get(p.id) || ''
+        }))
+
+        // 2. Se houver geolocalização do usuário, enriquecer com distâncias via RPC
         if (userLocation) {
-            const { data } = await supabase.rpc('get_nearby_companies', {
+            const { data: nearbyData } = await supabase.rpc('get_nearby_companies', {
                 user_lat: userLocation.lat,
                 user_lon: userLocation.lon,
                 radius_km: 100
             })
-            if (data) {
-                rawCompanies = data.map((d: any) => ({
-                    id: d.company_id,
-                    full_name: d.company_name,
-                    distance: d.distance_km,
-                    address: d.city ? `${d.city}, ${d.state}` : ''
-                }))
-            }
-        } else {
-            const { data: profiles } = await supabase
-                .from('profiles')
-                .select('id, full_name')
-                .eq('role', 'company')
 
-            if (profiles) {
-                rawCompanies = profiles as Company[]
+            if (nearbyData) {
+                const nearbyMap = new Map<string, { distance_km: number, city?: string, state?: string }>()
+                nearbyData.forEach((d: any) => {
+                    nearbyMap.set(d.company_id, {
+                        distance_km: d.distance_km,
+                        city: d.city,
+                        state: d.state
+                    })
+                })
+
+                rawCompanies = rawCompanies.map(c => {
+                    const geo = nearbyMap.get(c.id)
+                    if (geo) {
+                        return {
+                            ...c,
+                            distance: geo.distance_km,
+                            address: geo.city ? `${geo.city}${geo.state ? `, ${geo.state}` : ''}` : c.address
+                        }
+                    }
+                    return c
+                })
             }
         }
-        // Filtrar apenas empresas com pagamento confirmado ou status de parceria
+
+        // 3. Filtrar apenas empresas com pagamento confirmado ou status de parceria ativo
         if (rawCompanies.length > 0) {
             const candidateIds = rawCompanies.map(c => c.id)
             const activeIds = new Set(await filterActiveCompanyIds(supabase, candidateIds))
             rawCompanies = rawCompanies.filter(c => activeIds.has(c.id))
         }
 
-        // Ordenar: as empresas com pontos em dobro ativos vão para o topo
+        // 4. Ordenação:
+        // - Pontos em dobro primeiro
+        // - Lojas com menor distância primeiro
+        // - Demais empresas em ordem alfabética
         const sorted = [...rawCompanies].sort((a, b) => {
             const aDouble = loyaltyConfigs[a.id]?.double_points_active ? 1 : 0
             const bDouble = loyaltyConfigs[b.id]?.double_points_active ? 1 : 0
-            return bDouble - aDouble
+            if (aDouble !== bDouble) return bDouble - aDouble
+
+            if (a.distance !== undefined && b.distance !== undefined) {
+                return a.distance - b.distance
+            }
+            if (a.distance !== undefined) return -1
+            if (b.distance !== undefined) return 1
+
+            return (a.full_name || '').localeCompare(b.full_name || '')
         })
 
         setCompanies(sorted)
@@ -892,8 +937,8 @@ function CustomerDashboardContent() {
     }
 
     useEffect(() => {
-        if (activeTab === 'offers') fetchCompanies()
-    }, [userLocation])
+        if (activeTab === 'offers' || activeTab === 'my_stores') fetchCompanies()
+    }, [userLocation, activeTab])
 
     const requestLocation = () => {
         if (!navigator.geolocation) {
@@ -1599,17 +1644,40 @@ function CustomerDashboardContent() {
                                                             <div className="flex justify-center py-6">
                                                                 <div className="h-7 w-7 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
                                                             </div>
-                                                        ) : products.length === 0 && isExpanded ? (
-                                                            <div className="text-center py-6 text-slate-400 font-bold text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
                                                         ) : (
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                {[...products]
-                                                                    .filter(product => {
-                                                                        if (!searchQuery.trim()) return true
-                                                                        const q = searchQuery.toLowerCase().trim()
-                                                                        return (product.name || '').toLowerCase().includes(q) ||
-                                                                               (product.description || '').toLowerCase().includes(q)
-                                                                    })
+                                                            <>
+                                                                {products.length > 0 && (
+                                                                    <div className="relative w-full mb-3">
+                                                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                                                        <Input
+                                                                            type="text"
+                                                                            placeholder={`Buscar produto nesta loja...`}
+                                                                            value={productSearchQueries[company.id] || ''}
+                                                                            onChange={(e) => setProductSearchQueries({ ...productSearchQueries, [company.id]: e.target.value })}
+                                                                            className="pl-9 h-8 bg-slate-50 border-slate-200 rounded-xl text-xs font-medium placeholder:text-slate-400 focus:border-brand-blue"
+                                                                        />
+                                                                        {productSearchQueries[company.id] && (
+                                                                            <button
+                                                                                onClick={() => setProductSearchQueries({ ...productSearchQueries, [company.id]: '' })}
+                                                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                                                            >
+                                                                                ✕
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+
+                                                                {products.length === 0 && isExpanded ? (
+                                                                    <div className="text-center py-6 text-slate-400 font-bold text-xs italic">Nenhuma oferta ativa nesta loja no momento.</div>
+                                                                ) : (
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                        {[...products]
+                                                                            .filter(product => {
+                                                                                const q = (productSearchQueries[company.id] || '').toLowerCase().trim()
+                                                                                if (!q) return true
+                                                                                return (product.name || '').toLowerCase().includes(q) ||
+                                                                                       (product.description || '').toLowerCase().includes(q)
+                                                                            })
                                                                     .sort((a, b) => (b.is_top_seller ? 1 : 0) - (a.is_top_seller ? 1 : 0))
                                                                     .map(product => (
                                                                     <div key={product.id} className="bg-white rounded-[16px] p-3 border border-slate-100 shadow-sm flex flex-col hover:border-brand-blue/30 transition-colors group/item relative overflow-hidden">
