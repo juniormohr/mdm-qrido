@@ -1554,48 +1554,50 @@ export default function CustomerDashboard() {
                                 const pointsMultiplier = (product.double_points_active || (loyaltyConfigs[product.company_id]?.double_points_active && product.double_points_active !== false)) ? 2 : 1
                                 
                                 return (
-                                    <Card key={product.id} className="border-none shadow-md bg-white border border-slate-100 overflow-hidden rounded-[24px] hover:border-orange-200 transition-all h-full flex flex-col group relative">
+                                    <Card key={product.id} className="bg-white border-2 border-[#1E242B] shadow-[4px_4px_0px_#1E242B] rounded-3xl overflow-hidden hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_#1E242B] transition-all h-full flex flex-col group relative">
                                         {pointsMultiplier > 1 && (
-                                            <div className="absolute top-2.5 left-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10 flex items-center gap-1 border border-amber-300">
+                                            <div className="absolute top-2.5 left-2.5 bg-[#F7AA1C] text-[#1E242B] border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-[1px_1px_0px_#1E242B] z-10 flex items-center gap-1">
                                                 <GoldCoinsIcon />
                                                 <span>Pontos em Dobro</span>
                                             </div>
                                         )}
                                         {product.is_top_seller && (
-                                            <div className="absolute top-2.5 right-2.5 bg-[#E9592C] text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-sm z-10">
-                                                🔥 Top Vendas Qrido
+                                            <div className="absolute top-2.5 right-2.5 bg-[#E9592C] text-white border border-[#1E242B] text-[8px] font-black px-2 py-0.5 rounded-full uppercase italic shadow-[1px_1px_0px_#1E242B] z-10 flex items-center gap-1">
+                                                <Flame className="h-2.5 w-2.5" /> Top Vendas Qrido
                                             </div>
                                         )}
-                                        <div className="flex flex-row items-stretch justify-between flex-1 pt-9 p-4 gap-3">
-                                            <div className="flex-1 flex flex-col justify-center min-w-0">
+                                        <div className="flex flex-row items-center justify-between flex-1 pt-9 pb-3 px-3 gap-2.5 min-w-0">
+                                            <div className="flex-1 flex flex-col justify-center min-w-0 pr-1">
                                                 <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <Store className="h-3 w-3 text-brand-blue" />
+                                                    <Store className="h-3 w-3 text-brand-blue shrink-0" />
                                                     <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[130px]">
                                                         {company?.full_name || 'Parceiro'}
                                                     </span>
                                                 </div>
-                                                <CardTitle className="text-base font-black text-slate-900 uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
+                                                <CardTitle className="text-sm sm:text-base font-black text-[#1E242B] uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
                                                 <p className="text-brand-blue font-black italic text-xs">R$ {product.price}</p>
-                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
+                                                <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2 leading-snug">{product.description}</p>
                                             </div>
                                             
                                             <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
                                                 <div className={cn(
-                                                    "border text-[9px] font-black py-1.5 rounded-xl italic uppercase shadow-inner text-center flex items-center justify-center h-8 w-full",
-                                                    pointsMultiplier > 1 ? "bg-amber-50 border-amber-200 text-amber-700 font-extrabold" : "bg-slate-50 border-slate-100 text-slate-600"
+                                                    "border-2 border-[#1E242B] text-[9px] font-black py-1.5 rounded-xl italic uppercase text-center flex items-center justify-center h-8 w-full shadow-[1px_1px_0px_#1E242B]",
+                                                    pointsMultiplier > 1 ? "bg-[#F7AA1C] text-[#1E242B]" : "bg-slate-100 text-[#1E242B]"
                                                 )}>
                                                     +{product.points_reward * pointsMultiplier} PTS
                                                 </div>
                                                 <Button
                                                     className={cn(
-                                                        "w-full h-9 rounded-xl font-black italic uppercase text-[9px] shadow-md transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                        "w-full h-9 min-h-[36px] rounded-xl border-2 border-[#1E242B] font-black italic uppercase text-[9px] sm:text-[10px] leading-tight shadow-[2px_2px_0px_#1E242B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all px-1.5 flex items-center justify-center text-center truncate",
                                                         lastAddedItem === product.id
-                                                            ? "bg-[#167657] hover:bg-[#167657]/90 text-white"
-                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white shadow-md shadow-[#E9592C]/20"
+                                                            ? "bg-[#167657] text-white"
+                                                            : "bg-[#E9592C] hover:bg-[#d4481d] text-white"
                                                     )}
                                                     onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                                 >
-                                                    {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                    <span className="truncate w-full text-center">
+                                                        {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                    </span>
                                                 </Button>
                                             </div>
                                         </div>

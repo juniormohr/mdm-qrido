@@ -1403,17 +1403,17 @@ function CustomerDashboardContent() {
                                                     🔥 Top Vendas Qrido
                                                 </div>
                                             )}
-                                            <div className="flex flex-row items-stretch justify-between flex-1 pt-9 p-4 gap-3">
-                                                <div className="flex-1 flex flex-col justify-center min-w-0">
+                                            <div className="flex flex-row items-center justify-between flex-1 pt-9 pb-3 px-3 gap-2.5 min-w-0">
+                                                <div className="flex-1 flex flex-col justify-center min-w-0 pr-1">
                                                     <div className="flex items-center gap-1.5 mb-0.5">
-                                                        <Store className="h-3 w-3 text-brand-blue" />
+                                                        <Store className="h-3 w-3 text-brand-blue shrink-0" />
                                                         <span className="text-[9px] font-black text-brand-blue uppercase italic tracking-widest truncate max-w-[130px]">
                                                             {company?.full_name || 'Parceiro'}
                                                         </span>
                                                     </div>
-                                                    <CardTitle className="text-base font-black text-[#1E242B] uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
+                                                    <CardTitle className="text-sm sm:text-base font-black text-[#1E242B] uppercase italic mb-0.5 line-clamp-1">{product.name}</CardTitle>
                                                     <p className="text-brand-blue font-black italic text-xs">R$ {product.price}</p>
-                                                    <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2">{product.description}</p>
+                                                    <p className="text-[9px] text-slate-500 font-medium italic mt-1 line-clamp-2 leading-snug">{product.description}</p>
                                                 </div>
                                                 
                                                 <div className="flex flex-col justify-center gap-1.5 w-28 shrink-0">
@@ -1425,14 +1425,16 @@ function CustomerDashboardContent() {
                                                     </div>
                                                     <Button
                                                         className={cn(
-                                                            "w-full h-9 rounded-xl border-2 border-[#1E242B] font-black italic uppercase text-[9px] shadow-[2px_2px_0px_#1E242B] transition-all duration-300 px-1 truncate flex items-center justify-center",
+                                                            "w-full h-9 min-h-[36px] rounded-xl border-2 border-[#1E242B] font-black italic uppercase text-[9px] sm:text-[10px] leading-tight shadow-[2px_2px_0px_#1E242B] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all px-1.5 flex items-center justify-center text-center truncate",
                                                             lastAddedItem === product.id
                                                                 ? "bg-[#167657] text-white"
                                                                 : "bg-[#E9592C] hover:bg-[#d4481d] text-white"
                                                         )}
                                                         onClick={(e) => { e.stopPropagation(); handleAddToCart(product) }}
                                                     >
-                                                        {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                        <span className="truncate w-full text-center">
+                                                            {lastAddedItem === product.id ? "ADICIONADO!" : "QUERO AGORA"}
+                                                        </span>
                                                     </Button>
                                                 </div>
                                             </div>
