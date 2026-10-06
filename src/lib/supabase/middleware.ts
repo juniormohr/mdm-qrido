@@ -6,6 +6,12 @@ export async function updateSession(request: NextRequest) {
         request,
     })
 
+    const WEBHOOKS = ['/api/guru/webhook', '/api/asaas/webhook']
+    if (WEBHOOKS.some(p => request.nextURL.pathname.startsWith(p)))
+    {
+        return NextResponse.next({ request})
+    }
+
     // Create an unmodified response if needed to verify session without modifying unless necessary
 
     const supabase = createServerClient(

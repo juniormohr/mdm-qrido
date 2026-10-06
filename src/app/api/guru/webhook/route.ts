@@ -7,12 +7,13 @@ export async function POST(req: Request) {
     
     // Opcional: Validação por Token de Segurança no Header se configurado no Guru
     const secretToken = process.env.GURU_WEBHOOK_SECRET
-    if (secretToken) {
+    if (!secretToken) 
+        return NextResonse.json({ error: 'Webhook secret token not configured' }, { status: 500 })
         const receivedToken = requestHeaders.get('x-guru-token') || requestHeaders.get('authorization')
         if (receivedToken !== secretToken) {
             return NextResponse.json({ error: 'Unauthorized webhook request' }, { status: 401 })
         }
-    }
+    
 
     const supabaseAdmin = createAdminClient()
 
